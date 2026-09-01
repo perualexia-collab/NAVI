@@ -1,8 +1,10 @@
 import { PrismaClient } from "@prisma/client";
+import argon2 from "argon2";
 import { kpiDefinitions } from "./seed-data/kpi-definitions.js";
 import { signalDefinitions } from "./seed-data/signal-definitions.js";
 import { audienceDefinitions } from "./seed-data/audience-definitions.js";
 import { pilotHotel } from "./seed-data/pilot-hotel.js";
+import { devAdmin } from "./seed-data/dev-admin.js";
 
 const prisma = new PrismaClient();
 
@@ -42,6 +44,16 @@ async function main() {
     update: pilotHotel
   });
   console.log(`  ✓ hôtel pilote du vertical slice : ${pilotHotel.name} (statut ${pilotHotel.experienceStatus})`);
+
+  if (process.env.SEED_DEV_ADMIN === "true") {
+    const passwordHash = await argon2.hash(devAdmin.password);
+    await prisma.user.upsert({
+      where: { email: devAdmin.email },
+      create: { email: devAdmin.email, passwordHash, name: devAdmin.name, role: "ADMIN" },
+      update: { passwordHash }
+    });
+    console.log(`  ✓ compte de développement local : ${devAdmin.email}`);
+  }
 
   console.log("Seed terminé.");
 }

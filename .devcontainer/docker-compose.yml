@@ -1,0 +1,28 @@
+services:
+  app:
+    image: mcr.microsoft.com/playwright:v1.56.1-noble
+    volumes:
+      # Chemins résolus relativement au répertoire du PREMIER fichier passé
+      # à `docker compose -f` (../docker-compose.yml, donc la racine du
+      # repo) — pas relativement à ce fichier. D'où "." et non "..".
+      - .:/workspace:cached
+    working_dir: /workspace
+    command: sleep infinity
+    environment:
+      # Config non sensible — le seul secret (SESSION_SECRET) est généré
+      # localement par .devcontainer/post-create.sh dans backend/.env
+      # (jamais committé).
+      DATABASE_URL: postgresql://navi:navi@postgres:5432/navi
+      REDIS_URL: redis://redis:6379
+      SCAN_QUEUE_CONCURRENCY: "1"
+      PLAYWRIGHT_HEADLESS: "true"
+      # L'image mcr.microsoft.com/playwright embarque déjà les navigateurs
+      # à cet emplacement — inutile de les retélécharger au pnpm install.
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      EXPERIENCE_PROFILE_DIR: /workspace/backend/experience-profile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy

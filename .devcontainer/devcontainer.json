@@ -1,0 +1,35 @@
+{
+  "name": "NAVI",
+  "dockerComposeFile": ["../docker-compose.yml", "docker-compose.yml"],
+  "service": "app",
+  "workspaceFolder": "/workspace",
+  "shutdownAction": "stopCompose",
+
+  "forwardPorts": [4000, 5173],
+  "portsAttributes": {
+    "5173": {
+      "label": "NAVI — Frontend",
+      "onAutoForward": "openPreview"
+    },
+    "4000": {
+      "label": "NAVI — API",
+      "onAutoForward": "silent"
+    }
+  },
+
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "postStartCommand": "bash .devcontainer/post-start.sh",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss",
+        "Prisma.prisma"
+      ]
+    }
+  },
+
+  "remoteUser": "root"
+}

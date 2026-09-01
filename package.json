@@ -5,7 +5,9 @@
   "engines": {
     "node": ">=20"
   },
+  "packageManager": "pnpm@10.33.0",
   "scripts": {
+    "dev": "concurrently -n backend,frontend -c blue,magenta \"pnpm dev:backend\" \"pnpm dev:frontend\"",
     "dev:backend": "pnpm --filter @navi/backend dev",
     "dev:frontend": "pnpm --filter @navi/frontend dev",
     "build": "pnpm -r build",
@@ -13,6 +15,10 @@
     "typecheck": "pnpm -r typecheck",
     "prisma:generate": "pnpm --filter @navi/backend prisma:generate",
     "prisma:migrate": "pnpm --filter @navi/backend prisma:migrate",
+    "prisma:deploy": "pnpm --filter @navi/backend prisma:deploy",
     "prisma:seed": "pnpm --filter @navi/backend prisma:seed"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
   }
 }
