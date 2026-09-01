@@ -25,8 +25,8 @@ export function AppShell() {
   return (
     <div className="flex min-h-screen">
       <aside className="relative flex w-64 flex-col overflow-hidden border-r border-graphite/10 bg-linen px-5 pb-6 pt-7">
-        <div className="relative z-10 mb-9 flex justify-center">
-          <LogoFull className="h-16" />
+        <div className="relative z-10 mb-7 flex justify-center">
+          <LogoFull className="h-24" />
         </div>
 
         <nav className="relative z-10 flex flex-col gap-1">
