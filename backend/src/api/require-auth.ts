@@ -12,10 +12,24 @@ export async function requireUser(request: FastifyRequest, reply: FastifyReply):
   }
 
   const user = await prisma.user.findUnique({ where: { id: unsigned.value } });
-  if (!user || !user.active) {
+  if (!user || user.status !== "ACTIVE") {
     reply.code(401).send({ error: "Non authentifié." });
     return null;
   }
 
   return { id: user.id, role: user.role };
+}
+
+/**
+ * Comme requireUser, mais exige en plus le rôle ADMIN — gestion des
+ * utilisateurs NAVI réservée aux admins (retours Phase C.5, §6).
+ */
+export async function requireAdmin(request: FastifyRequest, reply: FastifyReply): Promise<{ id: string; role: string } | null> {
+  const user = await requireUser(request, reply);
+  if (!user) return null;
+  if (user.role !== "ADMIN") {
+    reply.code(403).send({ error: "Réservé aux administrateurs." });
+    return null;
+  }
+  return user;
 }

@@ -4,7 +4,6 @@ import { useQuery } from "@tanstack/react-query";
 import { getHotel } from "../mock/data.js";
 import { api } from "../lib/api.js";
 import { DateRangeControl } from "../components/ui/DateRangeControl.js";
-import { StarRating } from "../components/ui/StarRating.js";
 import { Icon } from "../components/ui/icons.js";
 import { formatDateTime } from "../lib/format.js";
 import { OverviewTab } from "../features/crm-health/OverviewTab.js";
@@ -58,11 +57,8 @@ function MockHotelDetail({ hotel }: { hotel: NonNullable<ReturnType<typeof getHo
             <Icon.Building width={20} height={20} />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl">{hotel.name}</h1>
-              <StarRating value={hotel.starRating} />
-            </div>
-            <p className="text-sm text-graphite-faint">{hotel.portfolioName} • {hotel.city}</p>
+            <h1 className="text-xl">{hotel.name}</h1>
+            <p className="text-sm text-graphite-faint">{hotel.portfolioName}</p>
           </div>
         </div>
 

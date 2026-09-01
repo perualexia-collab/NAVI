@@ -11,8 +11,6 @@ export type HealthLevel = "Critique" | "Fragile" | "Correct" | "Bon" | "Excellen
 export interface MockHotel {
   id: string;
   name: string;
-  city: string;
-  starRating: number;
   portfolioId: string;
   portfolioName: string;
   lastScanAt: string | null; // null = jamais scanné

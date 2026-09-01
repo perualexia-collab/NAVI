@@ -49,7 +49,7 @@ async function main() {
     const passwordHash = await argon2.hash(devAdmin.password);
     await prisma.user.upsert({
       where: { email: devAdmin.email },
-      create: { email: devAdmin.email, passwordHash, name: devAdmin.name, role: "ADMIN" },
+      create: { email: devAdmin.email, passwordHash, name: devAdmin.name, role: "ADMIN", status: "ACTIVE" },
       update: { passwordHash }
     });
     console.log(`  ✓ compte de développement local : ${devAdmin.email}`);

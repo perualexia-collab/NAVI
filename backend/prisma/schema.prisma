@@ -22,17 +22,48 @@ enum Role {
   USER
 }
 
+// PENDING = compte créé par un admin, mot de passe pas encore défini
+// (lien d'activation envoyé/à copier) ; ACTIVE = peut se connecter ;
+// DISABLED = accès bloqué par un admin. Retours Phase C.5 (2026-09-01).
+enum UserStatus {
+  PENDING
+  ACTIVE
+  DISABLED
+}
+
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String
+  id           String     @id @default(cuid())
+  email        String     @unique
+  // Null tant que l'utilisateur n'a pas défini son mot de passe via son
+  // lien d'activation (statut PENDING) — pas d'inscription publique, donc
+  // pas de mot de passe choisi par l'admin à sa place (brief §7).
+  passwordHash String?
   name         String
-  role         Role     @default(USER)
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now())
+  role         Role       @default(USER)
+  status       UserStatus @default(PENDING)
+  createdAt    DateTime   @default(now())
 
   portfolios Portfolio[]
   scans      Scan[]
+  invites    InviteToken[]
+}
+
+// Jeton d'activation à usage unique — on ne stocke jamais le jeton en
+// clair, seulement son hash (comme un mot de passe). Le lien complet
+// (contenant le jeton brut) n'existe qu'une fois, à la création, et est
+// affiché à l'admin pour copie manuelle : aucun fournisseur d'e-mail n'est
+// branché pour l'instant (retours Phase C.5, §3).
+model InviteToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // ------------------------------------------------------------------
@@ -50,9 +81,10 @@ model Hotel {
   id                     String                @id @default(cuid())
   name                   String
   experienceLabel        String // libellé exact recherché dans Expérience
-  city                   String?
-  starRating              Int?
-  roomCount              Int?
+  // Identifiant stable côté Expérience, renseigné une fois la vérification
+  // Playwright effectuée (hors scope de cette passe — retours Phase C.5,
+  // §2) : évite de re-résoudre la correspondance de nom à chaque scan.
+  experienceHotelId      String?
   experienceStatus       HotelExperienceStatus @default(TO_VERIFY)
   disabled               Boolean               @default(false)
   lastConnectionCheckAt  DateTime?

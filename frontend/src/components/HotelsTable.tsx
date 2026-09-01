@@ -2,7 +2,6 @@ import { Link } from "react-router-dom";
 import type { MockHotel } from "../mock/types.js";
 import { ScoreRing } from "./ui/ScoreRing.js";
 import { StatusPill } from "./ui/StatusPill.js";
-import { StarRating } from "./ui/StarRating.js";
 import { Icon } from "./ui/icons.js";
 import { formatDate } from "../lib/format.js";
 
@@ -37,12 +36,7 @@ export function HotelsTable({ hotels, showPortfolio = false }: { hotels: MockHot
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-linen-deep text-graphite-soft">
                     <Icon.Building width={15} height={15} />
                   </div>
-                  <div>
-                    <div className="font-medium text-graphite">{hotel.name}</div>
-                    <div className="flex items-center gap-1.5 text-xs text-graphite-faint">
-                      {hotel.city} <StarRating value={hotel.starRating} />
-                    </div>
-                  </div>
+                  <div className="font-medium text-graphite">{hotel.name}</div>
                 </Link>
               </td>
               {showPortfolio && <td className="text-graphite-soft">{hotel.portfolioName}</td>}

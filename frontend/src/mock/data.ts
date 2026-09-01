@@ -19,8 +19,6 @@ export const hotels: MockHotel[] = [
   {
     id: "h-galileo",
     name: "Hôtel Galileo",
-    city: "Paris 15",
-    starRating: 4,
     portfolioId: "p-paris",
     portfolioName: "Paris Collection",
     lastScanAt: "2026-08-31T08:42:00",
@@ -34,8 +32,6 @@ export const hotels: MockHotel[] = [
   {
     id: "h-louis-ii",
     name: "Hôtel Louis II",
-    city: "Paris 6",
-    starRating: 4,
     portfolioId: "p-paris",
     portfolioName: "Paris Collection",
     lastScanAt: "2026-08-31T07:15:00",
@@ -49,8 +45,6 @@ export const hotels: MockHotel[] = [
   {
     id: "h-majestic",
     name: "Hôtel Majestic",
-    city: "Paris 16",
-    starRating: 4,
     portfolioId: "p-paris",
     portfolioName: "Paris Collection",
     lastScanAt: "2026-08-30T22:31:00",
@@ -64,8 +58,6 @@ export const hotels: MockHotel[] = [
   {
     id: "h-delavigne",
     name: "Hôtel Delavigne",
-    city: "Paris 6",
-    starRating: 3,
     portfolioId: "p-paris",
     portfolioName: "Paris Collection",
     lastScanAt: "2026-08-28T00:00:00",
@@ -79,8 +71,6 @@ export const hotels: MockHotel[] = [
   {
     id: "h-excelsior",
     name: "Hôtel Excelsior Opéra",
-    city: "Paris 9",
-    starRating: 4,
     portfolioId: "p-paris",
     portfolioName: "Paris Collection",
     lastScanAt: null,

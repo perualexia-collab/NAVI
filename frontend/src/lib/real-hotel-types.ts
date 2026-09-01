@@ -17,9 +17,30 @@ export interface RealHotel {
   id: string;
   name: string;
   experienceLabel: string;
+  // Identifiant stable côté Expérience — renseigné une fois la vérification
+  // Playwright effectuée (pas encore implémentée, retours Phase C.5 §2).
+  experienceHotelId: string | null;
   experienceStatus: ExperienceStatus;
   disabled: boolean;
   lastConnectionCheckAt: string | null;
+}
+
+export interface RealPortfolio {
+  id: string;
+  name: string;
+  createdAt: string;
+  hotels: RealHotel[];
+}
+
+export type UserStatus = "PENDING" | "ACTIVE" | "DISABLED";
+
+export interface RealUser {
+  id: string;
+  email: string;
+  name: string;
+  role: "ADMIN" | "USER";
+  status: UserStatus;
+  createdAt: string;
 }
 
 export interface RealKpiResult {

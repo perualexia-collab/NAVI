@@ -1,5 +1,5 @@
 import type { User } from "@navi/shared";
-import type { RealHotel, RealHotelHealth, ScanPeriodValue } from "./real-hotel-types.js";
+import type { RealHotel, RealHotelHealth, RealPortfolio, RealUser, ScanPeriodValue } from "./real-hotel-types.js";
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -33,10 +33,26 @@ export const api = {
   me: () => request<User>("/auth/me"),
 
   listRealHotels: () => request<RealHotel[]>("/hotels"),
+  createHotel: (name: string) => request<RealHotel>("/hotels", { method: "POST", body: JSON.stringify({ name }) }),
   getHotelHealth: (hotelId: string) => request<RealHotelHealth>(`/hotels/${hotelId}/health`),
   launchScan: (hotelId: string, periodValue: ScanPeriodValue) =>
     request<{ scanId: string; scanHotelId: string; status: string }>(`/hotels/${hotelId}/scans`, {
       method: "POST",
       body: JSON.stringify({ period: { mode: "preset", value: periodValue } })
-    })
+    }),
+
+  listPortfolios: () => request<RealPortfolio[]>("/portfolios"),
+  createPortfolio: (name: string, hotelIds: string[]) =>
+    request<RealPortfolio>("/portfolios", { method: "POST", body: JSON.stringify({ name, hotelIds }) }),
+
+  listUsers: () => request<RealUser[]>("/users"),
+  createUser: (input: { firstName: string; lastName: string; email: string }) =>
+    request<{ user: RealUser; activationToken: string }>("/users", { method: "POST", body: JSON.stringify(input) }),
+  disableUser: (id: string) => request<RealUser>(`/users/${id}/disable`, { method: "POST" }),
+  reactivateUser: (id: string) => request<RealUser>(`/users/${id}/reactivate`, { method: "POST" }),
+  resendInvite: (id: string) => request<{ activationToken: string }>(`/users/${id}/resend-invite`, { method: "POST" }),
+
+  getInvite: (token: string) => request<{ email: string; name: string }>(`/invites/${token}`),
+  activateInvite: (token: string, password: string) =>
+    request<{ ok: true }>(`/invites/${token}/activate`, { method: "POST", body: JSON.stringify({ password }) })
 };

@@ -3,6 +3,7 @@ import { AuthProvider } from "./lib/auth-context.js";
 import { RequireAuth } from "./components/RequireAuth.js";
 import { AppShell } from "./components/AppShell.js";
 import { Login } from "./pages/Login.js";
+import { ActivateAccount } from "./pages/ActivateAccount.js";
 import { Home } from "./pages/Home.js";
 import { Portfolios } from "./pages/Portfolios.js";
 import { CrmHealth } from "./pages/CrmHealth.js";
@@ -16,6 +17,7 @@ export function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/activate/:token" element={<ActivateAccount />} />
           <Route
             element={
               <RequireAuth>

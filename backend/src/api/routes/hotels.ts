@@ -11,11 +11,36 @@ const periodSchema = z.object({
   value: z.enum(["last3Months", "last6Months", "last12Months"])
 });
 
+const createHotelSchema = z.object({
+  name: z.string().trim().min(1, "Nom de l'hôtel requis.")
+});
+
 export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) {
   app.get("/api/hotels", async (request, reply) => {
     const user = await requireUser(request, reply);
     if (!user) return;
     return prisma.hotel.findMany({ orderBy: { name: "asc" } });
+  });
+
+  // Ajouter un hôtel — retours Phase C.5, §2 : le nom est la seule
+  // information métier nécessaire à ce stade. La vérification Expérience
+  // (recherche Playwright + normalisation de nom) n'est PAS implémentée
+  // ici (hors scope de cette passe) : l'hôtel est créé "à vérifier",
+  // experienceLabel reprend le nom saisi (c'est ce libellé qui sera
+  // recherché dans Expérience plus tard).
+  app.post("/api/hotels", async (request, reply) => {
+    const user = await requireUser(request, reply);
+    if (!user) return;
+
+    const body = createHotelSchema.safeParse(request.body);
+    if (!body.success) {
+      return reply.code(400).send({ error: body.error.issues[0]?.message ?? "Requête invalide." });
+    }
+
+    const hotel = await prisma.hotel.create({
+      data: { name: body.data.name, experienceLabel: body.data.name, experienceStatus: "TO_VERIFY" }
+    });
+    return reply.code(201).send(hotel);
   });
 
   app.get("/api/hotels/:hotelId", async (request, reply) => {

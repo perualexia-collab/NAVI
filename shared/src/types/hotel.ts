@@ -9,9 +9,11 @@ export interface Hotel {
   id: string;
   name: string;
   experienceLabel: string;
-  city: string | null;
-  starRating: number | null;
-  roomCount: number | null;
+  // Identifiant stable côté Expérience, renseigné une fois la vérification
+  // Playwright effectuée (retours Phase C.5, §2 — vérification elle-même
+  // hors scope de cette passe) : évite de re-résoudre la correspondance de
+  // nom à chaque scan.
+  experienceHotelId: string | null;
   experienceStatus: HotelExperienceStatus;
   disabled: boolean;
   lastConnectionCheckAt: string | null;

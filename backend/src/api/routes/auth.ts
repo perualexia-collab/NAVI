@@ -8,8 +8,8 @@ const loginSchema = z.object({
   password: z.string().min(1)
 });
 
-function sanitizeUser(user: { id: string; email: string; name: string; role: string }) {
-  return { id: user.id, email: user.email, name: user.name, role: user.role };
+function sanitizeUser(user: { id: string; email: string; name: string; role: string; status: string }) {
+  return { id: user.id, email: user.email, name: user.name, role: user.role, status: user.status };
 }
 
 export async function authRoutes(app: FastifyInstance) {
@@ -21,9 +21,11 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     const user = await prisma.user.findUnique({ where: { email: body.data.email } });
-    const valid = user ? await verifyPassword(user.passwordHash, body.data.password) : false;
+    // status !== ACTIVE couvre à la fois PENDING (mot de passe pas encore
+    // défini — passwordHash est alors null) et DISABLED.
+    const valid = user?.passwordHash ? await verifyPassword(user.passwordHash, body.data.password) : false;
 
-    if (!user || !valid || !user.active) {
+    if (!user || !valid || user.status !== "ACTIVE") {
       // Message volontairement identique dans tous les cas d'échec — ne pas révéler
       // si l'e-mail existe.
       return reply.code(401).send({ error: "Identifiants incorrects." });
@@ -53,7 +55,7 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     const user = await prisma.user.findUnique({ where: { id: unsigned.value } });
-    if (!user || !user.active) {
+    if (!user || user.status !== "ACTIVE") {
       return reply.code(401).send({ error: "Non authentifié." });
     }
 
