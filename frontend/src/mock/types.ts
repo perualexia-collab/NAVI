@@ -28,7 +28,9 @@ export interface MockPortfolio {
   id: string;
   name: string;
   hotelCount: number;
-  healthScore: number;
+  // null = portefeuille tout juste créé, aucun scan encore réalisé à son
+  // échelle — pas de score fabriqué (retours Phase C.5, §10).
+  healthScore: number | null;
   healthDelta: number;
   scannedCount: number;
   toScanCount: number;

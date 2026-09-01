@@ -29,8 +29,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function logout() {
-    await api.logout();
-    setUser(null);
+    try {
+      await api.logout();
+    } finally {
+      // La session locale doit être considérée close même si l'appel réseau
+      // échoue — sinon un utilisateur resterait "connecté" côté UI malgré
+      // un cookie déjà invalidé ou une requête en échec (retours Phase C.5).
+      setUser(null);
+    }
   }
 
   return <AuthContext.Provider value={{ user, loading, login, logout }}>{children}</AuthContext.Provider>;

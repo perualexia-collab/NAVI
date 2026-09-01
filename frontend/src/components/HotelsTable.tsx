@@ -50,7 +50,7 @@ export function HotelsTable({ hotels, showPortfolio = false }: { hotels: MockHot
               <td>
                 {hotel.healthScore !== null ? (
                   <div className="flex items-center gap-2">
-                    <ScoreRing score={hotel.healthScore} size={34} strokeWidth={4} />
+                    <ScoreRing score={hotel.healthScore} size={38} strokeWidth={4} />
                   </div>
                 ) : (
                   <Dash />

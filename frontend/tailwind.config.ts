@@ -15,7 +15,7 @@ export default {
     extend: {
       colors: {
         parchment: {
-          DEFAULT: "#f4eee1", // fond principal
+          DEFAULT: "#FCF8F7", // fond principal — retours Phase C.5 (2026-09-01)
           soft: "#faf6ec"
         },
         linen: {

@@ -50,7 +50,14 @@ export function AskNavi() {
             </form>
             <div className="mt-3 flex flex-wrap gap-2">
               {suggestedQuestions.map((q) => (
-                <button key={q} onClick={() => setAsked(true)} className="rounded-full border border-graphite/15 px-3 py-1 text-xs text-graphite-soft hover:border-terracotta hover:text-terracotta">
+                <button
+                  key={q}
+                  onClick={() => {
+                    setQuestion(q);
+                    setAsked(false);
+                  }}
+                  className="rounded-full border border-graphite/15 px-3 py-1 text-xs text-graphite-soft hover:border-terracotta hover:text-terracotta"
+                >
                   {q}
                 </button>
               ))}
@@ -140,7 +147,14 @@ export function AskNavi() {
             <CardHeader title="Questions suggérées" />
             <div className="flex flex-col divide-y divide-graphite/10">
               {moreSuggestedQuestions.map((q) => (
-                <button key={q} onClick={() => setAsked(true)} className="py-2 text-left text-sm text-graphite-soft first:pt-0 last:pb-0 hover:text-terracotta">
+                <button
+                  key={q}
+                  onClick={() => {
+                    setQuestion(q);
+                    setAsked(false);
+                  }}
+                  className="py-2 text-left text-sm text-graphite-soft first:pt-0 last:pb-0 hover:text-terracotta"
+                >
                   {q}
                 </button>
               ))}

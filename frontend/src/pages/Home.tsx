@@ -37,7 +37,7 @@ export function Home() {
             <div className="mt-3 font-display text-2xl font-semibold tabular-nums">{homeStats.averageHealthScore}/100</div>
             <div className="mt-1"><TrendLabel delta={homeStats.averageHealthDelta} /></div>
           </div>
-          <ScoreRing score={homeStats.averageHealthScore} size={52} strokeWidth={5} />
+          <ScoreRing score={homeStats.averageHealthScore} size={60} strokeWidth={5} />
         </Card>
       </div>
 
@@ -98,7 +98,7 @@ export function Home() {
                 <div className="text-sm font-medium">{p.name}</div>
                 <div className="text-xs text-graphite-faint">{p.hotelCount} hôtels</div>
                 <div className="mt-2 flex items-center gap-2">
-                  <ScoreRing score={p.healthScore} size={38} strokeWidth={4} />
+                  <ScoreRing score={p.healthScore} size={44} strokeWidth={4} />
                   <TrendLabel delta={p.healthDelta} />
                 </div>
               </Link>

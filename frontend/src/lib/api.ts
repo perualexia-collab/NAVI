@@ -10,7 +10,11 @@ export class ApiError extends Error {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api${path}`, {
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
+    // N'envoyer Content-Type: application/json que s'il y a vraiment un
+    // corps JSON — sinon Fastify tente de parser un corps vide comme JSON
+    // et rejette la requête en 400 (cassait /auth/logout, retours Phase
+    // C.5 : la session n'était alors jamais invalidée côté serveur).
+    headers: init?.body ? { "Content-Type": "application/json" } : undefined,
     ...init
   });
 

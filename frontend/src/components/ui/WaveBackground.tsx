@@ -1,33 +1,29 @@
 /**
  * Motif de vagues/reliefs NAVI — brief §33 : "Le motif graphique NAVI
  * composé de vagues/reliefs peut notamment être utilisé sur Login, sidebar,
- * zones de branding pertinentes." Approximation géométrique tant que les
- * assets de marque définitifs ne sont pas intégrés.
+ * zones de branding pertinentes." Reprend la logique graphique du mockup
+ * (retours Phase C.5, 2026-09-01) : 3 reliefs superposés, en ondulation
+ * continue jusqu'au bord droit — pas de forme qui s'arrête net.
  */
 export function WaveBackground({ className = "" }: { className?: string }) {
   return (
     <svg
-      viewBox="0 0 1200 320"
+      viewBox="0 0 1200 400"
       preserveAspectRatio="none"
       className={className}
       aria-hidden="true"
     >
       <path
-        d="M0,180 C200,120 350,220 600,170 C850,120 1000,200 1200,150 L1200,320 L0,320 Z"
-        fill="#dbe4ed"
-        opacity="0.7"
+        d="M0,150 C140,115 260,175 430,145 C610,115 760,165 940,135 C1060,113 1130,122 1200,118 L1200,400 L0,400 Z"
+        fill="#a9bcd4"
+        opacity="0.55"
       />
       <path
-        d="M0,220 C220,260 380,160 620,210 C860,260 1000,180 1200,210 L1200,320 L0,320 Z"
+        d="M0,205 C160,155 300,235 500,195 C690,157 840,220 1010,182 C1090,165 1150,172 1200,168 L1200,400 L0,400 Z"
         fill="#5c7455"
       />
       <path
-        d="M0,260 C260,220 420,290 680,250 C900,215 1050,270 1200,240 L1200,320 L0,320 Z"
-        fill="#3a4a35"
-        opacity="0.85"
-      />
-      <path
-        d="M0,300 C180,280 300,300 480,290 L480,320 L0,320 Z"
+        d="M0,255 C110,215 190,285 330,268 C470,251 555,308 675,288 C800,267 895,318 1000,298 C1080,283 1140,292 1200,286 L1200,400 L0,400 Z"
         fill="#be5e2e"
       />
     </svg>

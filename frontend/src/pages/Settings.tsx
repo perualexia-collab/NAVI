@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Card } from "../components/ui/Card.js";
+import { Modal } from "../components/ui/Modal.js";
 import { Icon } from "../components/ui/icons.js";
-import { mockAdminHotels, mockUsers } from "../mock/settings.js";
+import { mockAdminHotels, mockUsers, type MockAdminHotel } from "../mock/settings.js";
 
 const EXPERIENCE_STATUS_LABEL = {
   ACTIVE: "Actif",
@@ -47,13 +48,35 @@ export function Settings() {
 }
 
 function HotelsAdmin() {
+  const [hotels, setHotels] = useState<MockAdminHotel[]>(mockAdminHotels);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [name, setName] = useState("");
+
+  function handleCreate(event: React.FormEvent) {
+    event.preventDefault();
+    if (!name.trim()) return;
+    // Seul le nom NAVI est un champ sûr à ce stade : le rattachement à
+    // l'établissement Expérience correspondant n'est pas encore défini
+    // (retours Phase C.5, §9) — l'hôtel est créé "à vérifier", sans
+    // libellé Expérience inventé.
+    setHotels((prev) => [
+      ...prev,
+      { id: `h-local-${Date.now()}`, name: name.trim(), experienceLabel: "—", experienceStatus: "TO_VERIFY" }
+    ]);
+    setName("");
+    setModalOpen(false);
+  }
+
   return (
     <Card>
       <div className="mb-4 flex items-center justify-between">
         <p className="text-sm text-graphite-soft">
           Un hôtel n'est actif que si sa connexion a été validée dans Expérience (brief §24) — la seule saisie d'un nom ne suffit pas.
         </p>
-        <button className="flex shrink-0 items-center gap-1.5 rounded-lg bg-terracotta px-4 py-2 text-sm font-medium text-white hover:opacity-90">
+        <button
+          onClick={() => setModalOpen(true)}
+          className="flex shrink-0 items-center gap-1.5 rounded-lg bg-terracotta px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+        >
           <Icon.Plus width={16} height={16} /> Ajouter un hôtel
         </button>
       </div>
@@ -67,7 +90,7 @@ function HotelsAdmin() {
           </tr>
         </thead>
         <tbody>
-          {mockAdminHotels.map((hotel) => (
+          {hotels.map((hotel) => (
             <tr key={hotel.id} className="border-b border-graphite/5 last:border-0">
               <td className="py-2.5 font-medium">{hotel.name}</td>
               <td className="text-graphite-soft">{hotel.experienceLabel}</td>
@@ -85,6 +108,42 @@ function HotelsAdmin() {
           ))}
         </tbody>
       </table>
+
+      {modalOpen && (
+        <Modal title="Ajouter un hôtel" onClose={() => setModalOpen(false)}>
+          <form onSubmit={handleCreate} className="flex flex-col gap-4">
+            <label className="flex flex-col gap-1 text-sm text-graphite">
+              Nom de l'hôtel (NAVI)
+              <input
+                autoFocus
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Ex. Hôtel Excelsior Opéra"
+                className="rounded-lg border border-graphite/20 bg-parchment-soft px-3 py-2 text-sm outline-none focus:border-terracotta"
+              />
+            </label>
+
+            <div className="flex items-start gap-2 rounded-lg bg-horizon-soft px-3 py-2 text-xs text-horizon-ink">
+              <Icon.Info width={14} height={14} className="mt-0.5 shrink-0" />
+              <span>
+                Le rattachement à l'établissement correspondant dans Expérience n'est pas encore défini (champs de
+                correspondance à préciser) — l'hôtel sera créé avec le statut « À vérifier », sans connexion
+                Expérience pour le moment.
+              </span>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setModalOpen(false)} className="rounded-lg px-4 py-2 text-sm text-graphite-soft hover:bg-linen-deep">
+                Annuler
+              </button>
+              <button type="submit" className="rounded-lg bg-terracotta px-4 py-2 text-sm font-medium text-white hover:opacity-90">
+                Ajouter l'hôtel
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </Card>
   );
 }

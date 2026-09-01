@@ -1,11 +1,10 @@
 # Assets de marque NAVI
 
-En attente des fichiers logo définitifs (transmis visuellement en conversation
-mais pas encore reçus en pièce jointe — cf. NAVI Architecture Proposal).
+Logos définitifs reçus (retours Phase C.5, 2026-09-01) :
 
-À déposer ici une fois reçus :
-- `mark.svg` — le "N" seul (favicon, sidebar repliée)
-- `logo-full.svg` — logo + wordmark "NAVI" + tagline "NAVIGATE. ANALYZE. ACT."
+- `mark.png` — le "N" seul (PNG transparent, 2000×2000) — sidebar repliée, favicon.
+- `logo-full.png` — logo + wordmark "NAVI" + tagline "NAVIGATE. ANALYZE. ACT."
+  (PNG transparent, 2000×2000) — page de login, en-tête de sidebar.
 
-Tant que ces fichiers ne sont pas disponibles, `AppShell` affiche un
-wordmark texte simple — ne pas approximer le mark graphique à l'œil.
+`components/ui/Logo.tsx` charge ces fichiers directement. Ne pas les
+recréer ou réinterpréter en CSS/texte tant que ces assets sont disponibles.

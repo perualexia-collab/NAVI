@@ -1,28 +1,46 @@
 import { useMemo, useState } from "react";
 import { Card } from "../components/ui/Card.js";
 import { ScoreRing } from "../components/ui/ScoreRing.js";
+import { Modal } from "../components/ui/Modal.js";
 import { TrendLabel } from "../components/ui/StatusPill.js";
 import { DateRangeControl } from "../components/ui/DateRangeControl.js";
 import { Icon } from "../components/ui/icons.js";
 import { HotelsTable } from "../components/HotelsTable.js";
-import { hotelsByPortfolio, portfolios } from "../mock/data.js";
+import { hotels as allHotels, hotelsByPortfolio, portfolios as initialPortfolios } from "../mock/data.js";
+import type { MockHotel, MockPortfolio } from "../mock/types.js";
 
 const STATUS_FILTERS = ["Tous les statuts", "Excellent", "Sain", "À surveiller", "Critique", "Aucun scan"] as const;
 
 export function Portfolios() {
+  const [portfolios, setPortfolios] = useState<MockPortfolio[]>(initialPortfolios);
+  // Hôtels choisis pour chaque portefeuille créé dans cette passe — les
+  // hôtels mockés existants ne sont pas réassignés (on ne touche pas à la
+  // composition des portefeuilles déjà mockés, retours Phase C.5, §C).
+  const [customMembers, setCustomMembers] = useState<Record<string, string[]>>({});
   const [selectedId, setSelectedId] = useState(portfolios[0]!.id);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]>("Tous les statuts");
+  const [modalOpen, setModalOpen] = useState(false);
 
   const selected = portfolios.find((p) => p.id === selectedId) ?? portfolios[0]!;
 
   const hotels = useMemo(() => {
-    return hotelsByPortfolio(selected.id).filter((hotel) => {
+    const base = customMembers[selected.id]
+      ? allHotels.filter((h) => customMembers[selected.id]!.includes(h.id))
+      : hotelsByPortfolio(selected.id);
+    return base.filter((hotel) => {
       const matchesSearch = hotel.name.toLowerCase().includes(search.toLowerCase());
       const matchesStatus = statusFilter === "Tous les statuts" || hotel.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
-  }, [selected.id, search, statusFilter]);
+  }, [selected.id, customMembers, search, statusFilter]);
+
+  function handleCreate(newPortfolio: MockPortfolio, hotelIds: string[]) {
+    setPortfolios((prev) => [...prev, newPortfolio]);
+    setCustomMembers((prev) => ({ ...prev, [newPortfolio.id]: hotelIds }));
+    setSelectedId(newPortfolio.id);
+    setModalOpen(false);
+  }
 
   return (
     <div>
@@ -31,7 +49,10 @@ export function Portfolios() {
           <h1 className="text-2xl">Mes portefeuilles</h1>
           <p className="mt-1 text-sm text-graphite-soft">Organisez vos ensembles d'hôtels et suivez leur santé CRM globale.</p>
         </div>
-        <button className="flex items-center gap-1.5 rounded-lg bg-terracotta px-4 py-2 text-sm font-medium text-white hover:opacity-90">
+        <button
+          onClick={() => setModalOpen(true)}
+          className="flex items-center gap-1.5 rounded-lg bg-terracotta px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+        >
           <Icon.Plus width={16} height={16} /> Nouveau portefeuille
         </button>
       </div>
@@ -47,10 +68,16 @@ export function Portfolios() {
                 <div className="mt-3 flex items-center justify-between">
                   <div>
                     <div className="text-[10px] uppercase tracking-wide text-graphite-faint">Santé CRM</div>
-                    <TrendLabel delta={portfolio.healthDelta} />
-                    <div className="text-[10px] text-graphite-faint">vs période précédente</div>
+                    {portfolio.healthScore === null ? (
+                      <div className="text-xs text-graphite-faint">Première analyse</div>
+                    ) : (
+                      <>
+                        <TrendLabel delta={portfolio.healthDelta} />
+                        <div className="text-[10px] text-graphite-faint">vs période précédente</div>
+                      </>
+                    )}
                   </div>
-                  <ScoreRing score={portfolio.healthScore} size={48} strokeWidth={5} />
+                  <ScoreRing score={portfolio.healthScore} size={56} strokeWidth={5} />
                 </div>
                 <div className="mt-3 flex items-center gap-3 text-[11px] text-graphite-soft">
                   <LegendDot color="bg-sage" label={`${portfolio.scannedCount} scannés`} />
@@ -96,9 +123,97 @@ export function Portfolios() {
           </button>
         </div>
 
-        <HotelsTable hotels={hotels} />
+        {hotels.length === 0 ? (
+          <p className="py-6 text-center text-sm text-graphite-faint">Aucun hôtel dans ce portefeuille pour l'instant.</p>
+        ) : (
+          <HotelsTable hotels={hotels} />
+        )}
       </Card>
+
+      {modalOpen && <CreatePortfolioModal onClose={() => setModalOpen(false)} onCreate={handleCreate} />}
     </div>
+  );
+}
+
+function CreatePortfolioModal({
+  onClose,
+  onCreate
+}: {
+  onClose: () => void;
+  onCreate: (portfolio: MockPortfolio, hotelIds: string[]) => void;
+}) {
+  const [name, setName] = useState("");
+  const [selectedHotelIds, setSelectedHotelIds] = useState<string[]>([]);
+
+  function toggleHotel(id: string) {
+    setSelectedHotelIds((prev) => (prev.includes(id) ? prev.filter((h) => h !== id) : [...prev, id]));
+  }
+
+  function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!name.trim() || selectedHotelIds.length === 0) return;
+    onCreate(
+      {
+        id: `p-local-${Date.now()}`,
+        name: name.trim(),
+        hotelCount: selectedHotelIds.length,
+        healthScore: null,
+        healthDelta: 0,
+        scannedCount: 0,
+        toScanCount: selectedHotelIds.length,
+        criticalCount: 0
+      },
+      selectedHotelIds
+    );
+  }
+
+  return (
+    <Modal title="Nouveau portefeuille" onClose={onClose}>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <label className="flex flex-col gap-1 text-sm text-graphite">
+          Nom du portefeuille
+          <input
+            autoFocus
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Ex. Portefeuille Sud-Ouest"
+            className="rounded-lg border border-graphite/20 bg-parchment-soft px-3 py-2 text-sm outline-none focus:border-terracotta"
+          />
+        </label>
+
+        <div className="flex flex-col gap-1 text-sm text-graphite">
+          Hôtels ({selectedHotelIds.length} sélectionné{selectedHotelIds.length > 1 ? "s" : ""})
+          <div className="max-h-52 overflow-y-auto rounded-lg border border-graphite/15">
+            {allHotels.map((hotel: MockHotel) => (
+              <label key={hotel.id} className="flex items-center gap-2 border-b border-graphite/5 px-3 py-2 text-sm last:border-0 hover:bg-linen-deep">
+                <input
+                  type="checkbox"
+                  checked={selectedHotelIds.includes(hotel.id)}
+                  onChange={() => toggleHotel(hotel.id)}
+                  className="rounded border-graphite/30"
+                />
+                <span className="flex-1">{hotel.name}</span>
+                <span className="text-xs text-graphite-faint">{hotel.city}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="rounded-lg px-4 py-2 text-sm text-graphite-soft hover:bg-linen-deep">
+            Annuler
+          </button>
+          <button
+            type="submit"
+            disabled={!name.trim() || selectedHotelIds.length === 0}
+            className="rounded-lg bg-terracotta px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+          >
+            Créer le portefeuille
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

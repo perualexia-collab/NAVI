@@ -105,7 +105,7 @@ function ScanResult({ scan, scanCount }: { scan: RealScanSummary; scanCount: num
         <Card>
           <div className="text-xs font-medium uppercase tracking-wide text-graphite-faint">Santé CRM globale</div>
           <div className="mt-3 flex items-center gap-3">
-            <ScoreRing score={scan.healthScore} size={52} strokeWidth={5} />
+            <ScoreRing score={scan.healthScore} size={60} strokeWidth={5} />
             <div className="text-sm">
               {scan.healthScore !== null ? (
                 <span className="rounded-full bg-sage-soft px-2 py-0.5 text-xs font-medium text-sage-ink">{scan.healthLevel}</span>
