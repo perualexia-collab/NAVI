@@ -7,7 +7,8 @@ import { generateInviteToken } from "../../lib/invite-tokens.js";
 const createUserSchema = z.object({
   firstName: z.string().trim().min(1, "Prénom requis."),
   lastName: z.string().trim().min(1, "Nom requis."),
-  email: z.string().trim().email("Adresse e-mail invalide.")
+  email: z.string().trim().email("Adresse e-mail invalide."),
+  role: z.enum(["ADMIN", "USER"]).default("USER")
 });
 
 function sanitizeUser(user: { id: string; email: string; name: string; role: string; status: string; createdAt: Date }) {
@@ -51,7 +52,7 @@ export async function usersRoutes(app: FastifyInstance) {
       data: {
         email: body.data.email,
         name,
-        role: "USER",
+        role: body.data.role,
         status: "PENDING",
         invites: { create: { tokenHash: invite.hash, expiresAt: invite.expiresAt } }
       }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card } from "../components/ui/Card.js";
 import { Modal } from "../components/ui/Modal.js";
@@ -33,10 +33,15 @@ const USER_STATUS_STYLE: Record<UserStatus, string> = {
   DISABLED: "bg-linen-deep text-graphite-faint"
 };
 
-const TABS = ["Hôtels", "Utilisateurs"] as const;
+const ALL_TABS = ["Hôtels", "Utilisateurs"] as const;
 
 export function Settings() {
-  const [tab, setTab] = useState<(typeof TABS)[number]>("Hôtels");
+  const { user } = useAuth();
+  // Gestion des utilisateurs réservée aux admins (brief §7, retours Phase
+  // C.5) — le backend refuse déjà ces routes à un compte USER, mais ne pas
+  // même proposer l'onglet évite l'incompréhension d'un bouton qui échoue.
+  const tabs = user?.role === "ADMIN" ? ALL_TABS : ["Hôtels" as const];
+  const [tab, setTab] = useState<(typeof ALL_TABS)[number]>("Hôtels");
 
   return (
     <div>
@@ -44,7 +49,7 @@ export function Settings() {
       <p className="mt-1 text-sm text-graphite-soft">Gestion des hôtels connectés à Expérience et des utilisateurs NAVI.</p>
 
       <div className="mt-6 flex gap-1 border-b border-graphite/10">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -56,7 +61,7 @@ export function Settings() {
       </div>
 
       <div className="mt-5">
-        {tab === "Hôtels" ? <HotelsAdmin /> : <UsersAdmin />}
+        {tab === "Hôtels" || user?.role !== "ADMIN" ? <HotelsAdmin /> : <UsersAdmin />}
       </div>
     </div>
   );
@@ -194,6 +199,7 @@ function UsersAdmin() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [role, setRole] = useState<"ADMIN" | "USER">("USER");
   const [createError, setCreateError] = useState<string | null>(null);
   const [activationLink, setActivationLink] = useState<string | null>(null);
 
@@ -202,12 +208,13 @@ function UsersAdmin() {
   }
 
   const createMutation = useMutation({
-    mutationFn: () => api.createUser({ firstName: firstName.trim(), lastName: lastName.trim(), email: email.trim() }),
+    mutationFn: () => api.createUser({ firstName: firstName.trim(), lastName: lastName.trim(), email: email.trim(), role }),
     onSuccess: ({ activationToken }) => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       setFirstName("");
       setLastName("");
       setEmail("");
+      setRole("USER");
       setCreateError(null);
       setModalOpen(false);
       setActivationLink(buildLink(activationToken));
@@ -227,6 +234,15 @@ function UsersAdmin() {
     mutationFn: (id: string) => api.resendInvite(id),
     onSuccess: ({ activationToken }) => setActivationLink(buildLink(activationToken))
   });
+
+  function handleCopyLink(id: string) {
+    // Régénérer invalide le lien précédent (usage unique) — confirmer pour
+    // éviter qu'un admin ne rende invalide, sans s'en rendre compte, un
+    // lien déjà transmis en cliquant une seconde fois.
+    if (window.confirm("Générer un nouveau lien invalidera le précédent s'il existe déjà. Continuer ?")) {
+      resendMutation.mutate(id);
+    }
+  }
 
   return (
     <Card>
@@ -273,7 +289,7 @@ function UsersAdmin() {
                     isSelf={u.id === currentUser?.id}
                     onDisable={() => disableMutation.mutate(u.id)}
                     onReactivate={() => reactivateMutation.mutate(u.id)}
-                    onCopyLink={() => resendMutation.mutate(u.id)}
+                    onCopyLink={() => handleCopyLink(u.id)}
                     pending={disableMutation.isPending || reactivateMutation.isPending || resendMutation.isPending}
                   />
                 </td>
@@ -329,6 +345,18 @@ function UsersAdmin() {
                 placeholder="prenom.nom@exemple.com"
                 className="rounded-lg border border-graphite/20 bg-parchment-soft px-3 py-2 text-sm outline-none focus:border-terracotta"
               />
+            </label>
+
+            <label className="flex flex-col gap-1 text-sm text-graphite">
+              Rôle
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value as "ADMIN" | "USER")}
+                className="rounded-lg border border-graphite/20 bg-parchment-soft px-3 py-2 text-sm outline-none focus:border-terracotta"
+              >
+                <option value="USER">Utilisateur</option>
+                <option value="ADMIN">Admin</option>
+              </select>
             </label>
 
             <div className="flex items-start gap-2 rounded-lg bg-horizon-soft px-3 py-2 text-xs text-horizon-ink">
@@ -403,14 +431,26 @@ function UserRowAction({
 
 function ActivationLinkModal({ link, onClose }: { link: string; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Sélectionné dès l'affichage — un simple Ctrl/Cmd+C fonctionne toujours,
+  // même si l'API Clipboard est indisponible (contexte non sécurisé,
+  // permission refusée — fréquent dans un aperçu Codespaces).
+  useEffect(() => {
+    inputRef.current?.select();
+  }, []);
 
   async function copy() {
     try {
       await navigator.clipboard.writeText(link);
       setCopied(true);
+      setCopyError(false);
       setTimeout(() => setCopied(false), 2000);
     } catch {
       setCopied(false);
+      setCopyError(true);
+      inputRef.current?.select();
     }
   }
 
@@ -421,7 +461,13 @@ function ActivationLinkModal({ link, onClose }: { link: string; onClose: () => v
         7 jours.
       </p>
       <div className="flex items-center gap-2 rounded-lg border border-graphite/20 bg-parchment-soft px-3 py-2">
-        <input readOnly value={link} className="w-full bg-transparent text-sm outline-none" onFocus={(e) => e.target.select()} />
+        <input
+          ref={inputRef}
+          readOnly
+          value={link}
+          className="w-full bg-transparent text-sm outline-none"
+          onFocus={(e) => e.target.select()}
+        />
         <button
           onClick={() => void copy()}
           className="shrink-0 rounded-lg bg-terracotta px-3 py-1.5 text-xs font-medium text-white hover:opacity-90"
@@ -429,6 +475,11 @@ function ActivationLinkModal({ link, onClose }: { link: string; onClose: () => v
           {copied ? "Copié !" : "Copier"}
         </button>
       </div>
+      {copyError && (
+        <p className="mt-2 text-xs text-alert">
+          Impossible de copier automatiquement — le texte ci-dessus est sélectionné, copie-le à la main (Ctrl/Cmd+C).
+        </p>
+      )}
       <div className="mt-4 flex justify-end">
         <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm text-graphite-soft hover:bg-linen-deep">
           Fermer

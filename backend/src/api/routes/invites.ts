@@ -15,9 +15,12 @@ const activateSchema = z.object({
  */
 export async function invitesRoutes(app: FastifyInstance) {
   app.get("/api/invites/:token", async (request, reply) => {
+    // .trim() défensif : un copier-coller manuel du lien (plutôt que le
+    // bouton "Copier") embarque facilement un espace ou un saut de ligne
+    // en fin de chaîne, ce qui ferait échouer la comparaison de hash.
     const { token } = request.params as { token: string };
     const invite = await prisma.inviteToken.findUnique({
-      where: { tokenHash: hashInviteToken(token) },
+      where: { tokenHash: hashInviteToken(token.trim()) },
       include: { user: true }
     });
 
@@ -35,7 +38,7 @@ export async function invitesRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: body.error.issues[0]?.message ?? "Requête invalide." });
     }
 
-    const invite = await prisma.inviteToken.findUnique({ where: { tokenHash: hashInviteToken(token) } });
+    const invite = await prisma.inviteToken.findUnique({ where: { tokenHash: hashInviteToken(token.trim()) } });
     if (!invite || invite.usedAt || invite.expiresAt < new Date()) {
       return reply.code(404).send({ error: "Lien d'invitation invalide ou expiré." });
     }

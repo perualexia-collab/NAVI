@@ -1,40 +1,87 @@
-import { useEffect, useRef, useState } from "react";
-import { formatDate } from "../../lib/format.js";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 const PRESETS = ["Ce mois-ci", "3 derniers mois", "12 derniers mois", "Depuis le début de l'année"] as const;
-const CUSTOM = "Période personnalisée" as const;
+type Preset = (typeof PRESETS)[number];
+
+const MONTHS_FR = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+
+function formatDateLabel(d: Date): string {
+  return `${d.getDate()} ${MONTHS_FR[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function toInputValue(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+// new Date("YYYY-MM-DD") parse en UTC minuit — mauvaise date une fois relue
+// en heure locale selon le fuseau. On construit la Date nous-mêmes.
+function parseInputValue(value: string): Date {
+  const [y, m, d] = value.split("-").map(Number);
+  return new Date(y!, m! - 1, d!);
+}
 
 /**
- * Sélecteur de période — retours Phase C.5 (2026-09-01) : rendu cliquable,
- * la sélection se reflète dans le libellé affiché. Ne déclenche aucun
- * nouvel appel de données : les écrans qui l'utilisent affichent encore
- * des données mockées ou un scan déjà chargé, on ne fabrique pas de
- * nouveau résultat de scan à partir d'un changement de période ici.
+ * Calcule les dates de début/fin d'une période prédéfinie, comme dans
+ * Expérience — retours Phase C.5 (2ᵉ passe) : "12 derniers mois" doit
+ * immédiatement renseigner début = aujourd'hui - 12 mois, fin = aujourd'hui.
+ */
+function computeRange(preset: Preset): { start: Date; end: Date } {
+  const end = new Date();
+  const start = new Date();
+  switch (preset) {
+    case "Ce mois-ci":
+      start.setDate(1);
+      break;
+    case "3 derniers mois":
+      start.setMonth(start.getMonth() - 3);
+      break;
+    case "12 derniers mois":
+      start.setMonth(start.getMonth() - 12);
+      break;
+    case "Depuis le début de l'année":
+      start.setMonth(0, 1);
+      break;
+  }
+  return { start, end };
+}
+
+/**
+ * Sélecteur de période — reprend la logique d'Expérience : choisir une
+ * période prédéfinie renseigne immédiatement les dates de début/fin
+ * correspondantes (modifiables ensuite à la main), ou saisie manuelle
+ * directe. Ne déclenche aucun nouvel appel de données : on ne fabrique pas
+ * de résultat de scan pour la période choisie ici.
  */
 export function DateRangeControl({ label = "1 janv. 2026 - 31 août 2026" }: { label?: string }) {
   const [open, setOpen] = useState(false);
-  const [selected, setSelected] = useState<string>(label);
-  const [customMode, setCustomMode] = useState(false);
-  const [customStart, setCustomStart] = useState("");
-  const [customEnd, setCustomEnd] = useState("");
+  const [activePreset, setActivePreset] = useState<Preset | null>(null);
+  const [rangeLabel, setRangeLabel] = useState(label);
+  const [startValue, setStartValue] = useState("");
+  const [endValue, setEndValue] = useState("");
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function onClickOutside(event: MouseEvent) {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
-        setOpen(false);
-        setCustomMode(false);
-      }
+      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
     }
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
 
-  function applyCustomRange(event: React.FormEvent) {
+  function selectPreset(preset: Preset) {
+    const { start, end } = computeRange(preset);
+    setStartValue(toInputValue(start));
+    setEndValue(toInputValue(end));
+    setActivePreset(preset);
+  }
+
+  function applyRange(event: FormEvent) {
     event.preventDefault();
-    if (!customStart || !customEnd) return;
-    setSelected(`${formatDate(customStart)} - ${formatDate(customEnd)}`);
-    setCustomMode(false);
+    if (!startValue || !endValue) return;
+    setRangeLabel(`${formatDateLabel(parseInputValue(startValue))} - ${formatDateLabel(parseInputValue(endValue))}`);
     setOpen(false);
   }
 
@@ -47,46 +94,39 @@ export function DateRangeControl({ label = "1 janv. 2026 - 31 août 2026" }: { l
         className="flex items-center gap-2 rounded-lg border border-graphite/15 bg-linen px-3 py-2 text-sm text-graphite-soft hover:border-graphite/30"
       >
         <CalendarIcon />
-        {selected}
+        {rangeLabel}
         <ChevronDown className={open ? "rotate-180" : ""} />
       </button>
 
       {open && (
-        <div className="absolute right-0 z-20 mt-1.5 w-64 rounded-lg border border-graphite/10 bg-linen py-1.5 shadow-md">
-          {!customMode ? (
-            <>
-              {PRESETS.map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  onClick={() => {
-                    setSelected(preset);
-                    setOpen(false);
-                  }}
-                  className={`block w-full px-3 py-2 text-left text-sm ${
-                    preset === selected ? "bg-terracotta-soft text-terracotta-ink font-medium" : "text-graphite-soft hover:bg-linen-deep"
-                  }`}
-                >
-                  {preset}
-                </button>
-              ))}
+        <div className="absolute right-0 z-20 mt-1.5 w-72 rounded-lg border border-graphite/10 bg-linen p-3 shadow-md">
+          <div className="mb-2.5 flex flex-col gap-0.5">
+            {PRESETS.map((preset) => (
               <button
+                key={preset}
                 type="button"
-                onClick={() => setCustomMode(true)}
-                className="block w-full px-3 py-2 text-left text-sm text-graphite-soft hover:bg-linen-deep"
+                onClick={() => selectPreset(preset)}
+                className={`rounded-md px-2.5 py-1.5 text-left text-sm ${
+                  preset === activePreset ? "bg-terracotta-soft text-terracotta-ink font-medium" : "text-graphite-soft hover:bg-linen-deep"
+                }`}
               >
-                {CUSTOM}
+                {preset}
               </button>
-            </>
-          ) : (
-            <form onSubmit={applyCustomRange} className="flex flex-col gap-2 px-3 py-2">
+            ))}
+          </div>
+
+          <form onSubmit={applyRange} className="flex flex-col gap-2 border-t border-graphite/10 pt-2.5">
+            <div className="grid grid-cols-2 gap-2">
               <label className="flex flex-col gap-1 text-xs text-graphite-soft">
                 Du
                 <input
                   type="date"
                   required
-                  value={customStart}
-                  onChange={(e) => setCustomStart(e.target.value)}
+                  value={startValue}
+                  onChange={(e) => {
+                    setStartValue(e.target.value);
+                    setActivePreset(null);
+                  }}
                   className="rounded-lg border border-graphite/20 bg-parchment-soft px-2 py-1.5 text-sm outline-none focus:border-terracotta"
                 />
               </label>
@@ -95,21 +135,19 @@ export function DateRangeControl({ label = "1 janv. 2026 - 31 août 2026" }: { l
                 <input
                   type="date"
                   required
-                  value={customEnd}
-                  onChange={(e) => setCustomEnd(e.target.value)}
+                  value={endValue}
+                  onChange={(e) => {
+                    setEndValue(e.target.value);
+                    setActivePreset(null);
+                  }}
                   className="rounded-lg border border-graphite/20 bg-parchment-soft px-2 py-1.5 text-sm outline-none focus:border-terracotta"
                 />
               </label>
-              <div className="mt-1 flex justify-end gap-2">
-                <button type="button" onClick={() => setCustomMode(false)} className="rounded-lg px-3 py-1.5 text-xs text-graphite-soft hover:bg-linen-deep">
-                  Retour
-                </button>
-                <button type="submit" className="rounded-lg bg-terracotta px-3 py-1.5 text-xs font-medium text-white hover:opacity-90">
-                  Appliquer
-                </button>
-              </div>
-            </form>
-          )}
+            </div>
+            <button type="submit" className="self-end rounded-lg bg-terracotta px-3 py-1.5 text-xs font-medium text-white hover:opacity-90">
+              Appliquer
+            </button>
+          </form>
         </div>
       )}
     </div>

@@ -38,8 +38,8 @@ export function Login() {
 
   return (
     <div className="relative flex min-h-screen flex-col items-center overflow-hidden bg-parchment px-4 pb-16 pt-10">
-      <div className="relative z-10 mb-5">
-        <LogoFull className="h-44" />
+      <div className="relative z-10 mb-4">
+        <LogoFull className="h-64" />
       </div>
 
       <div className="relative z-10 w-full max-w-sm rounded-card border border-graphite/10 bg-linen p-8 shadow-sm">

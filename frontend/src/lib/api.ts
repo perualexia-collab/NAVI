@@ -46,7 +46,7 @@ export const api = {
     request<RealPortfolio>("/portfolios", { method: "POST", body: JSON.stringify({ name, hotelIds }) }),
 
   listUsers: () => request<RealUser[]>("/users"),
-  createUser: (input: { firstName: string; lastName: string; email: string }) =>
+  createUser: (input: { firstName: string; lastName: string; email: string; role: "ADMIN" | "USER" }) =>
     request<{ user: RealUser; activationToken: string }>("/users", { method: "POST", body: JSON.stringify(input) }),
   disableUser: (id: string) => request<RealUser>(`/users/${id}/disable`, { method: "POST" }),
   reactivateUser: (id: string) => request<RealUser>(`/users/${id}/reactivate`, { method: "POST" }),

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Card, CardHeader } from "../components/ui/Card.js";
-import { DateRangeControl } from "../components/ui/DateRangeControl.js";
 import { Icon } from "../components/ui/icons.js";
 import { formatCurrency, formatNumber } from "../lib/format.js";
 import { conversationHistory, mockAnswer, moreSuggestedQuestions, suggestedQuestions } from "../mock/ask-navi.js";
@@ -39,7 +38,6 @@ export function AskNavi() {
           <p className="mt-1 text-sm text-graphite-soft">Posez vos questions, NAVI analyse vos données CRM et vous apporte des réponses.</p>
         </div>
         <div className="flex items-center gap-2">
-          <DateRangeControl />
           <button
             onClick={() => {
               setAsked(false);
