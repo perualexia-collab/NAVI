@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { getHotel } from "../mock/data.js";
+import { api } from "../lib/api.js";
 import { DateRangeControl } from "../components/ui/DateRangeControl.js";
 import { StarRating } from "../components/ui/StarRating.js";
 import { Icon } from "../components/ui/icons.js";
@@ -10,6 +12,7 @@ import { IndicatorsTab } from "../features/crm-health/IndicatorsTab.js";
 import { SignalsTab } from "../features/crm-health/SignalsTab.js";
 import { AudiencesTab } from "../features/crm-health/AudiencesTab.js";
 import { ScanHistoryTab } from "../features/crm-health/ScanHistoryTab.js";
+import { RealHotelOverview } from "../features/crm-health/RealHotelOverview.js";
 
 const TABS = [
   "Vue d'ensemble",
@@ -24,18 +27,30 @@ type Tab = (typeof TABS)[number];
 
 export function CrmHealthHotel() {
   const { hotelId } = useParams<{ hotelId: string }>();
-  const [tab, setTab] = useState<Tab>("Vue d'ensemble");
-  const hotel = hotelId ? getHotel(hotelId) : undefined;
+  const mockHotel = hotelId ? getHotel(hotelId) : undefined;
 
-  if (!hotel) return <Navigate to="/crm-health" replace />;
+  // Hôtel absent des données mockées → il ne peut s'agir que de l'hôtel
+  // pilote du vertical slice réel (brief §49). On ne suppose rien de plus.
+  const realHotelQuery = useQuery({
+    queryKey: ["hotel", hotelId],
+    queryFn: () => api.getHotelHealth(hotelId!),
+    enabled: !mockHotel && Boolean(hotelId)
+  });
+
+  if (mockHotel) return <MockHotelDetail hotel={mockHotel} />;
+
+  if (realHotelQuery.isLoading) return null;
+  if (!realHotelQuery.data) return <Navigate to="/crm-health" replace />;
+
+  return <RealHotelDetail hotel={realHotelQuery.data.hotel} />;
+}
+
+function MockHotelDetail({ hotel }: { hotel: NonNullable<ReturnType<typeof getHotel>> }) {
+  const [tab, setTab] = useState<Tab>("Vue d'ensemble");
 
   return (
     <div>
-      <div className="mb-4 text-xs text-graphite-faint">
-        <Link to="/" className="hover:underline">Accueil</Link> <span className="mx-1">›</span>
-        <Link to="/crm-health" className="hover:underline">CRM Health</Link> <span className="mx-1">›</span>
-        <span className="text-graphite-soft">{hotel.name}</span>
-      </div>
+      <Breadcrumb name={hotel.name} />
 
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
@@ -86,12 +101,49 @@ export function CrmHealthHotel() {
       <div className="mt-5">
         {tab === "Vue d'ensemble" && <OverviewTab hotel={hotel} />}
         {tab === "Indicateurs" && <IndicatorsTab hotel={hotel} />}
-        {tab === "Alertes" && <SignalsTab severity="ALERT" />}
-        {tab === "Vigilances" && <SignalsTab severity="VIGILANCE" />}
-        {tab === "Opportunités" && <SignalsTab severity="OPPORTUNITY" />}
+        {tab === "Alertes" && <SignalsTab severity="ALERT" count={hotel.alerts ?? 0} />}
+        {tab === "Vigilances" && <SignalsTab severity="VIGILANCE" count={hotel.vigilances ?? 0} />}
+        {tab === "Opportunités" && <SignalsTab severity="OPPORTUNITY" count={hotel.opportunities ?? 0} />}
         {tab === "Audiences" && <AudiencesTab />}
         {tab === "Historique des scans" && <ScanHistoryTab />}
       </div>
+    </div>
+  );
+}
+
+function RealHotelDetail({ hotel }: { hotel: import("../lib/real-hotel-types.js").RealHotel }) {
+  return (
+    <div>
+      <Breadcrumb name={hotel.name} />
+
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-linen-deep text-graphite-soft">
+            <Icon.Building width={20} height={20} />
+          </div>
+          <div>
+            <h1 className="text-xl">{hotel.name}</h1>
+            <p className="text-sm text-graphite-faint">
+              Hôtel pilote du premier vertical slice réel — données issues d'un vrai scan Playwright, pas d'un mock.
+            </p>
+          </div>
+        </div>
+        <span className="rounded-full bg-horizon-soft px-3 py-1 text-xs font-medium text-horizon-ink">Donnée réelle</span>
+      </div>
+
+      <div className="mt-6">
+        <RealHotelOverview hotel={hotel} />
+      </div>
+    </div>
+  );
+}
+
+function Breadcrumb({ name }: { name: string }) {
+  return (
+    <div className="mb-4 text-xs text-graphite-faint">
+      <Link to="/" className="hover:underline">Accueil</Link> <span className="mx-1">›</span>
+      <Link to="/crm-health" className="hover:underline">CRM Health</Link> <span className="mx-1">›</span>
+      <span className="text-graphite-soft">{name}</span>
     </div>
   );
 }

@@ -13,14 +13,15 @@
  * elles ne doivent pas être branchées telles quelles sur de vraies données
  * en Phase C sans validation explicite de leur source.
  *
- * ÉCART SUPPLÉMENTAIRE ENTRE LES DEUX MOCKUPS FOURNIS, NON RÉSOLU :
- * le mockup "Mes portefeuilles" affiche pour Hôtel Galileo 0 alerte /
- * 1 vigilance / 3 opportunités (repris dans src/mock/data.ts), tandis que
- * le mockup "CRM Health — fiche hôtel" affiche 3 alertes / 7 vigilances /
- * 12 opportunités pour ce même hôtel (repris ci-dessous). Les deux jeux de
- * chiffres sont conservés tels quels, chacun fidèle à SON mockup d'origine,
- * plutôt que d'en inventer un troisième par arbitrage. À trancher avant
- * Phase C — voir le message de fin de Phase B.
+ * ÉCART ENTRE LES DEUX MOCKUPS — ARBITRÉ (2026-09-01) :
+ * le mockup "Mes portefeuilles" affichait 0 alerte / 1 vigilance /
+ * 3 opportunités pour Hôtel Galileo, le mockup "CRM Health — fiche hôtel"
+ * affichait 3 alertes / 7 vigilances / 12 opportunités pour ce même hôtel.
+ * Tranché : 0 / 1 / 3 partout. Cette fiche ne définit donc plus ses propres
+ * compteurs — elle les reçoit de src/mock/data.ts (le hotel passé en prop),
+ * seule source de vérité, pour ne plus jamais pouvoir diverger. En Phase C,
+ * ces valeurs mockées seront remplacées par les vrais SignalResult issus du
+ * moteur de détection (backend/src/services/signals).
  */
 
 export interface KpiTile {
@@ -38,7 +39,7 @@ export const galileoOverview = {
   healthLevel: "Excellent" as const,
   healthDelta: 11,
   portfolioPosition: { rank: 2, total: 18, delta: 1 },
-  diagnostic: { alerts: 3, vigilances: 7, opportunities: 12, kpiAnalyzed: 43 },
+  kpiAnalyzed: 43,
   strengths: [
     "Excellente progression du CA (+18 %) et des réservations (+15 %)",
     "Bonne conversion OTA → Direct en hausse (+2,1 pts)",

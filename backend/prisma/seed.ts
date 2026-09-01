@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { kpiDefinitions } from "./seed-data/kpi-definitions.js";
 import { signalDefinitions } from "./seed-data/signal-definitions.js";
 import { audienceDefinitions } from "./seed-data/audience-definitions.js";
+import { pilotHotel } from "./seed-data/pilot-hotel.js";
 
 const prisma = new PrismaClient();
 
@@ -34,6 +35,13 @@ async function main() {
     });
   }
   console.log(`  ✓ ${audienceDefinitions.length} définitions d'audience`);
+
+  await prisma.hotel.upsert({
+    where: { id: pilotHotel.id },
+    create: pilotHotel,
+    update: pilotHotel
+  });
+  console.log(`  ✓ hôtel pilote du vertical slice : ${pilotHotel.name} (statut ${pilotHotel.experienceStatus})`);
 
   console.log("Seed terminé.");
 }

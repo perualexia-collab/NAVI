@@ -68,9 +68,9 @@ export function OverviewTab({ hotel }: { hotel: MockHotel }) {
         <Card>
           <CardHeader icon={<Icon.AlertTriangle className="text-graphite-faint" width={15} height={15} />} title="Diagnostic NAVI" action={<Link to="#" className="text-xs text-terracotta hover:underline">Voir tous les signaux →</Link>} />
           <div className="flex flex-col gap-2">
-            <DiagnosticRow icon={<Icon.AlertTriangle className="text-alert" width={16} height={16} />} count={o.diagnostic.alerts} label="Alertes" caption="Éléments critiques nécessitant votre action rapide." />
-            <DiagnosticRow icon={<Icon.Eye className="text-warn" width={16} height={16} />} count={o.diagnostic.vigilances} label="Vigilances" caption="Points à surveiller pour éviter une dégradation." />
-            <DiagnosticRow icon={<Icon.Star className="text-sage" width={16} height={16} />} count={o.diagnostic.opportunities} label="Opportunités" caption="Leviers identifiés pour améliorer vos performances." />
+            <DiagnosticRow icon={<Icon.AlertTriangle className="text-alert" width={16} height={16} />} count={hotel.alerts ?? 0} label="Alertes" caption="Éléments critiques nécessitant votre action rapide." />
+            <DiagnosticRow icon={<Icon.Eye className="text-warn" width={16} height={16} />} count={hotel.vigilances ?? 0} label="Vigilances" caption="Points à surveiller pour éviter une dégradation." />
+            <DiagnosticRow icon={<Icon.Star className="text-sage" width={16} height={16} />} count={hotel.opportunities ?? 0} label="Opportunités" caption="Leviers identifiés pour améliorer vos performances." />
           </div>
         </Card>
       </div>
@@ -87,7 +87,7 @@ export function OverviewTab({ hotel }: { hotel: MockHotel }) {
         <Card>
           <CardHeader icon={<Icon.Info className="text-graphite-faint" width={15} height={15} />} title="Diagnostic du scan" />
           <p className="text-sm text-graphite-soft">
-            Ce diagnostic est basé sur l'analyse de {o.diagnostic.kpiAnalyzed} indicateurs CRM et business. Les principaux enseignements de votre scan :
+            Ce diagnostic est basé sur l'analyse de {o.kpiAnalyzed} indicateurs CRM et business. Les principaux enseignements de votre scan :
           </p>
           <button className="mt-3 text-sm font-medium text-terracotta hover:underline">Voir le diagnostic complet →</button>
         </Card>

@@ -8,7 +8,12 @@ const envSchema = z.object({
   SESSION_SECRET: z
     .string()
     .min(32, "SESSION_SECRET doit faire au moins 32 caractères (ex: openssl rand -hex 32)"),
-  SCAN_QUEUE_CONCURRENCY: z.coerce.number().int().min(1).default(1)
+  SCAN_QUEUE_CONCURRENCY: z.coerce.number().int().min(1).default(1),
+  PLAYWRIGHT_HEADLESS: z
+    .string()
+    .default("true")
+    .transform((value) => value !== "false"),
+  EXPERIENCE_PROFILE_DIR: z.string().default("./experience-profile")
 });
 
 export type Env = z.infer<typeof envSchema>;

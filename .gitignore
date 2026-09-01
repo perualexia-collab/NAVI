@@ -15,6 +15,7 @@ build/
 # Playwright / sessions Expérience — jamais de session vivante committée
 backend/experience/**/storage-state/
 backend/experience/**/*.session.json
+backend/experience-profile/
 playwright-report/
 test-results/
 

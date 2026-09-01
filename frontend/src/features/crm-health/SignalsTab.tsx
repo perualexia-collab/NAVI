@@ -25,12 +25,20 @@ function actionLabel(signal: SignalCatalogueEntry): string | null {
 
 /**
  * Onglets Alertes / Vigilances / Opportunités — contenu illustratif
- * (catalogue réel, association à l'hôtel mockée). Démontre le modèle
- * d'audience validé : action directe si option unique, comparaison des
- * volumes avant choix si plusieurs options (P10 / P11).
+ * (texte du catalogue réel ; association précise à l'hôtel mockée).
+ * `count` vient toujours de la même source que le badge d'onglet et le
+ * Diagnostic NAVI (le hotel mocké, src/mock/data.ts) pour qu'il ne puisse
+ * plus diverger — voir l'écart Galileo arbitré le 2026-09-01.
+ *
+ * Démontre le modèle d'audience validé : action directe si option unique,
+ * comparaison des volumes avant choix si plusieurs options (P10 / P11).
  */
-export function SignalsTab({ severity }: { severity: SignalCatalogueEntry["severity"] }) {
-  const signals = signalCatalogue.filter((s) => s.severity === severity);
+export function SignalsTab({ severity, count }: { severity: SignalCatalogueEntry["severity"]; count: number }) {
+  const signals = signalCatalogue.filter((s) => s.severity === severity).slice(0, count);
+
+  if (signals.length === 0) {
+    return <p className="py-8 text-center text-sm text-graphite-faint">Aucun signal de ce type pour cet hôtel.</p>;
+  }
 
   return (
     <div className="flex flex-col gap-3">

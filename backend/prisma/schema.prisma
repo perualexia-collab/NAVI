@@ -150,6 +150,19 @@ model ScanHotel {
   attempt       Int             @default(1)
   healthScore   Float?
   healthLevel   String?
+  // Ventilation du score par pilier — sortie directe de calculateCRMHealth()
+  // (backend/src/services/scoring), conforme à l'onglet "Scoring CRM" du
+  // référentiel. Null tant que healthScore n'a pas pu être calculé (au
+  // moins une donnée requise manquante — cf. backend/scans/run-hotel-scan.ts).
+  baseScore        Float?
+  captureScore     Float?
+  otaScore         Float?
+  loyaltyScore     Float?
+  activationScore  Float?
+  // Activation CRM (résa. CRM / 1 000 profils activables) — métrique
+  // dérivée du pilier "Activation CRM" (onglet "CRM Health"), pas une
+  // entrée du catalogue KPI (onglet "Cartographie KPIs").
+  activationRate   Float?
   rawResult     Json? // payload brut du scan (issu du moteur) — pour audit/debug
 
   scan          Scan            @relation(fields: [scanId], references: [id], onDelete: Cascade)

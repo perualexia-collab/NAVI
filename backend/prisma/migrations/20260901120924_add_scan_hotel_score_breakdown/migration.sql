@@ -1,0 +1,7 @@
+-- AlterTable
+ALTER TABLE "ScanHotel" ADD COLUMN     "activationRate" DOUBLE PRECISION,
+ADD COLUMN     "activationScore" DOUBLE PRECISION,
+ADD COLUMN     "baseScore" DOUBLE PRECISION,
+ADD COLUMN     "captureScore" DOUBLE PRECISION,
+ADD COLUMN     "loyaltyScore" DOUBLE PRECISION,
+ADD COLUMN     "otaScore" DOUBLE PRECISION;
