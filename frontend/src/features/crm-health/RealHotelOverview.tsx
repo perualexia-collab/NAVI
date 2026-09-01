@@ -102,11 +102,10 @@ function ScanResult({ scan, scanCount }: { scan: RealScanSummary; scanCount: num
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-4 gap-4">
-        <Card>
-          <div className="text-xs font-medium uppercase tracking-wide text-graphite-faint">Santé CRM globale</div>
-          <div className="mt-3 flex items-center gap-3">
-            <ScoreRing score={scan.healthScore} size={60} strokeWidth={5} />
-            <div className="text-sm">
+        <Card className="flex items-center justify-between">
+          <div>
+            <div className="text-xs font-medium uppercase tracking-wide text-graphite-faint">Santé CRM globale</div>
+            <div className="mt-2 text-sm">
               {scan.healthScore !== null ? (
                 <span className="rounded-full bg-sage-soft px-2 py-0.5 text-xs font-medium text-sage-ink">{scan.healthLevel}</span>
               ) : (
@@ -114,6 +113,7 @@ function ScanResult({ scan, scanCount }: { scan: RealScanSummary; scanCount: num
               )}
             </div>
           </div>
+          <ScoreRing score={scan.healthScore} size={76} strokeWidth={6} />
         </Card>
         <Card>
           <div className="text-xs font-medium uppercase tracking-wide text-graphite-faint">Statut du scan</div>

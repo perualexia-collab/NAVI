@@ -77,7 +77,7 @@ export function Portfolios() {
                       </>
                     )}
                   </div>
-                  <ScoreRing score={portfolio.healthScore} size={56} strokeWidth={5} />
+                  <ScoreRing score={portfolio.healthScore} size={68} strokeWidth={6} />
                 </div>
                 <div className="mt-3 flex items-center gap-3 text-[11px] text-graphite-soft">
                   <LegendDot color="bg-sage" label={`${portfolio.scannedCount} scannés`} />

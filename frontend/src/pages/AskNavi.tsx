@@ -13,6 +13,23 @@ const PRIORITY_STYLE = {
 export function AskNavi() {
   const [question, setQuestion] = useState("");
   const [asked, setAsked] = useState(true); // true = montre la réponse mockée, comme dans le mockup
+  // Question réellement envoyée par l'utilisateur, différente de la question
+  // mockée illustrative — aucun provider LLM n'est encore connecté (retours
+  // Phase C.5, §8) : on ne fabrique pas de réponse, on le dit honnêtement.
+  const [sentQuestion, setSentQuestion] = useState<string | null>(null);
+  const [followUp, setFollowUp] = useState("");
+
+  function sendQuestion(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    if (trimmed === mockAnswer.question) {
+      setAsked(true);
+      setSentQuestion(null);
+    } else {
+      setAsked(false);
+      setSentQuestion(trimmed);
+    }
+  }
 
   return (
     <div>
@@ -23,7 +40,14 @@ export function AskNavi() {
         </div>
         <div className="flex items-center gap-2">
           <DateRangeControl />
-          <button onClick={() => setAsked(false)} className="flex items-center gap-1.5 rounded-lg bg-sage px-4 py-2 text-sm font-medium text-white hover:opacity-90">
+          <button
+            onClick={() => {
+              setAsked(false);
+              setSentQuestion(null);
+              setQuestion("");
+            }}
+            className="flex items-center gap-1.5 rounded-lg bg-sage px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+          >
             <Icon.Plus width={14} height={14} /> Nouvelle conversation
           </button>
         </div>
@@ -33,7 +57,7 @@ export function AskNavi() {
         <div className="col-span-2 flex flex-col gap-4">
           <Card>
             <form
-              onSubmit={(e) => { e.preventDefault(); if (question.trim()) setAsked(true); }}
+              onSubmit={(e) => { e.preventDefault(); sendQuestion(question); }}
               className="flex items-center gap-2 rounded-lg border border-graphite/15 px-3 py-2"
             >
               <Icon.Sparkles className="text-graphite-faint" width={16} height={16} />
@@ -55,6 +79,7 @@ export function AskNavi() {
                   onClick={() => {
                     setQuestion(q);
                     setAsked(false);
+                    setSentQuestion(null);
                   }}
                   className="rounded-full border border-graphite/15 px-3 py-1 text-xs text-graphite-soft hover:border-terracotta hover:text-terracotta"
                 >
@@ -63,6 +88,18 @@ export function AskNavi() {
               ))}
             </div>
           </Card>
+
+          {sentQuestion && (
+            <Card>
+              <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+                <Icon.Info className="text-horizon" width={16} height={16} /> NAVI n'est pas encore connecté à un fournisseur LLM
+              </div>
+              <p className="text-sm text-graphite-soft">
+                Votre question a bien été envoyée : « {sentQuestion} ». Aucun fournisseur LLM n'est configuré pour
+                l'instant — NAVI ne peut donc pas encore générer de réponse réelle à cette question.
+              </p>
+            </Card>
+          )}
 
           {asked && (
             <Card>
@@ -117,11 +154,21 @@ export function AskNavi() {
             </Card>
           )}
 
-          <Card className="flex items-center gap-2">
-            <input placeholder="Posez une nouvelle question à NAVI…" className="w-full bg-transparent text-sm outline-none placeholder:text-graphite-faint" />
-            <button className="flex h-8 w-8 items-center justify-center rounded-lg bg-terracotta text-white hover:opacity-90">
-              <Icon.Send width={14} height={14} />
-            </button>
+          <Card>
+            <form
+              onSubmit={(e) => { e.preventDefault(); sendQuestion(followUp); setFollowUp(""); }}
+              className="flex items-center gap-2"
+            >
+              <input
+                value={followUp}
+                onChange={(e) => setFollowUp(e.target.value)}
+                placeholder="Posez une nouvelle question à NAVI…"
+                className="w-full bg-transparent text-sm outline-none placeholder:text-graphite-faint"
+              />
+              <button type="submit" className="flex h-8 w-8 items-center justify-center rounded-lg bg-terracotta text-white hover:opacity-90">
+                <Icon.Send width={14} height={14} />
+              </button>
+            </form>
           </Card>
           <p className="text-center text-xs text-graphite-faint">NAVI peut faire des erreurs. Vérifiez toujours les informations critiques.</p>
         </div>

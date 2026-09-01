@@ -25,8 +25,8 @@ export function AppShell() {
   return (
     <div className="flex min-h-screen">
       <aside className="relative flex w-64 flex-col overflow-hidden border-r border-graphite/10 bg-linen px-5 pb-6 pt-7">
-        <div className="relative z-10 mb-7 flex justify-center">
-          <LogoFull className="h-24" />
+        <div className="relative z-10 mb-6 flex justify-center">
+          <LogoFull className="h-32" />
         </div>
 
         <nav className="relative z-10 flex flex-col gap-1">
@@ -69,7 +69,7 @@ export function AppShell() {
             </div>
           )}
 
-          <WaveBackground className="pointer-events-none -mx-5 -mb-6 h-44 w-[calc(100%+2.5rem)]" />
+          <WaveBackground className="pointer-events-none -mx-5 -mb-6 h-32 w-[calc(100%+2.5rem)]" />
         </div>
       </aside>
 

@@ -39,7 +39,7 @@ export function Login() {
   return (
     <div className="relative flex min-h-screen flex-col items-center overflow-hidden bg-parchment px-4 pb-16 pt-10">
       <div className="relative z-10 mb-5">
-        <LogoFull className="h-32" />
+        <LogoFull className="h-44" />
       </div>
 
       <div className="relative z-10 w-full max-w-sm rounded-card border border-graphite/10 bg-linen p-8 shadow-sm">
@@ -117,12 +117,6 @@ export function Login() {
         <p className="mt-6 text-center text-xs text-graphite-faint">
           Besoin d'aide ? <a href="#" className="text-terracotta hover:underline">Contactez votre administrateur.</a>
         </p>
-      </div>
-
-      <div className="relative z-10 mt-10 flex gap-4 text-[11px] text-graphite-faint">
-        <span>© 2026 NAVI – Tous droits réservés.</span>
-        <a href="#" className="hover:underline">Confidentialité</a>
-        <a href="#" className="hover:underline">Conditions d'utilisation</a>
       </div>
 
       <WaveBackground className="pointer-events-none absolute bottom-0 left-0 z-0 h-64 w-full" />

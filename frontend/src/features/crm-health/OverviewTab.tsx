@@ -19,15 +19,15 @@ export function OverviewTab({ hotel }: { hotel: MockHotel }) {
   return (
     <div>
       <div className="grid grid-cols-4 gap-4">
-        <Card>
-          <div className="text-xs font-medium uppercase tracking-wide text-graphite-faint">Santé CRM globale</div>
-          <div className="mt-3 flex items-center gap-3">
-            <ScoreRing score={o.healthScore} size={60} strokeWidth={5} />
-            <div>
+        <Card className="flex items-center justify-between">
+          <div>
+            <div className="text-xs font-medium uppercase tracking-wide text-graphite-faint">Santé CRM globale</div>
+            <div className="mt-2">
               <span className="inline-block rounded-full bg-sage-soft px-2 py-0.5 text-xs font-medium text-sage-ink">{o.healthLevel}</span>
               <div className="mt-1"><TrendLabel delta={o.healthDelta} /></div>
             </div>
           </div>
+          <ScoreRing score={o.healthScore} size={76} strokeWidth={6} />
         </Card>
         <Card>
           <div className="text-xs font-medium uppercase tracking-wide text-graphite-faint">Position dans le portefeuille</div>
@@ -111,9 +111,18 @@ export function OverviewTab({ hotel }: { hotel: MockHotel }) {
 function ReducedOverview({ hotel }: { hotel: MockHotel }) {
   return (
     <div className="grid grid-cols-4 gap-4">
-      <Card>
-        <div className="text-xs font-medium uppercase tracking-wide text-graphite-faint">Santé CRM globale</div>
-        <div className="mt-3"><ScoreRing score={hotel.healthScore} size={60} strokeWidth={5} /></div>
+      <Card className="flex items-center justify-between">
+        <div>
+          <div className="text-xs font-medium uppercase tracking-wide text-graphite-faint">Santé CRM globale</div>
+          <div className="mt-2 text-sm">
+            {hotel.healthLevel ? (
+              <span className="rounded-full bg-sage-soft px-2 py-0.5 text-xs font-medium text-sage-ink">{hotel.healthLevel}</span>
+            ) : (
+              <span className="text-xs text-graphite-faint">Aucun scan</span>
+            )}
+          </div>
+        </div>
+        <ScoreRing score={hotel.healthScore} size={76} strokeWidth={6} />
       </Card>
       <Card><div className="text-xs uppercase text-graphite-faint">Alertes</div><div className="mt-2 font-display text-xl font-semibold">{hotel.alerts ?? "—"}</div></Card>
       <Card><div className="text-xs uppercase text-graphite-faint">Vigilances</div><div className="mt-2 font-display text-xl font-semibold">{hotel.vigilances ?? "—"}</div></Card>
