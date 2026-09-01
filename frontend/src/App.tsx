@@ -6,6 +6,7 @@ import { Login } from "./pages/Login.js";
 import { Home } from "./pages/Home.js";
 import { Portfolios } from "./pages/Portfolios.js";
 import { CrmHealth } from "./pages/CrmHealth.js";
+import { CrmHealthHotel } from "./pages/CrmHealthHotel.js";
 import { AskNavi } from "./pages/AskNavi.js";
 import { Settings } from "./pages/Settings.js";
 
@@ -25,6 +26,7 @@ export function App() {
             <Route path="/" element={<Home />} />
             <Route path="/portefeuilles" element={<Portfolios />} />
             <Route path="/crm-health" element={<CrmHealth />} />
+            <Route path="/crm-health/:hotelId" element={<CrmHealthHotel />} />
             <Route path="/ask-navi" element={<AskNavi />} />
             <Route path="/parametres" element={<Settings />} />
           </Route>
