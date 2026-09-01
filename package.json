@@ -1,0 +1,18 @@
+{
+  "name": "navi",
+  "private": true,
+  "description": "NAVI — Navigate. Analyze. Act. Copilote CRM hôtelier au-dessus d'Expérience (D-EDGE).",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev:backend": "pnpm --filter @navi/backend dev",
+    "dev:frontend": "pnpm --filter @navi/frontend dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "prisma:generate": "pnpm --filter @navi/backend prisma:generate",
+    "prisma:migrate": "pnpm --filter @navi/backend prisma:migrate",
+    "prisma:seed": "pnpm --filter @navi/backend prisma:seed"
+  }
+}

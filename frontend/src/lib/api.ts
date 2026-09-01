@@ -1,0 +1,29 @@
+import type { User } from "@navi/shared";
+
+export class ApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+  }
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`/api${path}`, {
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    ...init
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new ApiError(response.status, body.error ?? "Une erreur est survenue.");
+  }
+
+  return response.json() as Promise<T>;
+}
+
+export const api = {
+  login: (email: string, password: string) =>
+    request<User>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+  logout: () => request<{ ok: true }>("/auth/logout", { method: "POST" }),
+  me: () => request<User>("/auth/me")
+};

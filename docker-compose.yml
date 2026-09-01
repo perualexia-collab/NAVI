@@ -1,0 +1,58 @@
+name: navi
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: navi
+      POSTGRES_PASSWORD: navi
+      POSTGRES_DB: navi
+    ports:
+      - "5432:5432"
+    volumes:
+      - navi-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U navi -d navi"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # --- Décommenter une fois le backend/l'image applicative prêts (Phase C) ---
+  # api:
+  #   build:
+  #     context: .
+  #     dockerfile: backend/Dockerfile
+  #   env_file: .env
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   ports:
+  #     - "4000:4000"
+  #
+  # scan-worker:
+  #   build:
+  #     context: .
+  #     dockerfile: backend/Dockerfile.worker
+  #   env_file: .env
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+
+volumes:
+  navi-postgres-data:

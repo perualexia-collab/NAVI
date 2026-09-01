@@ -1,0 +1,306 @@
+// NAVI — schéma de données initial (Phase A).
+// Reflète le modèle validé dans docs/architecture-proposal.html §06.
+// Le référentiel Excel (docs/reference/referentiel-metier-navi.xlsx) reste
+// la source de vérité pour le contenu des tables KPIDefinition et Signal —
+// ce schéma décrit seulement leur forme.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------------
+// Utilisateurs & droits — brief §7
+// ------------------------------------------------------------------
+
+enum Role {
+  ADMIN
+  USER
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         Role     @default(USER)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  portfolios Portfolio[]
+  scans      Scan[]
+}
+
+// ------------------------------------------------------------------
+// Hôtels & portefeuilles — brief §9, §24
+// ------------------------------------------------------------------
+
+enum HotelExperienceStatus {
+  ACTIVE
+  TO_VERIFY
+  NOT_FOUND
+  ERROR
+}
+
+model Hotel {
+  id                     String                @id @default(cuid())
+  name                   String
+  experienceLabel        String // libellé exact recherché dans Expérience
+  city                   String?
+  starRating              Int?
+  roomCount              Int?
+  experienceStatus       HotelExperienceStatus @default(TO_VERIFY)
+  disabled               Boolean               @default(false)
+  lastConnectionCheckAt  DateTime?
+  createdAt              DateTime              @default(now())
+
+  portfolios     PortfolioHotel[]
+  scanHotels     ScanHotel[]
+  audienceResults    AudienceResult[]
+  audienceComparisons AudienceComparison[]
+}
+
+model Portfolio {
+  id        String   @id @default(cuid())
+  ownerId   String
+  name      String
+  createdAt DateTime @default(now())
+
+  owner  User             @relation(fields: [ownerId], references: [id])
+  hotels PortfolioHotel[]
+  scans  Scan[]
+}
+
+model PortfolioHotel {
+  portfolioId String
+  hotelId     String
+  addedAt     DateTime @default(now())
+
+  portfolio Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  hotel     Hotel     @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+
+  @@id([portfolioId, hotelId])
+}
+
+// ------------------------------------------------------------------
+// Scans — brief §10, §11, §12, §23
+// ------------------------------------------------------------------
+
+enum ScanHotelStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  PARTIAL_SUCCESS
+  FAILED
+}
+
+enum StepStatus {
+  PENDING
+  RUNNING
+  OK
+  ERROR
+  SKIPPED
+}
+
+enum ScanStepName {
+  BASE
+  CAPTURE
+  OTA
+  RETURNING
+  MARKETING
+}
+
+enum ScanErrorType {
+  TIMEOUT
+  ELEMENT_NOT_FOUND
+  PAGE_UNAVAILABLE
+  AUTHENTICATION_ERROR
+  HOTEL_NOT_FOUND
+  NAVIGATION_ERROR
+  UNKNOWN_ERROR
+}
+
+// Période — stockée en JSON pour rester fidèle à la structure préset/custom
+// du brief §18 sans multiplier les colonnes.
+model Scan {
+  id             String    @id @default(cuid())
+  portfolioId    String?
+  requestedById  String
+  period         Json // { type: "preset", value: "..." } | { type: "custom", startDate, endDate }
+  startedAt      DateTime  @default(now())
+  finishedAt     DateTime?
+
+  portfolio   Portfolio?  @relation(fields: [portfolioId], references: [id])
+  requestedBy User        @relation(fields: [requestedById], references: [id])
+  hotels      ScanHotel[]
+}
+
+model ScanHotel {
+  id            String          @id @default(cuid())
+  scanId        String
+  hotelId       String
+  status        ScanHotelStatus @default(PENDING)
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  durationMs    Int?
+  attempt       Int             @default(1)
+  healthScore   Float?
+  healthLevel   String?
+  rawResult     Json? // payload brut du scan (issu du moteur) — pour audit/debug
+
+  scan          Scan            @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  hotel         Hotel           @relation(fields: [hotelId], references: [id])
+  steps         ScanStep[]
+  errors        ScanError[]
+  kpiResults    KPIResult[]
+  signalResults SignalResult[]
+
+  @@index([hotelId])
+}
+
+model ScanStep {
+  id          String       @id @default(cuid())
+  scanHotelId String
+  name        ScanStepName
+  status      StepStatus   @default(PENDING)
+  startedAt   DateTime?
+  finishedAt  DateTime?
+
+  scanHotel ScanHotel @relation(fields: [scanHotelId], references: [id], onDelete: Cascade)
+
+  @@unique([scanHotelId, name])
+}
+
+model ScanError {
+  id               String        @id @default(cuid())
+  scanHotelId      String
+  stepName         ScanStepName
+  errorType        ScanErrorType
+  userMessage      String
+  technicalMessage String
+  occurredAt       DateTime      @default(now())
+
+  scanHotel ScanHotel @relation(fields: [scanHotelId], references: [id], onDelete: Cascade)
+}
+
+// ------------------------------------------------------------------
+// KPI — catalogue seedé depuis "Cartographie KPIs" (référentiel Excel)
+// ------------------------------------------------------------------
+
+model KPIDefinition {
+  id             String   @id // ex: "nonOtaReservationShare"
+  label          String
+  source         String // ex: "Revenu → OTA"
+  dateFilterable Boolean // brief §18 — false pour ota/returning (année N vs N-1 fixe)
+  version        String // "V1" | "V2"
+  scraped        Boolean  @default(false)
+
+  results KPIResult[]
+}
+
+model KPIResult {
+  id              String   @id @default(cuid())
+  scanHotelId     String
+  kpiDefinitionId String
+  value           Float?
+  available       Boolean  @default(true) // brief §37 — distingue 0 réel de non récupéré
+
+  scanHotel     ScanHotel     @relation(fields: [scanHotelId], references: [id], onDelete: Cascade)
+  kpiDefinition KPIDefinition @relation(fields: [kpiDefinitionId], references: [id])
+
+  @@unique([scanHotelId, kpiDefinitionId])
+}
+
+// ------------------------------------------------------------------
+// Signaux & recommandations — brief §19, §21 — seedés depuis
+// "Signals & Playbook" (référentiel Excel)
+// ------------------------------------------------------------------
+
+enum SignalSeverity {
+  ALERT
+  VIGILANCE
+  OPPORTUNITY
+}
+
+enum AudienceMode {
+  NONE
+  SINGLE
+  MULTIPLE
+}
+
+model SignalDefinition {
+  playbookId           String       @id // P01…P12 — interne, jamais affiché à l'utilisateur
+  name                 String
+  severity             SignalSeverity
+  conditionDescription String
+  recommendedAction    String
+  audienceMode         AudienceMode @default(NONE)
+
+  results SignalResult[]
+}
+
+model SignalResult {
+  id          String   @id @default(cuid())
+  scanHotelId String
+  playbookId  String
+  trigger     String // valeur(s) ayant déclenché le signal, pour affichage du "pourquoi"
+  detectedAt  DateTime @default(now())
+
+  scanHotel ScanHotel        @relation(fields: [scanHotelId], references: [id], onDelete: Cascade)
+  signal    SignalDefinition @relation(fields: [playbookId], references: [playbookId])
+
+  recommendations Recommendation[]
+}
+
+model Recommendation {
+  id                    String  @id @default(cuid())
+  scanHotelId           String
+  signalResultId        String
+  text                  String
+  audienceDefinitionId  String?
+
+  signalResult        SignalResult        @relation(fields: [signalResultId], references: [id], onDelete: Cascade)
+  audienceDefinition  AudienceDefinition? @relation(fields: [audienceDefinitionId], references: [id])
+}
+
+// ------------------------------------------------------------------
+// Audiences — brief §22, modèle hybride validé le 2026-09-01 :
+// calcul direct (option unique) vs comparaison (P10 / P11)
+// ------------------------------------------------------------------
+
+model AudienceDefinition {
+  id          String @id // ex: "RISK_INACTIVITY", "OTA_CONVERTIBLE"
+  name        String
+  description String
+
+  results         AudienceResult[]
+  recommendations Recommendation[]
+}
+
+model AudienceResult {
+  id                    String   @id @default(cuid())
+  hotelId               String
+  audienceDefinitionId  String
+  comparisonId          String? // regroupe plusieurs options comparées ensemble (P10/P11)
+  recipients            Int
+  highlighted           Boolean  @default(false) // marquage ⭐ (ex. règle P10)
+  measuredAt            DateTime @default(now())
+
+  hotel               Hotel                @relation(fields: [hotelId], references: [id])
+  audienceDefinition  AudienceDefinition   @relation(fields: [audienceDefinitionId], references: [id])
+  comparison          AudienceComparison?  @relation(fields: [comparisonId], references: [id])
+}
+
+model AudienceComparison {
+  id             String  @id @default(cuid())
+  hotelId        String
+  playbookId     String // P10 ou P11 à l'origine de la comparaison
+  chosenResultId String?
+
+  hotel   Hotel            @relation(fields: [hotelId], references: [id])
+  results AudienceResult[]
+}

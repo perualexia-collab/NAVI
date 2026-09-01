@@ -1,0 +1,893 @@
+<title>NAVI Architecture Proposal</title>
+<style>
+:root{
+  --bg:#f4eee1; --surface:#fbf8f1; --surface-2:#eee5d3; --surface-3:#e5d9c1;
+  --ink:#2b2a25; --ink-soft:#6e6858; --ink-faint:#948d78;
+  --line:rgba(43,42,37,.14); --line-strong:rgba(43,42,37,.26);
+  --terracotta:#be5e2e; --terracotta-soft:#efdbc9; --terracotta-ink:#7a3c19;
+  --sage:#5c7455; --sage-soft:#dee6d3; --sage-ink:#3a4a35;
+  --horizon:#5f7ea3; --horizon-soft:#dbe4ed; --horizon-ink:#33455a;
+  --alert:#a13a2b; --alert-soft:#f1d3c9; --alert-ink:#6e2417;
+  --warn:#a97620; --warn-soft:#f1e1bd; --warn-ink:#6b4a10;
+  --shadow: 0 1px 2px rgba(43,42,37,.06), 0 6px 20px -8px rgba(43,42,37,.16);
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1c1a15; --surface:#232019; --surface-2:#2c2820; --surface-3:#38332827;
+    --surface-3:#383228; --ink:#ece5d3; --ink-soft:#b4ac95; --ink-faint:#847c68;
+    --line:rgba(236,229,211,.12); --line-strong:rgba(236,229,211,.22);
+    --terracotta:#e08249; --terracotta-soft:#4a3021; --terracotta-ink:#f3c9a8;
+    --sage:#8ea583; --sage-soft:#2c3527; --sage-ink:#c7d8bd;
+    --horizon:#8fadd1; --horizon-soft:#25313f; --horizon-ink:#c4d7ea;
+    --alert:#dd7862; --alert-soft:#452420; --alert-ink:#f3c3b6;
+    --warn:#d6a44e; --warn-soft:#453a1f; --warn-ink:#f2dba9;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 24px -8px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1c1a15; --surface:#232019; --surface-2:#2c2820; --surface-3:#383228;
+  --ink:#ece5d3; --ink-soft:#b4ac95; --ink-faint:#847c68;
+  --line:rgba(236,229,211,.12); --line-strong:rgba(236,229,211,.22);
+  --terracotta:#e08249; --terracotta-soft:#4a3021; --terracotta-ink:#f3c9a8;
+  --sage:#8ea583; --sage-soft:#2c3527; --sage-ink:#c7d8bd;
+  --horizon:#8fadd1; --horizon-soft:#25313f; --horizon-ink:#c4d7ea;
+  --alert:#dd7862; --alert-soft:#452420; --alert-ink:#f3c3b6;
+  --warn:#d6a44e; --warn-soft:#453a1f; --warn-ink:#f2dba9;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 24px -8px rgba(0,0,0,.5);
+}
+
+*{box-sizing:border-box;}
+::selection{ background: var(--terracotta-soft); }
+
+body{
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Inter", -apple-system, "Segoe UI", sans-serif;
+  font-size: 15.5px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,h2,h3,h4{
+  font-family: "Poppins", "Inter", sans-serif;
+  font-weight: 600;
+  color: var(--ink);
+  text-wrap: balance;
+  line-height: 1.25;
+}
+
+code, .mono, .kpi, .field, .tag-code{
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+a{ color: var(--terracotta); }
+
+/* ---------- Shell ---------- */
+.shell{ display:flex; max-width: 1320px; margin: 0 auto; align-items:flex-start; }
+.toc{
+  position: sticky; top: 0; align-self: flex-start;
+  width: 250px; flex: 0 0 250px; height: 100vh; overflow-y: auto;
+  padding: 34px 18px 34px 28px;
+  border-right: 1px solid var(--line);
+  display: none;
+}
+@media (min-width: 1080px){ .toc{ display:block; } }
+.toc-brand{ display:flex; align-items:center; gap:9px; margin-bottom: 22px; }
+.toc-mark{ width:20px; height:20px; flex:0 0 auto; }
+.toc-brand b{ font-family:"Poppins",sans-serif; font-weight:600; font-size:14.5px; letter-spacing:.04em; }
+.toc-brand span{ font-size:10px; color:var(--ink-faint); letter-spacing:.12em; text-transform:uppercase; display:block; }
+.toc nav{ display:flex; flex-direction:column; gap:1px; }
+.toc a{
+  color: var(--ink-soft); text-decoration:none; font-size:12.6px;
+  padding:5.5px 9px; border-radius:6px; display:flex; gap:8px;
+}
+.toc a:hover{ background: var(--surface-2); color: var(--ink); }
+.toc a b{ color: var(--ink-faint); font-weight:600; width:15px; flex:none; }
+
+main{ flex:1; min-width:0; padding: 40px 26px 90px; max-width: 900px; margin:0 auto; }
+@media (min-width:1080px){ main{ padding: 46px 56px 110px; margin:0; } }
+
+/* ---------- Cover ---------- */
+.cover{
+  border-bottom: 1px solid var(--line); padding-bottom: 30px; margin-bottom: 44px;
+}
+.cover-eyebrow{
+  display:flex; align-items:center; gap:10px; margin-bottom:18px;
+}
+.cover-mark{ width:26px; height:26px; }
+.cover-eyebrow span{
+  font-size:11px; letter-spacing:.14em; text-transform:uppercase; color: var(--ink-faint);
+}
+h1.cover-title{ font-size: 33px; margin:0 0 10px; }
+.cover-sub{ color: var(--ink-soft); font-size:15.5px; max-width: 60ch; margin:0 0 20px;}
+.cover-meta{ display:flex; flex-wrap:wrap; gap:8px 22px; font-size:12.5px; color:var(--ink-faint); }
+.cover-meta b{ color:var(--ink-soft); font-weight:600; }
+
+/* ---------- Sections ---------- */
+section.doc-sec{ padding-top: 8px; margin-bottom: 54px; scroll-margin-top: 20px; }
+.sec-head{ display:flex; align-items:baseline; gap:12px; margin-bottom: 6px; }
+.sec-num{
+  font-family:"IBM Plex Mono",monospace; font-size:12.5px; color: var(--terracotta);
+  background: var(--terracotta-soft); padding:2px 7px; border-radius:5px; font-weight:600;
+}
+h2{ font-size:23px; margin:0; }
+.sec-dek{ color: var(--ink-soft); font-size:14px; margin: 6px 0 22px; max-width:64ch; }
+
+h3{ font-size:16.5px; margin: 30px 0 10px; }
+h3.tight{ margin-top:22px; }
+p{ margin: 0 0 14px; color: var(--ink); max-width: 70ch; }
+p.soft{ color: var(--ink-soft); }
+ul,ol{ margin:0 0 16px; padding-left:20px; max-width:68ch; }
+li{ margin-bottom:6px; }
+
+/* ---------- Chips ---------- */
+.chip{
+  display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600;
+  padding: 2.5px 9px; border-radius:99px; letter-spacing:.02em; white-space:nowrap;
+  font-family:"Inter",sans-serif;
+}
+.chip.reuse{ background:var(--sage-soft); color:var(--sage-ink); }
+.chip.adapt{ background:var(--horizon-soft); color:var(--horizon-ink); }
+.chip.fragile{ background:var(--warn-soft); color:var(--warn-ink); }
+.chip.propose{ background:var(--terracotta-soft); color:var(--terracotta-ink); }
+.chip.block{ background:var(--alert-soft); color:var(--alert-ink); }
+.chip.gap{ background:var(--surface-3); color:var(--ink-soft); }
+
+/* ---------- Cards / grids ---------- */
+.card{
+  background: var(--surface); border:1px solid var(--line); border-radius:14px;
+  padding:18px 20px; box-shadow: var(--shadow);
+}
+.grid2{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.grid3{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+@media (max-width:640px){ .grid2,.grid3{ grid-template-columns:1fr; } }
+
+.audit-card{ display:flex; flex-direction:column; gap:8px; margin-bottom:14px; }
+.audit-card h4{ font-size:14.5px; margin:0; display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
+.audit-card .file{ font-size:11.5px; color:var(--ink-faint); }
+.audit-card p{ font-size:14px; margin:0; color:var(--ink-soft); }
+
+/* ---------- Tables ---------- */
+.tbl-wrap{ overflow-x:auto; border:1px solid var(--line); border-radius:12px; margin-bottom:20px; background:var(--surface); }
+table{ border-collapse:collapse; width:100%; font-size:13.2px; min-width:560px; }
+th{
+  text-align:left; font-family:"Inter",sans-serif; font-weight:600; font-size:11px;
+  letter-spacing:.05em; text-transform:uppercase; color:var(--ink-faint);
+  padding:10px 14px; border-bottom:1px solid var(--line-strong); white-space:nowrap;
+  background: var(--surface-2);
+}
+td{ padding:10px 14px; border-bottom:1px solid var(--line); vertical-align:top; color:var(--ink); }
+tr:last-child td{ border-bottom:none; }
+td.mono, th.mono{ font-family:"IBM Plex Mono",monospace; font-size:12px; }
+td.num{ font-variant-numeric: tabular-nums; }
+
+/* ---------- Code ---------- */
+pre{
+  background: var(--surface-2); border:1px solid var(--line); border-radius:12px;
+  padding:16px 18px; overflow-x:auto; font-size:12.6px; line-height:1.6; margin:0 0 18px;
+}
+pre code{ color: var(--ink); }
+.tree{ color:var(--ink-soft); }
+.tree b{ color:var(--ink); font-weight:600; }
+.tree .c{ color:var(--ink-faint); }
+
+/* ---------- Callouts ---------- */
+.callout{
+  border-radius:12px; padding:14px 18px; margin: 10px 0 18px; border:1px solid var(--line);
+  display:flex; gap:12px; align-items:flex-start;
+}
+.callout .dot{ width:8px; height:8px; border-radius:50%; margin-top:6px; flex:0 0 auto; }
+.callout p{ margin:0; font-size:13.8px; }
+.callout.risk{ background: var(--alert-soft); border-color: transparent; }
+.callout.risk .dot{ background: var(--alert); }
+.callout.warn{ background: var(--warn-soft); border-color: transparent; }
+.callout.warn .dot{ background: var(--warn); }
+.callout.note{ background: var(--horizon-soft); border-color: transparent; }
+.callout.note .dot{ background: var(--horizon); }
+.callout.ok{ background: var(--sage-soft); border-color: transparent; }
+.callout.ok .dot{ background: var(--sage); }
+
+/* ---------- Diagram (css boxes) ---------- */
+.flow{ display:flex; flex-direction:column; gap:0; margin: 18px 0 26px; }
+.flow-row{ display:flex; gap:12px; flex-wrap:wrap; justify-content:center; }
+.flow-box{
+  background:var(--surface); border:1px solid var(--line-strong); border-radius:10px;
+  padding:10px 16px; font-size:12.6px; font-weight:600; text-align:center; box-shadow:var(--shadow);
+  min-width:120px; color:var(--ink);
+}
+.flow-box.accent{ border-color: var(--terracotta); color:var(--terracotta-ink); background:var(--terracotta-soft); }
+.flow-box.sage{ border-color: var(--sage); color:var(--sage-ink); background:var(--sage-soft); }
+.flow-box.horizon{ border-color: var(--horizon); color:var(--horizon-ink); background:var(--horizon-soft); }
+.flow-box small{ display:block; font-weight:400; color:var(--ink-faint); font-size:10.6px; margin-top:2px; }
+.flow-arrow{ display:flex; justify-content:center; padding:6px 0; color:var(--ink-faint); font-size:14px; }
+.flow-sub{ display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:4px; }
+.flow-sub .flow-box{ font-size:11.4px; font-weight:500; padding:7px 12px; min-width:0; }
+
+/* ---------- Phase timeline ---------- */
+.phase{ border-left:2px solid var(--line-strong); padding: 4px 0 22px 22px; position:relative; margin-left:6px; }
+.phase::before{
+  content:""; position:absolute; left:-7px; top:4px; width:12px; height:12px; border-radius:50%;
+  background: var(--surface); border:2px solid var(--terracotta);
+}
+.phase-head{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:6px; }
+.phase-letter{
+  font-family:"IBM Plex Mono",monospace; font-size:11.5px; font-weight:700; color:var(--terracotta);
+}
+.phase h4{ margin:0; font-size:15px; }
+.phase ul{ margin:8px 0 0; }
+.phase li{ font-size:13.6px; color:var(--ink-soft); }
+
+/* ---------- Q&A list ---------- */
+.qitem{ display:flex; gap:14px; margin-bottom:18px; }
+.qnum{
+  font-family:"IBM Plex Mono",monospace; font-weight:700; color:var(--terracotta);
+  background:var(--terracotta-soft); width:26px; height:26px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center; font-size:12px; flex:none;
+}
+.qbody h4{ margin:0 0 4px; font-size:14.5px; }
+.qbody p{ margin:0; font-size:13.8px; color:var(--ink-soft); }
+
+hr.sep{ border:none; border-top:1px solid var(--line); margin: 42px 0; }
+
+.foot{ color:var(--ink-faint); font-size:12px; padding-top:30px; border-top:1px solid var(--line); }
+</style>
+
+<div class="shell">
+  <aside class="toc">
+    <div class="toc-brand">
+      <svg class="toc-mark" viewBox="0 0 40 40" fill="none"><path d="M10 32V10L28 32V10" stroke="#be5e2e" stroke-width="4.5" stroke-linecap="square"/><path d="M10 10L28 32" stroke="#5c7455" stroke-width="4.5" stroke-linecap="square" opacity=".55"/></svg>
+      <div><b>NAVI</b><span>Architecture Proposal</span></div>
+    </div>
+    <nav>
+      <a href="#comprehension"><b>01</b>Compréhension</a>
+      <a href="#audit"><b>02</b>Audit de l'existant</a>
+      <a href="#mapping"><b>03</b>Mapping métier/technique</a>
+      <a href="#stack"><b>04</b>Architecture technique</a>
+      <a href="#repo"><b>05</b>Structure du repo</a>
+      <a href="#data"><b>06</b>Modèle de données</a>
+      <a href="#playwright"><b>07</b>Architecture Playwright</a>
+      <a href="#scans"><b>08</b>Architecture des scans</a>
+      <a href="#asknavi"><b>09</b>Architecture Ask NAVI</a>
+      <a href="#risques"><b>10</b>Risques</a>
+      <a href="#questions"><b>11</b>Points arbitrés</a>
+      <a href="#plan"><b>12</b>Plan de développement</a>
+    </nav>
+  </aside>
+
+  <main>
+    <div class="cover">
+      <div class="cover-eyebrow">
+        <svg class="cover-mark" viewBox="0 0 40 40" fill="none"><path d="M10 32V10L28 32V10" stroke="#be5e2e" stroke-width="4.5" stroke-linecap="square"/><path d="M10 10L28 32" stroke="#5c7455" stroke-width="4.5" stroke-linecap="square" opacity=".55"/></svg>
+        <span>NAVI · Navigate. Analyze. Act.</span>
+      </div>
+      <h1 class="cover-title">NAVI Architecture Proposal</h1>
+      <p class="cover-sub">Audit du produit et de l'existant, architecture technique cible, modèle de données et plan de développement — soumis à validation avant toute construction, conformément au brief maître (§46).</p>
+      <div class="cover-meta">
+        <span><b>Sources analysées&nbsp;:</b> brief maître, 5 mockups, référentiel Excel (8 onglets), moteur Playwright (14 188 lignes)</span>
+        <span><b>Statut&nbsp;:</b> validé — ajustements intégrés, prêt pour Phase A</span>
+      </div>
+    </div>
+
+    <div class="callout ok" style="margin-bottom:44px;margin-top:-24px">
+      <span class="dot"></span>
+      <p><b>Architecture validée, 9 ajustements intégrés depuis la première version&nbsp;:</b> couche LLM provider-agnostic (Ask NAVI n'est plus couplé à Ollama), scénario de déploiement 100&nbsp;% serveur (aucune installation côté poste utilisateur), concurrence de scan de départ fixée à 1, statut « à vérifier » pour les deux filtres NPS/contact e-mail non retrouvés dans le code, session Expérience conservée telle quelle pour le premier vertical slice mais isolée derrière une abstraction, SSO retiré du périmètre, et surtout un modèle d'audience hybride (calcul direct si option unique, comparaison de plusieurs audiences avant choix pour P10/P11). Détail des changements marqué <span class="chip propose">ajusté v2</span> dans chaque section concernée.</p>
+    </div>
+
+    <!-- 01 COMPRÉHENSION -->
+    <section class="doc-sec" id="comprehension">
+      <div class="sec-head"><span class="sec-num">01</span><h2>Compréhension du produit</h2></div>
+      <p class="sec-dek">Ce que j'ai compris de NAVI, pour que tu puisses vérifier avant que je construise quoi que ce soit dessus.</p>
+
+      <p>NAVI est une <b>couche d'intelligence CRM</b> posée au-dessus d'Expérience (D-EDGE), pour l'hôtellerie. Expérience reste le système opérationnel — c'est là que vivent les données CRM et les audiences. NAVI ne le remplace pas : il l'interroge, en extrait un diagnostic, et rend ce diagnostic actionnable. Le pipeline conceptuel est constant partout dans le brief&nbsp;:</p>
+
+      <div class="flow">
+        <div class="flow-row">
+          <div class="flow-box">Navigate</div>
+          <div class="flow-box">Collecte</div>
+          <div class="flow-box">Analyse</div>
+          <div class="flow-box">Diagnostic</div>
+          <div class="flow-box">Recommandation</div>
+          <div class="flow-box accent">Act</div>
+        </div>
+      </div>
+
+      <p>Trois idées structurent tout le reste du brief, et je les prends comme des contraintes dures, pas des suggestions&nbsp;:</p>
+      <ul>
+        <li><b>La mécanique disparaît derrière le produit.</b> Un utilisateur voit des hôtels, des alertes, des vigilances, des opportunités, des recommandations — jamais « P06 » ni « Playwright a timeout ». Les playbooks P01–P12 sont une implémentation interne.</li>
+        <li><b>Rien n'est inventé.</b> Un KPI n'existe dans l'UI que s'il est réellement récupérable depuis une source. Un scoring n'est valide que s'il vient du référentiel Excel. Un historique n'existe que si des scans réels l'ont produit. Un classement dans un portefeuille n'apparaît que si la comparaison est pertinente.</li>
+        <li><b>NAVI décide, Qwen explique.</b> Le score, le signal, la sévérité sont calculés par le moteur métier déterministe de NAVI. Qwen (Ask NAVI) n'a accès qu'aux résultats déjà calculés et les met en mots — il ne pilote jamais Expérience et ne recalcule jamais un score.</li>
+      </ul>
+
+      <p>Le produit s'organise autour de 5 sections&nbsp;: <b>Accueil</b> (cockpit — où regarder), <b>Mes portefeuilles</b> (organisation des hôtels + scans multi-hôtels), <b>CRM Health</b> (le cœur — diagnostic par hôtel), <b>Ask NAVI</b> (interrogation en langage naturel du résultat déjà calculé) et <b>Paramètres</b> (hôtels, utilisateurs, admin). Un scan est l'unique porte d'entrée de la donnée fraîche&nbsp;: il déclenche le moteur Playwright, qui va chercher des KPI dans Expérience, les fait passer dans un moteur de règles métier déterministe (scoring CRM Health + détection de signaux), et le résultat structuré redescend vers NAVI pour affichage, historisation, et alimentation d'Ask NAVI.</p>
+
+      <div class="callout ok">
+        <span class="dot"></span>
+        <p><b>Point de confiance établi pendant l'audit&nbsp;:</b> j'ai croisé chaque règle de scoring et chaque seuil de signal du fichier <code>testnaviintegrated.js</code> avec le référentiel Excel. Ils correspondent à l'identique, partout. Le moteur métier existant n'est pas un prototype approximatif — c'est déjà une encodage fidèle du référentiel. Le détail du croisement est en section 03.</p>
+      </div>
+    </section>
+
+    <!-- 02 AUDIT -->
+    <section class="doc-sec" id="audit">
+      <div class="sec-head"><span class="sec-num">02</span><h2>Audit de l'existant</h2></div>
+      <p class="sec-dek">Un seul fichier a été fourni côté code&nbsp;: <code>testnaviintegrated.js</code>, 14 188 lignes, script Node/Playwright autonome (pas d'app, pas de repo). Il est explicitely découpé en 8 « BLOC n/8 » commentés — ce qui en fait déjà, logiquement, un système modulaire même s'il est physiquement dans un seul fichier.</p>
+
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Bloc</th><th>Contenu</th><th>Statut</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">1/8</td><td>Config, utilitaires, interpolation de score, <b>calcul CRM Health</b>, <b>moteur de signaux</b> (P01–P12), définitions d'audience, modèle de scoring P11</td><td><span class="chip reuse">réutilisable tel quel</span></td></tr>
+            <tr><td class="mono">2/8</td><td>Session Expérience + navigation générique (login, sélection hôtel, changement d'espace, sélection de période, ouverture des pages de reporting)</td><td><span class="chip adapt">à adapter</span></td></tr>
+            <tr><td class="mono">3/8</td><td>Scrapers CRM Health (base exploitable, captation, OTA/Non-OTA, returning guests, statistiques marketing) + parsing FR (nombres, %, devises)</td><td><span class="chip adapt">à adapter</span></td></tr>
+            <tr><td class="mono">4/8</td><td>Briques génériques Audience Builder (ouverture listes d'envoi, ajout de conditions AND/OR, filtre nombre de séjours, sélecteur de date par calendrier)</td><td><span class="chip adapt">à adapter</span></td></tr>
+            <tr><td class="mono">5/8</td><td>Filtres spécifiques (inactivité e-mail, montant de séjour) + cycle de vie complet d'une audience temporaire (créer → mesurer → <b>toujours supprimer</b>, y compris en erreur)</td><td><span class="chip reuse">bon pattern à garder</span></td></tr>
+            <tr><td class="mono">6/8</td><td>Moteur de playbooks P01–P09 + P11 (routeur par signal, exécution avec ou sans audience, Opportunity Finder P11 avec scoring relatif)</td><td><span class="chip adapt">à adapter</span></td></tr>
+            <tr><td class="mono">7/8</td><td>Playbook P10 complet&nbsp;: détection automations actives/inactives (par géométrie DOM), bibliothèque de 36 campagnes/12 mois, règle ⭐, sélection interactive</td><td><span class="chip fragile">le plus fragile</span></td></tr>
+            <tr><td class="mono">8/8</td><td>Orchestrateur principal <code>scanHotel()</code> + boucle multi-hôtels séquentielle + export CSV/JSON, retry (3 tentatives)</td><td><span class="chip adapt">à remplacer par le queue system</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Ce qui est solide et directement réutilisable</h3>
+      <div class="audit-card">
+        <h4>Moteur de scoring & de signaux <span class="chip reuse">pur, sans Playwright</span></h4>
+        <p><code>calculateCRMHealth()</code>, <code>interpolateScore()</code>, <code>detectSignals()</code>, <code>getHealthLevel()</code> et la table <code>PLAYBOOKS</code> sont des fonctions pures — aucune dépendance au DOM. Elles encodent exactement les seuils du référentiel (piliers, pondérations, barème d'interpolation). C'est la brique la plus précieuse du projet&nbsp;: on peut la déplacer telle quelle dans <code>/backend/services/scoring</code> sans quasiment y toucher.</p>
+      </div>
+      <div class="audit-card">
+        <h4>Cycle de vie « audience temporaire » <span class="chip reuse">pattern déjà correct</span></h4>
+        <p><code>previewAudience()</code> et <code>measureP11Opportunity()</code> encapsulent déjà try/catch avec nettoyage garanti (<code>deleteAudience()</code> appelé même en cas d'erreur). C'est exactement le comportement attendu pour piloter Expérience sans polluer sa liste de segments — à conserver et à formaliser en pattern générique.</p>
+      </div>
+      <div class="audit-card">
+        <h4>Découverte dynamique des canaux OTA <span class="chip reuse">robustesse déjà pensée</span></h4>
+        <p><code>addLastStayChannelFilter()</code> ne suppose pas une liste fixe de libellés Booking/Expedia&nbsp;: il lit les options réellement proposées par Expérience pour l'hôtel courant. Bon réflexe défensif à généraliser ailleurs.</p>
+      </div>
+
+      <h3>Ce qui est fragile</h3>
+      <div class="audit-card">
+        <h4>Heuristiques de position DOM <span class="chip fragile">risque élevé</span> <span class="file">blocs 4, 5, 7</span></h4>
+        <p>Plusieurs sélections reposent sur des positions plutôt que des rôles sémantiques&nbsp;: « 4ᵉ zone <i>Ajouter une condition</i> » (<code>.nth(3)</code>), « 5ᵉ textbox de l'écran » (<code>.nth(4)</code>), tri d'éléments SVG Highcharts par position x/y pour lire des pourcentages, et classification des automations « actives/inactives » par comparaison de coordonnées X à l'écran. Tout changement visuel côté Expérience (largeur de colonne, ajout d'un champ, réordonnancement) peut casser ces heuristiques silencieusement — elles ne lèvent pas toujours d'erreur explicite, elles peuvent juste lire la mauvaise valeur.</p>
+      </div>
+      <div class="audit-card">
+        <h4>Interactivité CLI <span class="chip fragile">bloquant pour un backend</span></h4>
+        <p><code>askYesNo()</code>, <code>askQuestion()</code>, <code>chooseCampaignP10()</code> attendent une réponse tapée dans un terminal pendant l'exécution (« veux-tu prévisualiser cette audience ? », « choisis une campagne 1/2/3 »). C'est incompatible tel quel avec un job de fond exécuté par une queue&nbsp;: ces points de décision doivent devenir soit des étapes explicites de l'UI NAVI (l'utilisateur confirme avant que Playwright ne retourne dans Expérience), soit des valeurs par défaut assumées. C'est un point de conception produit, pas juste technique — voir risques §10.</p>
+      </div>
+      <div class="audit-card">
+        <h4>Session partagée mono-utilisateur <span class="chip fragile"></span></h4>
+        <p><code>launchPersistentContext(USER_DATA_DIR)</code> réutilise un unique profil navigateur local, avec 2FA résolu manuellement la première fois. Ça marche pour un script de test lancé à la main ; ça ne tient pas pour plusieurs workers concurrents ni pour un déploiement serveur sans écran. À repenser (voir §07 et question bloquante §11.4).</p>
+      </div>
+      <div class="audit-card">
+        <h4>Aucune persistance <span class="chip gap">absent, normal à ce stade</span></h4>
+        <p>Le script écrit uniquement des fichiers CSV/JSON locaux (<code>navi-integrated-results.*</code>). Ni base de données, ni API, ni frontend n'existent. Ce n'est pas une régression — le script n'a jamais eu vocation à être ce système ; c'est la preuve de faisabilité métier que le backend NAVI doit maintenant encapsuler.</p>
+      </div>
+
+      <h3>Le référentiel Excel</h3>
+      <p>8 onglets&nbsp;: <span class="chip gap">Cartographie Filtres</span> <span class="chip gap">Cartographie KPIs</span> <span class="chip gap">Benchmark portefeuille</span> <span class="chip gap">CRM Health</span> <span class="chip gap">Scoring CRM</span> <span class="chip gap">Signals & Playbook</span> <span class="chip gap">P11</span> <span class="chip gap">P10</span>. C'est un référentiel <i>vivant</i>, pas une intention&nbsp;: chaque seuil, pondération et barème qu'il documente est déjà implémenté dans le code, à l'identique — piliers CRM Health (20/15/20/20/25 pts), barèmes d'interpolation, 9 conditions de déclenchement de signal, pondérations P11 (50/30/20 pts), règle ⭐ P10. Le détail complet du croisement est en section 03.</p>
+
+      <div class="callout warn">
+        <span class="dot"></span>
+        <p><b>Écart identifié, à ne pas trancher seul&nbsp;:</b> l'onglet <i>Cartographie Filtres</i> marque <code>Catégorie NPS du client</code> et <code>N'a pas été contacté par e-mail depuis X mois</code> comme <code>Scrappé&nbsp;: True</code> / <code>V1</code> — donc, selon le référentiel, déjà implémentés. Je ne trouve ces deux filtres nulle part dans <code>testnaviintegrated.js</code>. Soit un autre fichier existe et ne m'a pas été transmis, soit le référentiel est en avance sur le code fourni. Voir question bloquante §11.3 — je ne comble pas cet écart par une supposition.</p>
+      </div>
+    </section>
+
+    <!-- 03 MAPPING -->
+    <section class="doc-sec" id="mapping">
+      <div class="sec-head"><span class="sec-num">03</span><h2>Mapping métier ↔ technique</h2></div>
+      <p class="sec-dek">La chaîne <code>Référentiel → Playbook → Données → Actions Playwright → Résultat → Signal/scoring → Affichage NAVI</code> pour les 12 playbooks, telle qu'elle existe déjà, validée ligne à ligne contre le référentiel Excel.</p>
+
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>ID</th><th>Signal (référentiel)</th><th>Type</th><th>Condition de déclenchement</th><th>Audience associée</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">P01</td><td>Captation insuffisante</td><td>Problème</td><td class="mono">captation &lt; 60%</td><td>Aucune</td></tr>
+            <tr><td class="mono">P02</td><td>Collecte CRM critique</td><td>Problème</td><td class="mono">captation &lt; 60% ET activabilité &lt; 30%</td><td>Profils à risque d'inactivité</td></tr>
+            <tr><td class="mono">P03</td><td>Déperdition après collecte</td><td>Problème</td><td class="mono">captation ≥ 70% ET activabilité &lt; 50%</td><td>Profils à risque d'inactivité</td></tr>
+            <tr><td class="mono">P04</td><td>Base activable insuffisante</td><td>Problème</td><td class="mono">activabilité &lt; 30% (si P02 ne s'applique pas)</td><td>Profils à risque d'inactivité</td></tr>
+            <tr><td class="mono">P05</td><td>Forte dépendance OTA</td><td>Problème</td><td class="mono">Non-OTA (résa.) ≤ 20%</td><td>Base exploitable entière</td></tr>
+            <tr><td class="mono">P06</td><td>Potentiel OTA → Direct</td><td>Opportunité</td><td class="mono">Non-OTA ≤ 30% ET Returning ≥ 7%</td><td>OTA convertibles</td></tr>
+            <tr><td class="mono">P07</td><td>Faible fidélisation</td><td>Problème</td><td class="mono">Returning &lt; 5%</td><td>Deuxième réservation</td></tr>
+            <tr><td class="mono">P08</td><td>Fidélisation en recul</td><td>Vigilance</td><td class="mono">Δ Returning ≤ −2 pts</td><td>Aucune (contextualisation)</td></tr>
+            <tr><td class="mono">P09</td><td>Potentiel fidélisation inexploité</td><td>Opportunité</td><td class="mono">Returning &lt; 7% ET activabilité ≥ 50% ET activation ≥ 18‰</td><td>One-timers forte valeur</td></tr>
+            <tr><td class="mono">P10</td><td>Sous-activation CRM</td><td>Problème</td><td class="mono">activation &lt; 8‰ (si P11 ne s'applique pas)</td><td>Dynamique (campagne du mois)</td></tr>
+            <tr><td class="mono">P11</td><td>Base CRM sous-exploitée</td><td>Opportunité</td><td class="mono">activabilité ≥ 50% ET activation &lt; 8‰</td><td>Multi-audiences (3 mesurées, classées)</td></tr>
+            <tr><td class="mono">P12</td><td>Business concentré automations</td><td>Vigilance</td><td class="mono">part automations ≥ 80% ET résa. CRM ≥ 10</td><td>Aucune par défaut</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout ok">
+        <span class="dot"></span>
+        <p><b>Résultat du croisement code ⇄ Excel&nbsp;:</b> les 12 conditions de déclenchement, les 3 poids/barèmes de scoring P11, la règle ⭐ P10, et les 5 piliers/pondérations CRM Health correspondent exactement entre <code>detectSignals()</code>/<code>calculateCRMHealth()</code> et les onglets <i>Signals & Playbook</i>, <i>P10</i>, <i>P11</i>, <i>Scoring CRM</i>. Aucune divergence trouvée sur les règles métier elles-mêmes.</p>
+      </div>
+
+      <div class="callout warn">
+        <span class="dot"></span>
+        <p><b>Nuance importante à faire figurer dans le modèle de données&nbsp;:</b> le brief (§18) demande de distinguer les KPI filtrables/non filtrables par date. Le code le fait déjà <i>implicitement</i> — <code>base</code>, <code>activity</code> et <code>marketing</code> suivent la période sélectionnée (<code>CONFIG.period</code>), mais <code>ota</code> et <code>returning</code> comparent toujours <i>année civile en cours vs année précédente</i>, indépendamment de la période choisie pour le scan. C'est une règle réelle d'Expérience, pas un choix NAVI — elle doit être portée dans le catalogue de KPI (<code>dateFilterable</code>) plutôt que dans chaque écran, pour ne jamais laisser croire que « Part Non-OTA » porte sur la période sélectionnée par l'utilisateur.</p>
+      </div>
+
+      <p class="soft">Le nommage exact des briques génériques proposées par le brief (§5) est repris presque tel quel — seuls les noms les plus ambigus sont précisés pour matcher ce que fait réellement le code&nbsp;:</p>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Brief §5</th><th>Fonction existante</th><th>Décision</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">loginToExperience()</td><td class="mono">connectToExperience()</td><td>renommer à l'extraction</td></tr>
+            <tr><td class="mono">selectHotel()</td><td class="mono">selectHotel()</td><td>conserver tel quel</td></tr>
+            <tr><td class="mono">navigateToPage()</td><td class="mono">openReporting / openCustomerAnalysis / openActivity / openRevenue / openMarketingStats</td><td>garder les fonctions dédiées, ajouter un routeur <code>navigateToPage(target)</code> par-dessus</td></tr>
+            <tr><td class="mono">selectPeriod()</td><td class="mono">applyPeriodWithToggle() / setMarketingPeriod()</td><td>fusionner en une seule fonction paramétrée par contexte d'écran</td></tr>
+            <tr><td class="mono">readKPI() / readValue()</td><td class="mono">scrapeGeneralKPIs, scrapeEmailCapture, scrapeRevenueOTAKPIs, scrapeReturningGuests, scrapeMarketingKPIs</td><td>garder ces scrapers dédiés (ils sont KPI-spécifiques) plutôt qu'une fonction générique qui perdrait la robustesse actuelle</td></tr>
+            <tr><td class="mono">buildAudience()</td><td class="mono">buildAudienceDefinition() + briques du bloc 4/5</td><td>conserver, c'est déjà exactement ça</td></tr>
+            <tr><td class="mono">readAudienceCount()</td><td class="mono">getNaviRecipientsCount()</td><td>renommer à l'extraction</td></tr>
+            <tr><td class="mono">handleExperienceError()</td><td class="mono">absent en tant que fonction dédiée (erreurs gérées localement par throw)</td><td><span class="chip propose">à créer</span> — voir §07</td></tr>
+            <tr><td class="mono">runHotelHealthScan()</td><td class="mono">scanHotel()</td><td>déjà exactement cette fonction — à faire évoluer en job de queue</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 04 STACK -->
+    <section class="doc-sec" id="stack">
+      <div class="sec-head"><span class="sec-num">04</span><h2>Architecture technique proposée</h2></div>
+      <p class="sec-dek">Choix de stack, avec justification à chaque fois qu'il y avait une alternative sérieuse.</p>
+
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Couche</th><th>Choix</th><th>Pourquoi</th></tr></thead>
+          <tbody>
+            <tr><td>Frontend</td><td class="mono">React + TypeScript + Vite</td><td>Desktop-first, beaucoup d'état serveur (scans, portefeuilles) → écosystème de query/cache mature (TanStack Query).</td></tr>
+            <tr><td>Styling</td><td class="mono">Tailwind, configuré sur les tokens NAVI</td><td>Rapide à tenir cohérent avec la charte (parchment/terracotta/sage/horizon) sans réinventer un design system ; pas de dashboard SaaS générique bleu/violet — les tokens sont fixés dès la config.</td></tr>
+            <tr><td>Backend / API</td><td class="mono">Node.js + TypeScript + Fastify</td><td>Même langage que le moteur Playwright existant → <b>zéro portage</b>, le code des blocs 1–7 s'importe directement comme modules du backend. Fastify plutôt que NestJS&nbsp;: le brief demande explicitement d'éviter l'over-engineering ; Fastify + une organisation en modules par dossier suffit au périmètre actuel.</td></tr>
+            <tr><td>Base de données</td><td class="mono">PostgreSQL + Prisma</td><td>Relationnel nécessaire (historique de scans, jointures portefeuille/hôtel/scan/KPI), <code>jsonb</code> pour stocker le payload brut d'un scan sans perdre d'information, migrations versionnées avec Prisma.</td></tr>
+            <tr><td>Queue / jobs</td><td class="mono">BullMQ + Redis</td><td>Système de queue mature pour Node, gère nativement retry, concurrence limitée, progression par job — correspond exactement au besoin « scan multi-hôtels » du brief §10.</td></tr>
+            <tr><td>Exécution Playwright</td><td class="mono">Workers Node dédiés, consommateurs BullMQ</td><td>Isole les navigateurs du process API (un crash Playwright ne doit jamais faire tomber l'API NAVI).</td></tr>
+            <tr><td>Auth NAVI</td><td class="mono">Session cookie HttpOnly + argon2</td><td>Simple, contrôle des droits côté serveur (brief §40). SSO retiré du périmètre V1 — décidé, voir §11.</td></tr>
+            <tr><td>Ask NAVI — runtime</td><td class="mono">LLM Service (interface) + adaptateur Qwen</td><td><span class="chip propose">ajusté v2</span> Provider-agnostic par construction (détail §09) — le choix concret du provider/runtime (auto-hébergé, API hébergée…) se décide juste avant la Phase H, sans impact sur le reste de NAVI. Le matériel du poste de travail n'est plus une contrainte de départ.</td></tr>
+            <tr><td>Temps réel (progression de scan)</td><td class="mono">Server-Sent Events</td><td>Suffisant pour de la progression unidirectionnelle serveur→client ; plus simple à opérer qu'un WebSocket pour ce seul besoin.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Vue en couches</h3>
+      <div class="flow">
+        <div class="flow-row"><div class="flow-box accent">Frontend NAVI<small>React · TS · Vite — navigateur, aucune installation</small></div></div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-row"><div class="flow-box">Backend / API NAVI<small>Fastify · sessions · droits</small></div></div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-row">
+          <div class="flow-box sage">Base NAVI<small>PostgreSQL</small></div>
+          <div class="flow-box horizon">Moteur métier<small>scoring · signaux · règles</small></div>
+          <div class="flow-box horizon">Ask NAVI<small>context builder</small></div>
+        </div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-row">
+          <div class="flow-box">Queue de scans<small>BullMQ · Redis</small></div>
+          <div class="flow-box">LLM Service<small>adaptateur provider (§09)</small></div>
+        </div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-row"><div class="flow-box">Moteur Expérience Playwright<small>workers dédiés</small></div></div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-row"><div class="flow-box accent">Expérience (D-EDGE)</div></div>
+      </div>
+      <p class="soft">C'est exactement le schéma du brief §3, avec trois ajouts assumés&nbsp;: une queue explicite entre le moteur métier et le moteur Playwright (le brief l'exige au §10), un Context Builder explicite entre la base NAVI et le LLM (le brief l'exige au §29 — le modèle ne doit jamais recevoir toute la base), et une couche LLM Service qui découple Ask NAVI du provider concret (§09).</p>
+
+      <h3 class="tight">Scénario de déploiement <span class="chip propose">ajouté v2</span></h3>
+      <p>Tous les composants serveur (API, PostgreSQL, Redis, workers Playwright) sont empaquetés ensemble en <b>Docker Compose</b> et n'exigent <b>aucune installation sur les postes utilisateurs</b> — un navigateur suffit. Trois scénarios d'hébergement possibles pour cette même image, à choisir selon les contraintes réelles de l'organisation&nbsp;:</p>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Scénario</th><th>Où tourne l'API/DB/Redis/Playwright</th><th>Avantage</th><th>Inconvénient</th></tr></thead>
+          <tbody>
+            <tr><td><b>A — Serveur interne</b><br><span class="chip reuse">recommandé pour la Phase C</span></td><td>Une machine contrôlée par l'entreprise, réseau interne</td><td>Identifiants Expérience et données CRM ne quittent jamais le réseau de l'entreprise</td><td>Un serveur à administrer, pas de scaling automatique</td></tr>
+            <tr><td>B — Cloud managé</td><td>VM/conteneurs cloud, PostgreSQL/Redis en service managé</td><td>Zéro matériel à maintenir, scaling plus simple</td><td>Question de conformité à trancher sur le passage de données CRM par un tiers</td></tr>
+            <tr><td>C — Hybride</td><td>API/DB/Redis dans le cloud, workers Playwright sur une machine interne dédiée</td><td>Isole le composant le plus sensible (session Expérience) derrière le réseau interne</td><td>Plus de pièces mobiles à opérer</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="soft">Le choix définitif de production (A/B/C) n'est pas bloquant pour la Phase A — l'image Docker Compose est la même dans les trois cas. Le runtime LLM suit la même logique de flexibilité&nbsp;: auto-hébergé sur le même serveur, sur une machine dédiée, ou via une API hébergée, sans changement d'architecture (§09).</p>
+    </section>
+
+    <!-- 05 REPO -->
+    <section class="doc-sec" id="repo">
+      <div class="sec-head"><span class="sec-num">05</span><h2>Structure du repository</h2></div>
+      <p class="sec-dek">Monorepo avec workspaces pnpm — un seul dépôt, types partagés entre frontend et backend, un seul endroit où le référentiel métier fait autorité.</p>
+
+      <div class="tbl-wrap">
+        <pre class="tree"><code>navi/
+├── frontend/                     <span class="c"># React + Vite</span>
+│   ├── src/
+│   │   ├── pages/                <span class="c"># Login, Accueil, Portefeuilles, CRM Health, Ask NAVI, Paramètres</span>
+│   │   ├── components/           <span class="c"># cards, tables, chips d'état, jauges de score…</span>
+│   │   ├── features/             <span class="c"># scan-progress, audience-actions, ask-navi…</span>
+│   │   └── design-system/        <span class="c"># tokens NAVI (couleurs, typo, espacements)</span>
+│
+├── backend/
+│   ├── api/                      <span class="c"># routes Fastify, contrôleurs, validation</span>
+│   ├── services/
+│   │   ├── scoring/               <span class="c"># <b>portage direct</b> du bloc 1/8 (pur, sans Playwright)</span>
+│   │   ├── signals/                <span class="c"># detectSignals(), catalogue de signaux</span>
+│   │   └── recommendations/
+│   ├── database/                 <span class="c"># schema.prisma, migrations, repositories</span>
+│   ├── experience/                <span class="c"># <b>moteur Playwright</b>, ex-testnaviintegrated.js</span>
+│   │   ├── core/                   <span class="c"># session, navigation générique (bloc 2)</span>
+│   │   ├── scrapers/               <span class="c"># lecture KPI (bloc 3)</span>
+│   │   └── audience-builder/       <span class="c"># briques génériques + cycle de vie (blocs 4-5)</span>
+│   ├── playbooks/                 <span class="c"># P01…P12, orchestration fine (blocs 6-7)</span>
+│   ├── scans/                     <span class="c"># queue BullMQ, workers, calcul ETA</span>
+│   └── ai/
+│       ├── context-builder/        <span class="c"># getHotelHealth(), getPortfolioSignals()…</span>
+│       ├── llm-service/            <span class="c"># interface provider-agnostic + adaptateurs (Ollama, API hébergée…)</span>
+│       └── ask-navi/               <span class="c"># orchestration question → réponse structurée</span>
+│
+├── shared/                       <span class="c"># types TS partagés frontend/backend (contrats API, enums de statut)</span>
+├── docs/
+│   └── reference/                 <span class="c"># brief, référentiel Excel, mockups — copie de travail, jamais de secret</span>
+└── .env.example                  <span class="c"># jamais de vraie valeur committée</span></code></pre>
+      </div>
+      <p class="soft">Le dossier <code>backend/experience/</code> est délibérément séparé de <code>backend/playbooks/</code>&nbsp;: le premier ne « sait » que parler à Expérience (naviguer, lire, filtrer), le second « sait » quelle séquence de lecture répond à quelle règle métier. C'est la séparation que demande le brief §5 — un playbook orchestre, il ne contient pas de sélecteur Playwright en dur.</p>
+    </section>
+
+    <!-- 06 DATA MODEL -->
+    <section class="doc-sec" id="data">
+      <div class="sec-head"><span class="sec-num">06</span><h2>Modèle de données</h2></div>
+      <p class="sec-dek">Le schéma indicatif du brief (§39) est un point de départ, pas une liste à copier telle quelle. Voici ce que je retiens, ce que je fusionne, et ce que j'ajoute — avec la raison à chaque fois.</p>
+
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Entité</th><th>Rôle</th><th>Décision vs brief</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">User</td><td>compte NAVI, rôle ADMIN/USER</td><td>tel quel</td></tr>
+            <tr><td class="mono">Hotel</td><td>hôtel + statut Expérience (Actif/À vérifier/Non trouvé/Erreur)</td><td>tel quel</td></tr>
+            <tr><td class="mono">Portfolio / PortfolioHotel</td><td>regroupement d'hôtels par utilisateur</td><td>tel quel</td></tr>
+            <tr><td class="mono">Scan</td><td>un lancement (un hôtel ou un lot) + période demandée</td><td>tel quel, porte le <code>periodType</code>/<code>periodValue</code></td></tr>
+            <tr><td class="mono">ScanHotel</td><td>statut individuel d'un hôtel dans un scan (PENDING/RUNNING/SUCCESS/PARTIAL_SUCCESS/FAILED)</td><td>tel quel — c'est la clé du multi-hôtel</td></tr>
+            <tr><td class="mono">ScanStep</td><td>une étape de collecte (BASE, CAPTURE, OTA, RETURNING, MARKETING) avec son statut propre</td><td><span class="chip propose">précisé</span> — nécessaire pour le <code>PARTIAL_SUCCESS</code> : le brief le demande au niveau donnée, pas seulement hôtel</td></tr>
+            <tr><td class="mono">ScanError</td><td>erreur détaillée (étape, type technique, message, heure)</td><td>tel quel</td></tr>
+            <tr><td class="mono">KPIDefinition</td><td>catalogue statique&nbsp;: id, libellé, source Expérience, <code>dateFilterable</code>, version (V1/V2)</td><td><span class="chip propose">ajouté</span> — seedé directement depuis l'onglet <i>Cartographie KPIs</i>, porte la nuance §18 sur le filtrage par date</td></tr>
+            <tr><td class="mono">KPIResult</td><td>valeur d'un KPI pour un <code>ScanHotel</code> donné</td><td>fusionné avec « KPI » du brief — inutile de dupliquer catalogue et résultat en deux endroits distincts de ce nom</td></tr>
+            <tr><td class="mono">Signal (catalogue)</td><td>référentiel statique des 12 signaux (id, nom, type, seuils, playbook)</td><td><span class="chip propose">ajouté</span> — seedé depuis l'onglet <i>Signals & Playbook</i>, c'est la source de vérité que le moteur ne doit jamais réinventer</td></tr>
+            <tr><td class="mono">SignalResult</td><td>occurrence d'un signal pour un <code>ScanHotel</code> + valeur déclenchante</td><td>tel quel</td></tr>
+            <tr><td class="mono">Recommendation</td><td>texte + lien vers signal + audience éventuelle</td><td>tel quel</td></tr>
+            <tr><td class="mono">Audience / AudienceResult</td><td>définition (catalogue P02-P11) + résultat mesuré (volume, date, hôtel)</td><td>séparé en deux comme <code>KPIDefinition</code>/<code>KPIResult</code>, même logique</td></tr>
+            <tr><td class="mono">AudienceComparison</td><td>regroupe plusieurs <code>AudienceResult</code> mesurés ensemble pour une même recommandation (ex. les 3 campagnes P10 du mois, ou les 3 opportunités P11)</td><td><span class="chip propose">ajouté v2</span> — nécessaire pour le modèle d'audience hybride validé (§07&nbsp;: « Comparer les audiences » calcule et affiche plusieurs volumes côte à côte avant le choix utilisateur)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="tight">Extrait de schéma (Prisma, indicatif)</h3>
+      <pre><code>model ScanHotel {
+  id            String     @id @default(cuid())
+  scanId        String
+  hotelId       String
+  status        ScanHotelStatus   // PENDING | RUNNING | SUCCESS | PARTIAL_SUCCESS | FAILED
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  durationMs    Int?
+  healthScore   Float?
+  healthLevel   String?
+  steps         ScanStep[]
+  kpiResults    KPIResult[]
+  signalResults SignalResult[]
+  errors        ScanError[]
+}
+
+model ScanStep {
+  id           String   @id @default(cuid())
+  scanHotelId  String
+  name         String   // BASE | CAPTURE | OTA | RETURNING | MARKETING
+  status       StepStatus // OK | ERROR | SKIPPED
+  errorType    ErrorType? // TIMEOUT | ELEMENT_NOT_FOUND | PAGE_UNAVAILABLE | ...
+}
+
+model KPIDefinition {
+  id             String   @id            // ex: "nonOtaReservationShare"
+  label          String                  // "Part des réservations Non OTA"
+  source         String                  // "Revenu → OTA"
+  dateFilterable Boolean                 // false pour ota/returning — année N vs N-1 fixe
+  version        String                  // "V1" | "V2"
+}
+
+model AudienceComparison {
+  id            String   @id @default(cuid())
+  hotelId       String
+  signalId      String            // P10 ou P11 à l'origine de la comparaison
+  results       AudienceResult[]  // ex: Campagne A — 1842, B — 623, C — 97
+  chosenResultId String?          // option effectivement retenue par l'utilisateur
+}</code></pre>
+
+      <div class="callout note">
+        <span class="dot"></span>
+        <p>Le <code>ScanStep</code> par KPI-source (plutôt qu'un statut unique par hôtel) est ce qui permet d'afficher précisément « ✓ Chiffre d'affaires · ✕ KPI Y » comme demandé au brief §12, sans avoir à re-parser un message d'erreur générique après coup.</p>
+      </div>
+    </section>
+
+    <!-- 07 PLAYWRIGHT -->
+    <section class="doc-sec" id="playwright">
+      <div class="sec-head"><span class="sec-num">07</span><h2>Architecture Playwright</h2></div>
+      <p class="sec-dek">Le principe directeur du brief §4 est explicite&nbsp;: ne pas réécrire, extraire. Voici comment je propose de faire passer les 8 blocs du script à une architecture modulaire sans changer le comportement métier validé.</p>
+
+      <h3>Découpage cible</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Module cible</th><th>Vient de (bloc)</th><th>Changement réel apporté</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">experience/core/session.ts</td><td>2/8</td><td><span class="chip propose">ajusté v2</span> pour le premier vertical slice (Phase C)&nbsp;: on conserve le fonctionnement actuel (profil navigateur persistant, 2FA résolu manuellement une fois) — mais isolé derrière une interface <code>SessionProvider</code> dédiée, pour pouvoir le remplacer par un <code>storageState</code> partagé/rafraîchi sans toucher au reste du moteur, une fois la stratégie long terme tranchée (§11)</td></tr>
+            <tr><td class="mono">experience/core/navigation.ts</td><td>2/8</td><td>copie quasi directe — renommage en verbes génériques (§03)</td></tr>
+            <tr><td class="mono">experience/scrapers/*.ts</td><td>3/8</td><td>copie directe, découpée un fichier par domaine KPI (base, captation, ota, returning, marketing)</td></tr>
+            <tr><td class="mono">experience/audience-builder/*.ts</td><td>4/8, 5/8</td><td>copie directe des briques + cycle de vie ; ajout de logs structurés au lieu de <code>console.log</code></td></tr>
+            <tr><td class="mono">playbooks/P01.ts … P12.ts</td><td>6/8, 7/8</td><td><b>seul vrai changement de logique</b> : chaque <code>askYesNo()</code>/<code>chooseCampaignP10()</code> est remplacé par un point d'attente explicite piloté par l'UI NAVI (voir ci-dessous)</td></tr>
+            <tr><td class="mono">services/scoring, services/signals</td><td>1/8</td><td>copie directe, zéro changement — fonctions pures</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Le point qui exigeait une vraie décision produit — <span class="chip ok" style="background:var(--sage-soft);color:var(--sage-ink)">arbitré</span></h3>
+      <p>Le script actuel pose deux questions à un humain en cours d'exécution&nbsp;: « veux-tu prévisualiser cette audience ? » et, pour P10, « quelle campagne du mois choisis-tu ? ». Dans NAVI, Playwright tourne en tâche de fond côté serveur — personne n'est devant un terminal. Le modèle retenu est <b>hybride</b>, pas un simple auto-preview ni une confirmation différée uniforme&nbsp;:</p>
+
+      <div class="flow">
+        <div class="flow-row"><div class="flow-box">Scan CRM Health<small>signal détecté</small></div></div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-row"><div class="flow-box">Recommandation affichée</div></div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-row">
+          <div class="flow-box horizon">Option unique<small>P02,P03,P04,P06,P07,P09</small></div>
+          <div class="flow-box horizon">Options multiples<small>P10, P11</small></div>
+        </div>
+        <div class="flow-sub">
+          <div class="flow-box">« Calculer l'audience »<small>1 job → 1 résultat</small></div>
+          <div class="flow-box">« Comparer les audiences/opportunités »<small>1 job → N résultats mesurés</small></div>
+        </div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-row"><div class="flow-box accent">Choix utilisateur — après avoir vu les volumes</div></div>
+      </div>
+
+      <p>Concrètement&nbsp;:</p>
+      <ul>
+        <li><b>Signal à option unique</b> (P02, P03, P04, P06, P07, P09) — la recommandation affiche un bouton <b>« Calculer l'audience »</b>. Un clic déclenche un job ciblé qui exécute le cycle créer/mesurer/supprimer déjà présent dans le code (bloc 5) et stocke un <code>AudienceResult</code> unique. C'est le flux du brief §22, inchangé.</li>
+        <li><b>Signal à options multiples</b> (P10, P11) — la recommandation affiche <b>« Comparer les audiences »</b> (P10) ou <b>« Comparer les opportunités »</b> (P11). Un clic déclenche un job qui répète le cycle créer/mesurer/supprimer pour <i>chaque</i> option pertinente et regroupe les résultats dans un <code>AudienceComparison</code> (§06). L'utilisateur voit tous les volumes côte à côte avant de choisir — jamais l'inverse.</li>
+      </ul>
+      <p class="soft"><b>Impact code&nbsp;:</b> <code>runP11OpportunityFinder()</code> fait déjà exactement ça — mesurer les 3 opportunités avant de classer — donc P11 ne change quasiment pas. P10 change réellement&nbsp;: aujourd'hui <code>chooseCampaignP10()</code> demande le choix <i>avant</i> toute mesure ; le nouveau playbook P10 doit mesurer les audiences des campagnes pertinentes du mois (avec le marquage ⭐ de <code>getP10StarRule()</code> conservé) <i>avant</i> de présenter le choix à l'utilisateur — sur le modèle P11.</p>
+
+      <h3>Gestion d'erreur — <code>handleExperienceError()</code></h3>
+      <p>Fonction à créer, absente du script actuel (les erreurs remontent aujourd'hui par <code>throw</code> brut avec message technique). Rôle&nbsp;: intercepter les erreurs Playwright, les classer dans l'énumération du brief §12 (<code>TIMEOUT</code>, <code>ELEMENT_NOT_FOUND</code>, <code>PAGE_UNAVAILABLE</code>, <code>AUTHENTICATION_ERROR</code>, <code>HOTEL_NOT_FOUND</code>, <code>NAVIGATION_ERROR</code>, <code>UNKNOWN_ERROR</code>), écrire le message technique complet en log, et retourner un message utilisateur traduit (« Le chiffre d'affaires n'a pas pu être récupéré dans Expérience »). Chaque scraper du bloc 3 l'appelle dans son <code>catch</code> au lieu de laisser l'erreur remonter brute.</p>
+    </section>
+
+    <!-- 08 SCANS -->
+    <section class="doc-sec" id="scans">
+      <div class="sec-head"><span class="sec-num">08</span><h2>Architecture des scans</h2></div>
+      <p class="sec-dek">Un scan multi-hôtels devient une file de jobs indépendants, pas une boucle séquentielle dans un seul process.</p>
+
+      <div class="flow">
+        <div class="flow-row"><div class="flow-box accent">Utilisateur lance un scan portefeuille<small>N hôtels sélectionnés</small></div></div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-row"><div class="flow-box">1 <code>Scan</code> créé</div></div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-row"><div class="flow-box">N jobs BullMQ<small>1 job = 1 <code>ScanHotel</code></small></div></div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-row">
+          <div class="flow-box sage">Worker 1</div>
+          <div class="flow-box sage">Worker 2</div>
+          <div class="flow-box sage">…</div>
+        </div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-row"><div class="flow-box">Progression par <code>ScanStep</code><small>SSE → frontend</small></div></div>
+      </div>
+
+      <ul>
+        <li><b>Un job par hôtel</b>, jamais un job par portefeuille&nbsp;: un hôtel qui échoue n'affecte pas la queue des autres (brief §12, « l'échec d'un hôtel ne doit pas empêcher la poursuite »).</li>
+        <li><b>Concurrence = 1 pour le premier vertical slice</b> <span class="chip propose">décidé v2</span> (<code>BullMQ concurrency: 1</code>) — on ne suppose pas qu'Expérience tolère l'exécution parallèle tant que ça n'a pas été observé réellement. La valeur reste un paramètre de configuration, augmentable à 2 ou plus une fois validé en conditions réelles (§11).</li>
+        <li><b>ETA</b>&nbsp;: même formule que le script actuel — moyenne glissante des durées des hôtels déjà terminés dans le lot × hôtels restants. Affichée avec la formulation « estimé », jamais comme garantie, conformément au brief §11.</li>
+        <li><b><code>PARTIAL_SUCCESS</code></b> dérivé automatiquement du statut des <code>ScanStep</code>&nbsp;: tous OK → <code>SUCCESS</code>, au moins un KO mais pas tous → <code>PARTIAL_SUCCESS</code>, tous KO ou erreur fatale (ex. hôtel introuvable) → <code>FAILED</code>.</li>
+        <li><b>Reprise</b>&nbsp;: relancer un <code>ScanHotel</code> précis d'un lot existant sans relancer tout le lot — un nouveau job pointant vers le même <code>Scan</code> parent, avec un nouveau <code>ScanHotel</code> lié.</li>
+      </ul>
+    </section>
+
+    <!-- 09 ASK NAVI -->
+    <section class="doc-sec" id="asknavi">
+      <div class="sec-head"><span class="sec-num">09</span><h2>Architecture Ask NAVI</h2></div>
+      <p class="sec-dek">Le LLM ne voit jamais la base NAVI dans son ensemble, et ne calcule jamais un score — il explique un résultat déjà calculé, avec des références structurées que NAVI transforme en liens. Le provider concret est un détail de configuration, jamais un couplage en dur.</p>
+
+      <div class="flow">
+        <div class="flow-row"><div class="flow-box accent">Utilisateur<small>« Pourquoi Galileo est en vigilance ? »</small></div></div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-row"><div class="flow-box">Backend NAVI</div></div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-row"><div class="flow-box horizon">Context Builder<small>identifie l'hôtel/portefeuille visé, appelle les fonctions de lecture ciblées</small></div></div>
+        <div class="flow-sub">
+          <div class="flow-box">getHotelHealth()</div>
+          <div class="flow-box">getHotelSignals()</div>
+          <div class="flow-box">getTopOpportunities()</div>
+        </div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-row"><div class="flow-box">Payload structuré (JSON)<small>scores, signaux, références — pas de texte libre</small></div></div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-row"><div class="flow-box sage">LLM Service<small>interface unique, provider interchangeable</small></div></div>
+        <div class="flow-sub">
+          <div class="flow-box">OllamaAdapter<small>auto-hébergé, local/serveur</small></div>
+          <div class="flow-box">HttpApiAdapter<small>endpoint compatible OpenAI — Qwen hébergé ou autre</small></div>
+        </div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-row"><div class="flow-box">Backend<small>vérifie les nombres cités, résout les références en liens NAVI</small></div></div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-row"><div class="flow-box accent">Réponse affichée<small>+ « Voir Galileo dans CRM Health »</small></div></div>
+      </div>
+
+      <div class="callout note">
+        <span class="dot"></span>
+        <p><b>Couche provider-agnostic</b> <span class="chip propose">ajusté v2</span> — <code>Ask NAVI → Context Builder → LLM Service → Provider concret</code>. <code>LLM Service</code> expose une interface unique (<code>complete(prompt, context)</code>) que des adaptateurs implémentent séparément&nbsp;: Qwen auto-hébergé (Ollama, sur le serveur NAVI ou une machine dédiée), Qwen via une API hébergée, ou un autre provider si besoin. Le provider actif se choisit par configuration au déploiement — le Context Builder, le prompt système et les garde-fous ci-dessous ne changent pas quel que soit le choix. Décision de provider/runtime concret repoussée juste avant la Phase H, sans impact sur le reste de l'architecture.</p>
+      </div>
+
+      <h3 class="tight">Garde-fous concrets</h3>
+      <ul>
+        <li><b>Le Context Builder ne fait pas de recherche libre</b>&nbsp;: un petit routeur d'intention (mots-clés + entités reconnues — nom d'hôtel, portefeuille) choisit parmi un jeu fermé de fonctions (<code>getHotelHealth</code>, <code>getPortfolioSignals</code>, <code>getTopOpportunities</code>, <code>getScanHistory</code>, <code>getHotelsWithoutRecentScan</code>…), pas un second appel LLM pour « décider quoi chercher » — ça évite d'ajouter une couche d'hallucination avant même d'atteindre Qwen.</li>
+        <li><b>Le prompt système interdit explicitement l'invention</b> de chiffres, hôtels, signaux ou audiences ; il ne travaille que sur le JSON fourni.</li>
+        <li><b>Validation post-génération</b>&nbsp;: le backend extrait les nombres présents dans la réponse de Qwen et vérifie qu'ils apparaissent dans le contexte fourni — un garde-fou simple et peu coûteux contre l'invention silencieuse de chiffres.</li>
+        <li><b>Références structurées, pas d'URL générées par Qwen</b>&nbsp;: Qwen retourne <code>{"hotelId": "...", "signalId": "..."}</code> dans sa réponse structurée ; c'est le frontend qui construit le lien vers CRM Health, jamais le modèle.</li>
+      </ul>
+
+      <div class="callout ok">
+        <span class="dot"></span>
+        <p>Le choix de la taille exacte du modèle (1.5B / 7B / 14B…) et du runtime dépend du matériel disponible au moment de la Phase H — mais grâce à l'abstraction ci-dessus, ce choix n'a plus d'impact sur le reste de NAVI et n'est plus une question bloquante pour démarrer les Foundations.</p>
+      </div>
+    </section>
+
+    <!-- 10 RISKS -->
+    <section class="doc-sec" id="risques">
+      <div class="sec-head"><span class="sec-num">10</span><h2>Risques</h2></div>
+      <p class="sec-dek">Classés par domaine, avec la mitigation proposée quand elle existe déjà.</p>
+
+      <div class="grid2">
+        <div class="card">
+          <h4 style="margin:0 0 6px;font-size:14.5px">Playwright / Expérience <span class="chip fragile" style="margin-left:6px">élevé</span></h4>
+          <p class="soft" style="margin:0">Heuristiques de position DOM (§02) cassables par un simple changement visuel côté Expérience, sans erreur explicite. Mitigation&nbsp;: privilégier systématiquement des sélecteurs par rôle/texte accessible à l'extraction (déjà majoritaire dans le code), garder les quelques heuristiques positionnelles isolées et testées séparément, alerter dès qu'un scraper retourne une valeur hors plage plausible.</p>
+        </div>
+        <div class="card">
+          <h4 style="margin:0 0 6px;font-size:14.5px">Charge sur Expérience <span class="chip gap" style="margin-left:6px">inconnu, mitigé</span></h4>
+          <p class="soft" style="margin:0">Tolérance réelle d'Expérience à plusieurs sessions authentifiées en parallèle non documentée nulle part. <span class="chip propose">décidé v2</span> Concurrence fixée à 1 pour le premier vertical slice ; augmentation seulement après observation réelle, jamais par défaut.</p>
+        </div>
+        <div class="card">
+          <h4 style="margin:0 0 6px;font-size:14.5px">Session & 2FA <span class="chip fragile" style="margin-left:6px">élevé, différé</span></h4>
+          <p class="soft" style="margin:0">Le script actuel suppose un humain devant l'écran au premier login. <span class="chip propose">décidé v2</span> Conservé tel quel pour le premier vertical slice (Phase C), isolé derrière une interface <code>SessionProvider</code> — la stratégie long terme (multi-utilisateurs, sans supervision) reste à trancher avant tout déploiement au-delà du pilote (§11).</p>
+        </div>
+        <div class="card">
+          <h4 style="margin:0 0 6px;font-size:14.5px">Performance multi-hôtels <span class="chip warn2" style="margin-left:6px">moyen</span></h4>
+          <p class="soft" style="margin:0">Chaque hôtel prend plusieurs minutes (navigation + lecture de 5 sources). En séquentiel strict, un portefeuille de 50 hôtels dépasserait largement l'heure. La queue à concurrence réglable (§08) est la réponse, mais sa valeur optimale dépend du risque ci-dessus.</p>
+        </div>
+        <div class="card">
+          <h4 style="margin:0 0 6px;font-size:14.5px">Données / historique <span class="chip gap" style="margin-left:6px">attendu, pas un risque</span></h4>
+          <p class="soft" style="margin:0">Aucun historique réel au lancement — le brief l'anticipe explicitement (§23, §37)&nbsp;: pas de graphique temporel tant que plusieurs scans réels n'existent pas. Le risque serait de céder à la tentation de fabriquer un historique factice pour « remplir » l'UI — à ne jamais faire.</p>
+        </div>
+        <div class="card">
+          <h4 style="margin:0 0 6px;font-size:14.5px">Sécurité <span class="chip fragile" style="margin-left:6px">à cadrer dès Phase A</span></h4>
+          <p class="soft" style="margin:0">Le script actuel ne committe aucun secret (bon point), mais le profil navigateur local (<code>experience-profile/</code>) contient une session vivante — à traiter comme un secret dans le futur backend (jamais committé, jamais loggé). <code>.env.example</code> + <code>.gitignore</code> dès le premier commit.</p>
+        </div>
+        <div class="card">
+          <h4 style="margin:0 0 6px;font-size:14.5px">LLM / matériel <span class="chip gap" style="margin-left:6px">résolu</span></h4>
+          <p class="soft" style="margin:0"><span class="chip propose">résolu v2</span> N'est plus bloquant grâce à l'abstraction LLM Service (§09) — le choix de provider/runtime est repoussé à la Phase H sans impact sur le reste de l'architecture.</p>
+        </div>
+        <div class="card">
+          <h4 style="margin:0 0 6px;font-size:14.5px">UX — traçabilité interne des playbooks <span class="chip gap" style="margin-left:6px">mineur</span></h4>
+          <p class="soft" style="margin:0">Le brief interdit d'exposer « P06 » à l'utilisateur (§5). Les identifiants de playbook restent utiles en logs/vue admin pour le débogage — à garder strictement hors des écrans utilisateur final, jamais dans les libellés de recommandation.</p>
+        </div>
+      </div>
+
+      <div class="callout ok" style="margin-top:18px">
+        <span class="dot"></span>
+        <p><b>Incohérence brief ⇄ mockup — résolue&nbsp;:</b> le brief §7 ne décrivait que email + mot de passe + « mot de passe oublié » pour le login, alors que le mockup affichait en plus un bouton « Se connecter avec SSO ». <span class="chip propose">décidé v2</span> SSO retiré du périmètre&nbsp;: le bouton est retiré du shell UI (Phase B1), l'écran Login se limite à email + mot de passe + mot de passe oublié.</p>
+      </div>
+    </section>
+
+    <!-- 11 QUESTIONS -->
+    <section class="doc-sec" id="questions">
+      <div class="sec-head"><span class="sec-num">11</span><h2>Points arbitrés</h2></div>
+      <p class="sec-dek">Les 5 questions bloquantes de la V1 de ce document ont toutes été tranchées ou explicitement différées sans bloquer la Phase A — journal de décision ci-dessous, conservé pour traçabilité.</p>
+
+      <div class="qitem">
+        <div class="qnum">1</div>
+        <div class="qbody">
+          <h4>Matériel de déploiement pour le LLM <span class="chip reuse" style="margin-left:6px">résolu</span></h4>
+          <p>N'est plus une question bloquante&nbsp;: la couche LLM Service (§09) rend Ask NAVI indépendant du provider/runtime. Le choix concret se fera juste avant la Phase H, en fonction du matériel réellement disponible à ce moment-là.</p>
+        </div>
+      </div>
+      <div class="qitem">
+        <div class="qnum">2</div>
+        <div class="qbody">
+          <h4>Tolérance d'Expérience à la concurrence <span class="chip adapt" style="margin-left:6px">décidé pour la Phase C</span></h4>
+          <p>Toujours inconnue en valeur réelle — mais plus bloquante&nbsp;: on démarre à concurrence&nbsp;1 (§08), sans supposer qu'une exécution parallèle est sûre. La valeur ne sera augmentée qu'après observation réelle du comportement d'Expérience.</p>
+        </div>
+      </div>
+      <div class="qitem">
+        <div class="qnum">3</div>
+        <div class="qbody">
+          <h4>Écart référentiel/code sur deux filtres V1 <span class="chip fragile" style="margin-left:6px">à vérifier, non bloquant</span></h4>
+          <p><code>Catégorie NPS du client</code> et <code>N'a pas été contacté par e-mail depuis X mois</code> restent marqués <b>« à vérifier / non confirmé »</b>. Ils ne sont pas implémentés et ne sont pas considérés comme disponibles tant que l'écart avec le référentiel n'est pas résolu. Ce point ne bloque ni les Foundations ni le premier vertical slice — il concerne des playbooks hors du slice initial.</p>
+        </div>
+      </div>
+      <div class="qitem">
+        <div class="qnum">4</div>
+        <div class="qbody">
+          <h4>Stratégie de session/2FA pour les workers serveur <span class="chip adapt" style="margin-left:6px">différé</span></h4>
+          <p>Fonctionnement actuel conservé tel quel pour prouver le flux complet <code>NAVI → backend → Playwright → Expérience → données → stockage → dashboard</code>. Isolé derrière une interface <code>SessionProvider</code> (§07) pour que la stratégie long terme (multi-utilisateurs, sans supervision humaine) puisse être branchée plus tard sans toucher au moteur.</p>
+        </div>
+      </div>
+      <div class="qitem">
+        <div class="qnum">5</div>
+        <div class="qbody">
+          <h4>SSO <span class="chip reuse" style="margin-left:6px">hors périmètre</span></h4>
+          <p>Retiré du périmètre. Le shell UI n'affiche plus le bouton SSO&nbsp;; l'écran Login se limite à email + mot de passe + mot de passe oublié.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 12 PLAN -->
+    <section class="doc-sec" id="plan">
+      <div class="sec-head"><span class="sec-num">12</span><h2>Plan de développement</h2></div>
+      <p class="sec-dek">L'ordre proposé au brief §47 est cohérent et je le conserve — je le détaille seulement en étapes plus petites, validables une à une, comme demandé au §46.12.</p>
+
+      <div class="phase">
+        <div class="phase-head"><span class="phase-letter">Phase A</span><h4>Foundations</h4></div>
+        <ul>
+          <li>A1 — Monorepo pnpm, structure de dossiers (§05), configuration TypeScript partagée</li>
+          <li>A2 — Design tokens NAVI (couleurs, typo Poppins/Inter, espacements) en Tailwind config</li>
+          <li>A3 — Docker Compose (API + PostgreSQL + Redis + worker Playwright) — scénario A, serveur interne (§04) ; schéma Prisma initial + seed du référentiel (KPIDefinition, Signal catalogue) depuis l'Excel</li>
+          <li>A4 — Backend Fastify squelette (santé, auth basique) + Frontend Vite squelette + routing des 5 sections</li>
+        </ul>
+      </div>
+      <div class="phase">
+        <div class="phase-head"><span class="phase-letter">Phase B</span><h4>Shell UI — données mockées</h4></div>
+        <ul>
+          <li>B1 — Login (email + mot de passe + mot de passe oublié uniquement, sans bouton SSO — §11.5) + Accueil</li>
+          <li>B2 — Mes portefeuilles (liste + détail portefeuille + tableau hôtels)</li>
+          <li>B3 — CRM Health (vue globale + fiche hôtel avec les 7 onglets internes)</li>
+          <li>B4 — Ask NAVI (interface conversationnelle, réponses mockées) + Paramètres (hôtels, utilisateurs)</li>
+        </ul>
+        <p class="soft" style="margin-top:8px">Objectif de phase, repris du brief §48&nbsp;: une application qui se lance, se navigue entièrement, et ressemble fidèlement aux mockups — avant toute connexion à Expérience.</p>
+      </div>
+      <div class="phase">
+        <div class="phase-head"><span class="phase-letter">Phase C</span><h4>Premier vertical slice réel</h4></div>
+        <ul>
+          <li>C1 — Extraction des blocs 1-3 du script vers <code>backend/services</code> et <code>backend/experience</code>, sans changement de logique</li>
+          <li>C2 — Un seul flux&nbsp;: sélection hôtel + période → lancement scan (job unique, pas encore de queue multi) → scraping réel des 5 sources → scoring + signaux → stockage → affichage dans la fiche hôtel</li>
+          <li>C3 — Validation sur 1 à 2 hôtels réels avant de généraliser</li>
+        </ul>
+      </div>
+      <div class="phase">
+        <div class="phase-head"><span class="phase-letter">Phase D</span><h4>Scan multi-hôtels</h4></div>
+        <ul>
+          <li>D1 — BullMQ + Redis, un job par <code>ScanHotel</code>, concurrence limitée (§08)</li>
+          <li>D2 — Progression SSE, ETA, statuts individuels dans l'UI portefeuille</li>
+          <li>D3 — <code>ScanStep</code> par KPI-source, dérivation <code>PARTIAL_SUCCESS</code>, <code>handleExperienceError()</code></li>
+        </ul>
+      </div>
+      <div class="phase">
+        <div class="phase-head"><span class="phase-letter">Phase E</span><h4>Intégration complète du moteur métier</h4></div>
+        <ul>
+          <li>E1 — Playbooks sans audience (P01, P05, P08, P12) — les plus simples, aucune décision UX en attente</li>
+          <li>E2 — Playbooks à option unique (P02, P03, P04, P06, P07, P09) — bouton « Calculer l'audience » (§07)</li>
+          <li>E3 — P11 (« Comparer les opportunités », déjà proche du code existant) puis P10 (mesure des campagnes du mois <i>avant</i> le choix utilisateur — le vrai changement de logique, §07)</li>
+        </ul>
+      </div>
+      <div class="phase">
+        <div class="phase-head"><span class="phase-letter">Phase F</span><h4>Audiences</h4></div>
+        <ul><li>Brancher le flux contextuel complet du brief §22 depuis chaque recommandation existante</li></ul>
+      </div>
+      <div class="phase">
+        <div class="phase-head"><span class="phase-letter">Phase G</span><h4>Administration</h4></div>
+        <ul>
+          <li>G1 — Gestion hôtels + <code>testHotelConnection()</code> (brief §24)</li>
+          <li>G2 — Gestion utilisateurs, rôles, droits</li>
+        </ul>
+      </div>
+      <div class="phase">
+        <div class="phase-head"><span class="phase-letter">Phase H</span><h4>Ask NAVI</h4></div>
+        <ul>
+          <li>H1 — Choix du provider/runtime LLM concret selon le matériel alors disponible (Ollama auto-hébergé, API hébergée…) + implémentation de l'adaptateur correspondant (§09)</li>
+          <li>H2 — Context Builder + fonctions de lecture ciblées</li>
+          <li>H3 — Garde-fous (validation des chiffres cités, références structurées → liens NAVI)</li>
+        </ul>
+      </div>
+      <div class="phase">
+        <div class="phase-head"><span class="phase-letter">Phase I</span><h4>Stabilisation</h4></div>
+        <ul><li>Logs structurés, durcissement sécurité, tests des scrapers les plus fragiles (§02), tuning concurrence de scan, polish UX/UI final vs mockups</li></ul>
+      </div>
+    </section>
+
+    <div class="foot">NAVI Architecture Proposal — v2, validée avec ajustements. Phase A (Foundations) autorisée à démarrer.</div>
+  </main>
+</div>
