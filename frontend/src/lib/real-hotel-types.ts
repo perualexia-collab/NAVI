@@ -30,6 +30,12 @@ export interface RealPortfolio {
   name: string;
   createdAt: string;
   hotels: RealHotel[];
+  health: {
+    scannedCount: number;
+    toScanCount: number;
+    criticalCount: number;
+    healthScore: number | null;
+  };
 }
 
 export type UserStatus = "PENDING" | "ACTIVE" | "DISABLED";

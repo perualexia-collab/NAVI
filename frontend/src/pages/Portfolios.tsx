@@ -49,11 +49,11 @@ export function Portfolios() {
         id: rp.id,
         name: rp.name,
         hotelCount: rp.hotels.length,
-        healthScore: null,
+        healthScore: rp.health.healthScore,
         healthDelta: 0,
-        scannedCount: 0,
-        toScanCount: rp.hotels.length,
-        criticalCount: 0
+        scannedCount: rp.health.scannedCount,
+        toScanCount: rp.health.toScanCount,
+        criticalCount: rp.health.criticalCount
       }))
     ],
     [realPortfolios]

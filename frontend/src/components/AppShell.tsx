@@ -23,10 +23,10 @@ export function AppShell() {
   }
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="relative flex w-64 flex-col overflow-hidden border-r border-graphite/10 bg-linen px-5 pb-6 pt-7">
+    <div className="flex h-screen overflow-hidden">
+      <aside className="relative flex h-screen w-64 shrink-0 flex-col overflow-hidden border-r border-graphite/10 bg-linen px-5 pb-6 pt-7">
         <div className="relative z-10 mb-6 flex justify-center">
-          <LogoMark size={44} />
+          <LogoMark size={64} />
         </div>
 
         <nav className="relative z-10 flex flex-col gap-1">
@@ -73,7 +73,7 @@ export function AppShell() {
         </div>
       </aside>
 
-      <main className="flex-1 bg-parchment p-8">
+      <main className="flex-1 overflow-y-auto bg-parchment p-8">
         <Outlet />
       </main>
     </div>
