@@ -72,3 +72,36 @@ portefeuilles ("zeze" vs "test") — la base n'a jamais rien perdu,
 vérifié par requête SQL directe.
 
 D1 déclaré terminé. Passage à D3 (robustesse métier multi-hôtels).
+
+## D3 — robustesse métier multi-hôtels (2026-09-02)
+
+Audit des 6 points demandés par l'utilisateur contre ce qui existait déjà
+grâce à D1 (réutilisation intégrale d'`executeHotelScan()` par
+`ScanHotel`, isolation native des jobs BullMQ) :
+
+| Exigence | État avant D3 |
+| --- | --- |
+| SUCCESS/PARTIAL_SUCCESS/FAILED par hôtel | ✅ déjà vrai (validation réelle 6 hôtels) |
+| ScanStep/ScanError indépendants | ✅ déjà vrai (clés sur `scanHotelId`) |
+| Réutiliser `handleExperienceError()` | ✅ déjà vrai |
+| Un hôtel qui plante n'affecte pas les autres | ⚠️ vrai pour les autres jobs, mais un hôtel pouvait lui-même rester bloqué à `RUNNING` pour toujours |
+| Agréger sans inventer / convertir en 0 | ✅ déjà vrai (`scoresAvailable` filtre les `null`, moyenne portefeuille vérifiée : (43+52+54+43+41+56)/6 = 48, conforme à l'agrégat affiché) |
+| Règles de scoring/signaux Phase C préservées | ✅ inchangées, réutilisées telles quelles |
+
+Seul point réellement manquant : `executeHotelScan()` protège déjà
+l'échec de connexion/collecte (BASE) mais pas une erreur survenant
+**avant** l'ouverture de la session Playwright (hôtel supprimé entre
+l'enqueue et le traitement du job, `sessionProvider.open()` en échec —
+ex. `SingletonLock`). Corrigé : tout le corps de la fonction est
+maintenant protégé par un filet de sécurité générique
+(`handleFatalScanError`), qui finalise systématiquement le `ScanHotel`
+en `FAILED` avec un `ScanError` classifié, plutôt que de le laisser
+indéfiniment à `RUNNING`/`PENDING`.
+
+Limite résiduelle assumée, pas corrigée : si un crash survient **après**
+que certaines étapes ont déjà réussi (ex. échec de
+`computeAndPersistScoreAndSignals` après une collecte complète), le
+filet de sécurité générique marquerait toutes les étapes en erreur,
+écrasant les étapes déjà réussies. Scénario étroit (pas rencontré en
+conditions réelles), non traité pour rester proportionné — à revisiter
+si constaté.

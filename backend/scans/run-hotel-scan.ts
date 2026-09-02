@@ -61,75 +61,108 @@ export interface ExecuteHotelScanOptions {
  * récupérés sont stockés et affichables, mais healthScore/signaux restent
  * null plutôt que calculés sur une base tronquée.
  *
- * Limite connue (héritée de la Phase C, pas nouvelle ici) : si
- * `sessionProvider.open()` lui-même échoue, le ScanHotel reste bloqué à
- * RUNNING (jamais finalisé) — pas de filet de sécurité pour ce cas précis.
- * À revoir avec la robustesse générale en Phase D3.
+ * Robustesse (Phase D3) : un ScanHotel ne doit jamais rester bloqué à
+ * RUNNING/PENDING indéfiniment, quelle que soit la cause d'échec — y
+ * compris avant même l'ouverture de la session Playwright (hôtel
+ * introuvable, `sessionProvider.open()` en échec...). Le corps entier est
+ * donc protégé par un filet de sécurité générique (`handleFatalScanError`)
+ * en plus du traitement dédié connexion/collecte déjà présent depuis la
+ * Phase C — les deux réutilisent `handleExperienceError()`.
  */
 export async function executeHotelScan(options: ExecuteHotelScanOptions): Promise<RunHotelScanResult> {
-  const hotel = await prisma.hotel.findUniqueOrThrow({ where: { id: options.hotelId } });
-  await prisma.scanHotel.update({ where: { id: options.scanHotelId }, data: { status: "RUNNING", startedAt: new Date() } });
-
   const startedAt = Date.now();
-  const session = await options.sessionProvider.open();
-  const connect = options.connectToExperience ?? defaultConnectToExperience;
-  const collect = options.collectHotelKpis ?? defaultCollectHotelKpis;
 
   try {
-    let collectResult: CollectHotelKpisResult;
+    const hotel = await prisma.hotel.findUniqueOrThrow({ where: { id: options.hotelId } });
+    await prisma.scanHotel.update({ where: { id: options.scanHotelId }, data: { status: "RUNNING", startedAt: new Date() } });
+
+    const session = await options.sessionProvider.open();
+    const connect = options.connectToExperience ?? defaultConnectToExperience;
+    const collect = options.collectHotelKpis ?? defaultCollectHotelKpis;
 
     try {
-      await connect(session.page, options.credentials);
-      collectResult = await collect(session.page, hotel.experienceLabel, options.period);
-    } catch (error) {
-      // Échec avant même la collecte (session/authentification) : les 5
-      // étapes sont marquées en erreur avec la même cause.
-      const classified = handleExperienceError("BASE", error);
-      await Promise.all(
-        STEP_NAMES.map((name) =>
-          persistStepFailure(options.scanHotelId, name, classified.errorType, classified.userMessage, classified.technicalMessage)
-        )
-      );
-      return await finalizeScanHotel(options.scanHotelId, "FAILED", startedAt);
-    }
+      let collectResult: CollectHotelKpisResult;
 
-    await Promise.all(STEP_NAMES.map((name) => persistStepOutcome(options.scanHotelId, name, collectResult)));
+      try {
+        await connect(session.page, options.credentials);
+        collectResult = await collect(session.page, hotel.experienceLabel, options.period);
+      } catch (error) {
+        // Échec avant même la collecte (session/authentification) : les 5
+        // étapes sont marquées en erreur avec la même cause.
+        const classified = handleExperienceError("BASE", error);
+        await Promise.all(
+          STEP_NAMES.map((name) =>
+            persistStepFailure(options.scanHotelId, name, classified.errorType, classified.userMessage, classified.technicalMessage)
+          )
+        );
+        return await finalizeScanHotel(options.scanHotelId, "FAILED", startedAt);
+      }
 
-    const kpiRows = mapKpiResults(collectResult);
-    await prisma.kPIResult.createMany({
-      data: kpiRows.map((row) => ({
-        scanHotelId: options.scanHotelId,
-        kpiDefinitionId: row.kpiDefinitionId,
-        value: row.value,
-        available: row.available,
-        previousValue: row.previousValue ?? null,
-        evolutionPoints: row.evolutionPoints ?? null
-      }))
-    });
+      await Promise.all(STEP_NAMES.map((name) => persistStepOutcome(options.scanHotelId, name, collectResult)));
 
-    const allStepsOk = STEP_NAMES.every((name) => stepOf(collectResult, name).status === "OK");
-
-    if (allStepsOk) {
-      await computeAndPersistScoreAndSignals(options.scanHotelId, collectResult);
-    }
-
-    const status: ScanHotelStatus = allStepsOk ? "SUCCESS" : STEP_NAMES.some((name) => stepOf(collectResult, name).status === "OK") ? "PARTIAL_SUCCESS" : "FAILED";
-
-    // Un scan SUCCESS/PARTIAL_SUCCESS prouve que l'hôtel a bien été trouvé
-    // et au moins partiellement scrapé dans Expérience — retours réels
-    // Phase C (2026-09-02) : experienceStatus restait bloqué à TO_VERIFY
-    // (valeur de création) même après un scan réel réussi.
-    if (status === "SUCCESS" || status === "PARTIAL_SUCCESS") {
-      await prisma.hotel.update({
-        where: { id: hotel.id },
-        data: { experienceStatus: "ACTIVE", lastConnectionCheckAt: new Date() }
+      const kpiRows = mapKpiResults(collectResult);
+      await prisma.kPIResult.createMany({
+        data: kpiRows.map((row) => ({
+          scanHotelId: options.scanHotelId,
+          kpiDefinitionId: row.kpiDefinitionId,
+          value: row.value,
+          available: row.available,
+          previousValue: row.previousValue ?? null,
+          evolutionPoints: row.evolutionPoints ?? null
+        }))
       });
-    }
 
-    return await finalizeScanHotel(options.scanHotelId, status, startedAt);
-  } finally {
-    await session.close();
+      const allStepsOk = STEP_NAMES.every((name) => stepOf(collectResult, name).status === "OK");
+
+      if (allStepsOk) {
+        await computeAndPersistScoreAndSignals(options.scanHotelId, collectResult);
+      }
+
+      const status: ScanHotelStatus = allStepsOk ? "SUCCESS" : STEP_NAMES.some((name) => stepOf(collectResult, name).status === "OK") ? "PARTIAL_SUCCESS" : "FAILED";
+
+      // Un scan SUCCESS/PARTIAL_SUCCESS prouve que l'hôtel a bien été trouvé
+      // et au moins partiellement scrapé dans Expérience — retours réels
+      // Phase C (2026-09-02) : experienceStatus restait bloqué à TO_VERIFY
+      // (valeur de création) même après un scan réel réussi.
+      if (status === "SUCCESS" || status === "PARTIAL_SUCCESS") {
+        await prisma.hotel.update({
+          where: { id: hotel.id },
+          data: { experienceStatus: "ACTIVE", lastConnectionCheckAt: new Date() }
+        });
+      }
+
+      return await finalizeScanHotel(options.scanHotelId, status, startedAt);
+    } finally {
+      await session.close();
+      await maybeFinalizeParentScan(options.scanId);
+    }
+  } catch (error) {
+    return handleFatalScanError(options, error, startedAt);
+  }
+}
+
+/**
+ * Filet de sécurité générique (Phase D3) — capture toute erreur survenue
+ * avant même l'ouverture de la session Playwright (hôtel introuvable,
+ * `sessionProvider.open()` en échec, etc., cas non couverts par le
+ * try/catch dédié connexion/collecte ci-dessus). Best-effort volontaire :
+ * si la persistance elle-même échoue ici (ex. base injoignable), on logue
+ * plutôt que de propager — ce chemin est déjà le dernier recours.
+ */
+async function handleFatalScanError(options: ExecuteHotelScanOptions, error: unknown, startedAt: number): Promise<RunHotelScanResult> {
+  try {
+    const classified = handleExperienceError("BASE", error);
+    await Promise.all(
+      STEP_NAMES.map((name) =>
+        persistStepFailure(options.scanHotelId, name, classified.errorType, classified.userMessage, classified.technicalMessage)
+      )
+    );
+    const result = await finalizeScanHotel(options.scanHotelId, "FAILED", startedAt);
     await maybeFinalizeParentScan(options.scanId);
+    return result;
+  } catch (persistError) {
+    console.error(`[executeHotelScan] Échec de la persistance de l'erreur fatale pour scanHotel ${options.scanHotelId} :`, persistError);
+    return { scanId: options.scanId, scanHotelId: options.scanHotelId, status: "FAILED" };
   }
 }
 
