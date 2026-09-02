@@ -239,6 +239,12 @@ function ScanResult({ scan }: { scan: RealScanSummary }) {
                 <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${SEVERITY_STYLE[signal.severity]}`}>{SEVERITY_LABEL[signal.severity]}</span>
                 <div className="mt-1 text-sm font-medium">{signal.name}</div>
                 <div className="text-xs text-graphite-faint">{signal.trigger}</div>
+                {signal.recommendationText && (
+                  <div className="mt-2 rounded-md bg-linen-deep p-2 text-xs text-graphite-soft">
+                    <span className="font-medium text-graphite">Recommandation — </span>
+                    {signal.recommendationText}
+                  </div>
+                )}
               </div>
             ))}
           </div>

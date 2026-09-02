@@ -77,6 +77,8 @@ export interface RealSignalResult {
   trigger: string;
   recommendedAction: string;
   audienceMode: AudienceMode;
+  /** Rempli uniquement pour les signaux sans audience (P01, P05, P08, P12) — voir Phase E1. */
+  recommendationText: string | null;
 }
 
 export interface RealScanSummary {

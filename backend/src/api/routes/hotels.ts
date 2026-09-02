@@ -91,7 +91,7 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
         steps: true,
         errors: true,
         kpiResults: { include: { kpiDefinition: true }, orderBy: { id: "asc" } },
-        signalResults: { include: { signal: true } }
+        signalResults: { include: { signal: true, recommendations: true } }
       }
     });
 
@@ -138,7 +138,12 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
           severity: result.signal.severity,
           trigger: result.trigger,
           recommendedAction: result.signal.recommendedAction,
-          audienceMode: result.signal.audienceMode
+          audienceMode: result.signal.audienceMode,
+          // Phase E1 : rempli uniquement pour les signaux sans audience
+          // (P01, P05, P08, P12) — recommandation déjà exploitable telle
+          // quelle. null pour les autres tant que E2/E3 (calcul
+          // d'audience) n'existent pas.
+          recommendationText: result.recommendations[0]?.text ?? null
         }))
       }
     };

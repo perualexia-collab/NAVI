@@ -300,9 +300,45 @@ async function computeAndPersistScoreAndSignals(scanHotelId: string, result: Col
   });
 
   if (signals.length > 0) {
-    await prisma.signalResult.createMany({
-      data: signals.map((signal) => ({ scanHotelId, playbookId: signal.playbookId, trigger: signal.trigger }))
-    });
+    await persistSignalsAndRecommendations(scanHotelId, signals);
+  }
+}
+
+/**
+ * Phase E1 — playbooks sans audience (P01, P05, P08, P12) : leur
+ * recommendedAction est un texte autonome, qui ne dépend d'aucun calcul
+ * d'audience (§07/E2/E3, pas encore construit). On matérialise donc une
+ * Recommendation dès le scan pour ces signaux-là — c'est déjà la
+ * recommandation finale montrée à l'utilisateur, pas une étape
+ * intermédiaire. Les signaux SINGLE/MULTIPLE (P02…P04, P06, P07, P09…P11)
+ * restent de simples SignalResult tant que E2/E3 n'existent pas : leur
+ * texte seul, sans audience mesurée, ne serait pas une recommandation
+ * exploitable.
+ */
+async function persistSignalsAndRecommendations(scanHotelId: string, signals: { playbookId: string; trigger: string }[]): Promise<void> {
+  const definitions = await prisma.signalDefinition.findMany({
+    where: { playbookId: { in: signals.map((signal) => signal.playbookId) } },
+    select: { playbookId: true, audienceMode: true, recommendedAction: true }
+  });
+  const definitionByPlaybookId = new Map(definitions.map((definition) => [definition.playbookId, definition]));
+
+  const createdSignalResults = await Promise.all(
+    signals.map((signal) =>
+      prisma.signalResult.create({
+        data: { scanHotelId, playbookId: signal.playbookId, trigger: signal.trigger },
+        select: { id: true, playbookId: true }
+      })
+    )
+  );
+
+  const recommendationsToCreate = createdSignalResults.flatMap((result) => {
+    const definition = definitionByPlaybookId.get(result.playbookId);
+    if (!definition || definition.audienceMode !== "NONE") return [];
+    return [{ scanHotelId, signalResultId: result.id, text: definition.recommendedAction }];
+  });
+
+  if (recommendationsToCreate.length > 0) {
+    await prisma.recommendation.createMany({ data: recommendationsToCreate });
   }
 }
 
