@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Card, CardHeader } from "../components/ui/Card.js";
 import { Icon } from "../components/ui/icons.js";
-import { conversationHistory as initialHistory, mockAnswer, moreSuggestedQuestions, suggestedQuestions } from "../mock/ask-navi.js";
+import { conversationHistory as initialHistory, mockAnswer, moreSuggestedQuestions } from "../mock/ask-navi.js";
 
 interface ConversationEntry {
   id: string;
@@ -68,17 +68,6 @@ export function AskNavi() {
                 <Icon.Send width={14} height={14} />
               </button>
             </form>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {suggestedQuestions.map((q) => (
-                <button
-                  key={q}
-                  onClick={() => setQuestion(q)}
-                  className="rounded-full border border-graphite/15 px-3 py-1 text-xs text-graphite-soft hover:border-terracotta hover:text-terracotta"
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
           </Card>
 
           {conversation.map((entry) => (
