@@ -21,8 +21,8 @@ type FormModalState = { mode: "create" } | { mode: "edit"; portfolio: RealPortfo
 // (Excellent/Sain/À surveiller/Critique/Aucun scan) — retours réels
 // Phase C (2026-09-02) : la liste des hôtels d'un portefeuille réel doit
 // avoir le même format que le tableau CRM Health générique.
-function statusFromHealthLevel(level: RealPortfolioHotel["healthLevel"]): MockHotel["status"] {
-  if (level === null) return "Aucun scan";
+function statusFromHealthLevel(level: RealPortfolioHotel["healthLevel"] | undefined): MockHotel["status"] {
+  if (!level) return "Aucun scan";
   if (level === "Excellent") return "Excellent";
   if (level === "Bon" || level === "Correct") return "Sain";
   if (level === "Fragile") return "À surveiller";
@@ -35,12 +35,12 @@ function toMockHotel(hotel: RealPortfolioHotel, portfolioId: string, portfolioNa
     name: hotel.name,
     portfolioId,
     portfolioName,
-    lastScanAt: hotel.lastScanAt,
-    healthScore: hotel.healthScore,
-    healthLevel: hotel.healthLevel,
-    alerts: hotel.alerts,
-    vigilances: hotel.vigilances,
-    opportunities: hotel.opportunities,
+    lastScanAt: hotel.lastScanAt ?? null,
+    healthScore: hotel.healthScore ?? null,
+    healthLevel: hotel.healthLevel ?? null,
+    alerts: hotel.alerts ?? null,
+    vigilances: hotel.vigilances ?? null,
+    opportunities: hotel.opportunities ?? null,
     status: statusFromHealthLevel(hotel.healthLevel)
   };
 }
