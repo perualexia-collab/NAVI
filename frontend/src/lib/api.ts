@@ -44,6 +44,9 @@ export const api = {
   listPortfolios: () => request<RealPortfolio[]>("/portfolios"),
   createPortfolio: (name: string, hotelIds: string[]) =>
     request<RealPortfolio>("/portfolios", { method: "POST", body: JSON.stringify({ name, hotelIds }) }),
+  updatePortfolio: (portfolioId: string, input: { name?: string; hotelIds?: string[] }) =>
+    request<RealPortfolio>(`/portfolios/${portfolioId}`, { method: "PATCH", body: JSON.stringify(input) }),
+  deletePortfolio: (portfolioId: string) => request<{ ok: true }>(`/portfolios/${portfolioId}`, { method: "DELETE" }),
 
   listUsers: () => request<RealUser[]>("/users"),
   createUser: (input: { firstName: string; lastName: string; email: string; role: "ADMIN" | "USER" }) =>

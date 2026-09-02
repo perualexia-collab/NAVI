@@ -11,7 +11,7 @@ import { HotelsTable } from "../components/HotelsTable.js";
 import { hotelsByPortfolio, portfolios as mockPortfolios } from "../mock/data.js";
 import type { MockPortfolio } from "../mock/types.js";
 import { api, ApiError } from "../lib/api.js";
-import type { RealHotel } from "../lib/real-hotel-types.js";
+import type { RealHotel, RealPortfolio } from "../lib/real-hotel-types.js";
 
 const STATUS_FILTERS = ["Tous les statuts", "Excellent", "Sain", "À surveiller", "Critique", "Aucun scan"] as const;
 
@@ -29,12 +29,16 @@ const EXPERIENCE_STATUS_STYLE = {
   ERROR: "bg-alert-soft text-alert-ink"
 } as const;
 
+type FormModalState = { mode: "create" } | { mode: "edit"; portfolio: RealPortfolio } | null;
+
 /**
  * Portefeuilles NAVI — retours Phase C.5, §1 : les portefeuilles créés via
  * "Ajouter un portefeuille" sont désormais persistés en PostgreSQL (voir
  * backend/src/api/routes/portfolios.ts), plus une logique frontend
  * temporaire. Les 4 portefeuilles mockés (Paris Collection, Côte d'Azur,
- * Resorts, City Breaks) restent des données de démonstration inchangées.
+ * Resorts, City Breaks) restent des données de démonstration inchangées —
+ * ni modifiables ni supprimables (retours réels Phase C, 2026-09-02 :
+ * édition/suppression n'existent que pour les portefeuilles réels).
  */
 export function Portfolios() {
   const queryClient = useQueryClient();
@@ -62,7 +66,7 @@ export function Portfolios() {
   const [selectedId, setSelectedId] = useState(mockPortfolios[0]!.id);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]>("Tous les statuts");
-  const [modalOpen, setModalOpen] = useState(false);
+  const [formModal, setFormModal] = useState<FormModalState>(null);
 
   const selected = cards.find((p) => p.id === selectedId) ?? cards[0]!;
   const selectedRealPortfolio = realPortfolios.find((rp) => rp.id === selected.id);
@@ -85,9 +89,33 @@ export function Portfolios() {
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: ["portfolios"] });
       setSelectedId(created.id);
-      setModalOpen(false);
+      setFormModal(null);
     }
   });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, name, hotelIds }: { id: string; name: string; hotelIds: string[] }) =>
+      api.updatePortfolio(id, { name, hotelIds }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["portfolios"] });
+      setFormModal(null);
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.deletePortfolio(id),
+    onSuccess: (_, deletedId) => {
+      queryClient.invalidateQueries({ queryKey: ["portfolios"] });
+      if (selectedId === deletedId) setSelectedId(mockPortfolios[0]!.id);
+    }
+  });
+
+  function handleDelete(portfolio: RealPortfolio) {
+    const confirmed = window.confirm(
+      `Supprimer le portefeuille "${portfolio.name}" ? Les hôtels et leurs scans ne sont pas supprimés, seul ce regroupement l'est.`
+    );
+    if (confirmed) deleteMutation.mutate(portfolio.id);
+  }
 
   return (
     <div>
@@ -97,7 +125,7 @@ export function Portfolios() {
           <p className="mt-1 text-sm text-graphite-soft">Organisez vos ensembles d'hôtels et suivez leur santé CRM globale.</p>
         </div>
         <button
-          onClick={() => setModalOpen(true)}
+          onClick={() => setFormModal({ mode: "create" })}
           className="flex items-center gap-1.5 rounded-lg bg-terracotta px-4 py-2 text-sm font-medium text-white hover:opacity-90"
         >
           <Icon.Plus width={16} height={16} /> Nouveau portefeuille
@@ -142,6 +170,24 @@ export function Portfolios() {
           <div className="flex items-center gap-2 text-sm font-medium">
             Détail du portefeuille : {selected.name}
             <span className="rounded-full bg-linen-deep px-2 py-0.5 text-xs font-normal text-graphite-soft">{selected.hotelCount} hôtels</span>
+            {selectedRealPortfolio && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setFormModal({ mode: "edit", portfolio: selectedRealPortfolio })}
+                  title="Modifier le portefeuille"
+                  className="rounded-lg p-1.5 text-graphite-soft hover:bg-linen-deep hover:text-graphite"
+                >
+                  <Icon.Edit width={14} height={14} />
+                </button>
+                <button
+                  onClick={() => handleDelete(selectedRealPortfolio)}
+                  title="Supprimer le portefeuille"
+                  className="rounded-lg p-1.5 text-graphite-soft hover:bg-alert-soft hover:text-alert"
+                >
+                  <Icon.Trash width={14} height={14} />
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -181,14 +227,24 @@ export function Portfolios() {
         )}
       </Card>
 
-      {modalOpen && (
-        <CreatePortfolioModal
+      {formModal && (
+        <PortfolioFormModal
+          mode={formModal.mode}
+          initialName={formModal.mode === "edit" ? formModal.portfolio.name : ""}
+          initialHotelIds={formModal.mode === "edit" ? formModal.portfolio.hotels.map((h) => h.id) : []}
           hotels={hotelsQuery.data ?? []}
           hotelsLoading={hotelsQuery.isLoading}
-          submitting={createMutation.isPending}
-          error={createMutation.error instanceof ApiError ? createMutation.error.message : null}
-          onClose={() => setModalOpen(false)}
-          onCreate={(name, hotelIds) => createMutation.mutate({ name, hotelIds })}
+          submitting={createMutation.isPending || updateMutation.isPending}
+          error={
+            (createMutation.error instanceof ApiError ? createMutation.error.message : null) ??
+            (updateMutation.error instanceof ApiError ? updateMutation.error.message : null)
+          }
+          onClose={() => setFormModal(null)}
+          onSubmit={(name, hotelIds) =>
+            formModal.mode === "create"
+              ? createMutation.mutate({ name, hotelIds })
+              : updateMutation.mutate({ id: formModal.portfolio.id, name, hotelIds })
+          }
         />
       )}
     </div>
@@ -221,23 +277,29 @@ function RealPortfolioHotels({ hotels }: { hotels: RealHotel[] }) {
   );
 }
 
-function CreatePortfolioModal({
+function PortfolioFormModal({
+  mode,
+  initialName,
+  initialHotelIds,
   hotels,
   hotelsLoading,
   submitting,
   error,
   onClose,
-  onCreate
+  onSubmit
 }: {
+  mode: "create" | "edit";
+  initialName: string;
+  initialHotelIds: string[];
   hotels: RealHotel[];
   hotelsLoading: boolean;
   submitting: boolean;
   error: string | null;
   onClose: () => void;
-  onCreate: (name: string, hotelIds: string[]) => void;
+  onSubmit: (name: string, hotelIds: string[]) => void;
 }) {
-  const [name, setName] = useState("");
-  const [selectedHotelIds, setSelectedHotelIds] = useState<string[]>([]);
+  const [name, setName] = useState(initialName);
+  const [selectedHotelIds, setSelectedHotelIds] = useState<string[]>(initialHotelIds);
 
   function toggleHotel(id: string) {
     setSelectedHotelIds((prev) => (prev.includes(id) ? prev.filter((h) => h !== id) : [...prev, id]));
@@ -246,11 +308,11 @@ function CreatePortfolioModal({
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (!name.trim() || selectedHotelIds.length === 0) return;
-    onCreate(name.trim(), selectedHotelIds);
+    onSubmit(name.trim(), selectedHotelIds);
   }
 
   return (
-    <Modal title="Nouveau portefeuille" onClose={onClose}>
+    <Modal title={mode === "create" ? "Nouveau portefeuille" : "Modifier le portefeuille"} onClose={onClose}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <label className="flex flex-col gap-1 text-sm text-graphite">
           Nom du portefeuille
@@ -300,7 +362,7 @@ function CreatePortfolioModal({
             disabled={!name.trim() || selectedHotelIds.length === 0 || submitting}
             className="rounded-lg bg-terracotta px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
           >
-            {submitting ? "Création…" : "Créer le portefeuille"}
+            {submitting ? (mode === "create" ? "Création…" : "Enregistrement…") : mode === "create" ? "Créer le portefeuille" : "Enregistrer"}
           </button>
         </div>
       </form>

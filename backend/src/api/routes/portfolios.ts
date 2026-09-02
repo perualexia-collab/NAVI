@@ -8,6 +8,11 @@ const createPortfolioSchema = z.object({
   hotelIds: z.array(z.string().min(1)).min(1, "Sélectionne au moins un hôtel.")
 });
 
+const updatePortfolioSchema = z.object({
+  name: z.string().trim().min(1, "Nom du portefeuille requis.").optional(),
+  hotelIds: z.array(z.string().min(1)).min(1, "Sélectionne au moins un hôtel.").optional()
+});
+
 interface LatestHotelScan {
   status: string;
   healthScore: number | null;
@@ -49,6 +54,17 @@ function serializePortfolio(
   };
 }
 
+async function getLatestScanByHotelId(hotelIds: string[]): Promise<Map<string, LatestHotelScan>> {
+  if (hotelIds.length === 0) return new Map();
+  const latestScans = await prisma.scanHotel.findMany({
+    where: { hotelId: { in: hotelIds } },
+    orderBy: { startedAt: "desc" },
+    distinct: ["hotelId"],
+    select: { hotelId: true, status: true, healthScore: true }
+  });
+  return new Map(latestScans.map((s) => [s.hotelId, { status: s.status, healthScore: s.healthScore }]));
+}
+
 /**
  * Portefeuilles NAVI — retours Phase C.5, §1 : le workflow "Ajouter un
  * portefeuille" doit persister en PostgreSQL plutôt que dans un state
@@ -69,16 +85,7 @@ export async function portfoliosRoutes(app: FastifyInstance) {
     });
 
     const hotelIds = [...new Set(portfolios.flatMap((p) => p.hotels.map((h) => h.hotelId)))];
-    const latestScans =
-      hotelIds.length === 0
-        ? []
-        : await prisma.scanHotel.findMany({
-            where: { hotelId: { in: hotelIds } },
-            orderBy: { startedAt: "desc" },
-            distinct: ["hotelId"],
-            select: { hotelId: true, status: true, healthScore: true }
-          });
-    const latestScanByHotelId = new Map(latestScans.map((s) => [s.hotelId, { status: s.status, healthScore: s.healthScore }]));
+    const latestScanByHotelId = await getLatestScanByHotelId(hotelIds);
 
     return portfolios.map((p) => serializePortfolio(p, latestScanByHotelId));
   });
@@ -106,6 +113,61 @@ export async function portfoliosRoutes(app: FastifyInstance) {
       include: { hotels: { include: { hotel: true } } }
     });
 
-    return reply.code(201).send(serializePortfolio(portfolio, new Map()));
+    const latestScanByHotelId = await getLatestScanByHotelId(body.data.hotelIds);
+    return reply.code(201).send(serializePortfolio(portfolio, latestScanByHotelId));
+  });
+
+  app.patch("/api/portfolios/:portfolioId", async (request, reply) => {
+    const user = await requireUser(request, reply);
+    if (!user) return;
+
+    const { portfolioId } = request.params as { portfolioId: string };
+    const existing = await prisma.portfolio.findUnique({ where: { id: portfolioId } });
+    if (!existing || existing.ownerId !== user.id) return reply.code(404).send({ error: "Portefeuille introuvable." });
+
+    const body = updatePortfolioSchema.safeParse(request.body);
+    if (!body.success) {
+      return reply.code(400).send({ error: body.error.issues[0]?.message ?? "Requête invalide." });
+    }
+
+    if (body.data.hotelIds) {
+      const matchingHotels = await prisma.hotel.count({ where: { id: { in: body.data.hotelIds } } });
+      if (matchingHotels !== body.data.hotelIds.length) {
+        return reply.code(400).send({ error: "Un ou plusieurs hôtels sélectionnés sont introuvables." });
+      }
+    }
+
+    await prisma.$transaction(async (tx) => {
+      if (body.data.name !== undefined) {
+        await tx.portfolio.update({ where: { id: portfolioId }, data: { name: body.data.name } });
+      }
+      if (body.data.hotelIds) {
+        await tx.portfolioHotel.deleteMany({ where: { portfolioId } });
+        await tx.portfolioHotel.createMany({ data: body.data.hotelIds.map((hotelId) => ({ portfolioId, hotelId })) });
+      }
+    });
+
+    const updated = await prisma.portfolio.findUniqueOrThrow({
+      where: { id: portfolioId },
+      include: { hotels: { include: { hotel: true } } }
+    });
+    const latestScanByHotelId = await getLatestScanByHotelId(updated.hotels.map((h) => h.hotelId));
+
+    return serializePortfolio(updated, latestScanByHotelId);
+  });
+
+  app.delete("/api/portfolios/:portfolioId", async (request, reply) => {
+    const user = await requireUser(request, reply);
+    if (!user) return;
+
+    const { portfolioId } = request.params as { portfolioId: string };
+    const existing = await prisma.portfolio.findUnique({ where: { id: portfolioId } });
+    if (!existing || existing.ownerId !== user.id) return reply.code(404).send({ error: "Portefeuille introuvable." });
+
+    await prisma.portfolio.delete({ where: { id: portfolioId } });
+    // 200 + corps JSON plutôt que 204 : request() (frontend/src/lib/api.ts)
+    // appelle systématiquement response.json() sur une réponse ok, comme
+    // pour /auth/logout.
+    return reply.code(200).send({ ok: true });
   });
 }
