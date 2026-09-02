@@ -10,7 +10,7 @@ import { HotelsTable } from "../components/HotelsTable.js";
 import { hotelsByPortfolio, portfolios as mockPortfolios } from "../mock/data.js";
 import type { MockHotel, MockPortfolio } from "../mock/types.js";
 import { api, ApiError } from "../lib/api.js";
-import type { RealHotel, RealPortfolio, RealPortfolioHotel } from "../lib/real-hotel-types.js";
+import type { RealHotel, RealPortfolio, RealPortfolioHotel, ScanPeriodValue } from "../lib/real-hotel-types.js";
 
 const STATUS_FILTERS = ["Tous les statuts", "Excellent", "Sain", "À surveiller", "Critique", "Aucun scan"] as const;
 
@@ -81,6 +81,7 @@ export function Portfolios() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]>("Tous les statuts");
   const [formModal, setFormModal] = useState<FormModalState>(null);
+  const [scanPeriod, setScanPeriod] = useState<ScanPeriodValue>("last12Months");
 
   const selected = cards.find((p) => p.id === selectedId) ?? cards[0]!;
   const selectedRealPortfolio = realPortfolios.find((rp) => rp.id === selected.id);
@@ -130,6 +131,16 @@ export function Portfolios() {
     );
     if (confirmed) deleteMutation.mutate(portfolio.id);
   }
+
+  const scanPortfolioMutation = useMutation({
+    mutationFn: (portfolioId: string) => api.launchPortfolioScan(portfolioId, scanPeriod),
+    onSuccess: () => {
+      // Phase D1 : pas de suivi temps réel (Phase D2) — les scans tournent
+      // en arrière-plan, un rechargement des données du portefeuille fait
+      // apparaître les statuts au fur et à mesure qu'ils se terminent.
+      queryClient.invalidateQueries({ queryKey: ["portfolios"] });
+    }
+  });
 
   return (
     <div>
@@ -215,24 +226,55 @@ export function Portfolios() {
               className="w-full bg-transparent outline-none placeholder:text-graphite-faint"
             />
           </div>
-          {!selectedRealPortfolio && (
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as (typeof STATUS_FILTERS)[number])}
-              className="rounded-lg border border-graphite/15 bg-linen px-3 py-2 text-sm text-graphite-soft"
-            >
-              {STATUS_FILTERS.map((status) => (
-                <option key={status}>{status}</option>
-              ))}
-            </select>
-          )}
-          <DateRangeControl />
-          {!selectedRealPortfolio && (
-            <button className="flex items-center gap-1.5 rounded-lg bg-sage px-4 py-2 text-sm font-medium text-white hover:opacity-90">
-              <Icon.Play width={14} height={14} /> Lancer un scan portefeuille
-            </button>
+          {selectedRealPortfolio ? (
+            <>
+              <select
+                value={scanPeriod}
+                onChange={(e) => setScanPeriod(e.target.value as ScanPeriodValue)}
+                className="rounded-lg border border-graphite/15 bg-linen px-3 py-2 text-sm text-graphite-soft"
+              >
+                <option value="last3Months">3 derniers mois</option>
+                <option value="last6Months">6 derniers mois</option>
+                <option value="last12Months">12 derniers mois</option>
+              </select>
+              <button
+                onClick={() => scanPortfolioMutation.mutate(selectedRealPortfolio.id)}
+                disabled={scanPortfolioMutation.isPending || selectedRealPortfolio.hotels.length === 0}
+                className="flex items-center gap-1.5 rounded-lg bg-sage px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+              >
+                <Icon.Play width={14} height={14} /> {scanPortfolioMutation.isPending ? "Lancement…" : "Lancer un scan portefeuille"}
+              </button>
+            </>
+          ) : (
+            <>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as (typeof STATUS_FILTERS)[number])}
+                className="rounded-lg border border-graphite/15 bg-linen px-3 py-2 text-sm text-graphite-soft"
+              >
+                {STATUS_FILTERS.map((status) => (
+                  <option key={status}>{status}</option>
+                ))}
+              </select>
+              <DateRangeControl />
+              <button className="flex items-center gap-1.5 rounded-lg bg-sage px-4 py-2 text-sm font-medium text-white hover:opacity-90">
+                <Icon.Play width={14} height={14} /> Lancer un scan portefeuille
+              </button>
+            </>
           )}
         </div>
+
+        {selectedRealPortfolio && scanPortfolioMutation.isSuccess && (
+          <p className="mb-4 rounded-lg bg-horizon-soft px-3 py-2 text-sm text-horizon-ink">
+            Scan lancé pour {scanPortfolioMutation.data.scanHotelIds.length} hôtel{scanPortfolioMutation.data.scanHotelIds.length > 1 ? "s" : ""} — traitement en
+            arrière-plan, actualise la page pour voir les statuts se mettre à jour.
+          </p>
+        )}
+        {selectedRealPortfolio && scanPortfolioMutation.isError && (
+          <p className="mb-4 rounded-lg bg-alert-soft px-3 py-2 text-sm text-alert-ink">
+            {scanPortfolioMutation.error instanceof ApiError ? scanPortfolioMutation.error.message : "Le scan du portefeuille n'a pas pu être lancé."}
+          </p>
+        )}
 
         <HotelsTable
           hotels={

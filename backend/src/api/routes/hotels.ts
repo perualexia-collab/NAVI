@@ -6,7 +6,7 @@ import { runHotelScan } from "../../../scans/run-hotel-scan.js";
 import { PersistentProfileSessionProvider } from "../../../experience/core/session.js";
 import type { Env } from "../../config/env.js";
 
-const periodSchema = z.object({
+export const periodSchema = z.object({
   mode: z.literal("preset"),
   value: z.enum(["last3Months", "last6Months", "last12Months"])
 });

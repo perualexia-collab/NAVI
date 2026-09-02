@@ -9,7 +9,7 @@ import { handleExperienceError } from "../experience/errors.js";
 import type { ScanPeriod } from "../experience/core/config.js";
 import { mapKpiResults } from "./map-kpi-results.js";
 
-const STEP_NAMES: ScanStepName[] = ["BASE", "CAPTURE", "OTA", "RETURNING", "MARKETING"];
+export const STEP_NAMES: ScanStepName[] = ["BASE", "CAPTURE", "OTA", "RETURNING", "MARKETING"];
 
 export interface RunHotelScanOptions {
   hotelId: string;
@@ -34,14 +34,24 @@ export interface RunHotelScanResult {
   status: ScanHotelStatus;
 }
 
+export interface ExecuteHotelScanOptions {
+  scanId: string;
+  scanHotelId: string;
+  hotelId: string;
+  period: ScanPeriod;
+  sessionProvider: SessionProvider;
+  credentials?: ExperienceCredentials;
+  connectToExperience?: (page: ExperienceSession["page"], credentials?: ExperienceCredentials) => Promise<void>;
+  collectHotelKpis?: (page: ExperienceSession["page"], hotelName: string, period: ScanPeriod) => Promise<CollectHotelKpisResult>;
+}
+
 /**
- * Orchestration du premier vertical slice — brief §49 :
- * sélection hôtel + période → scan → Playwright → Expérience →
- * récupération des données → scoring/signaux → stockage PostgreSQL.
- *
- * Un seul hôtel, aucune queue (concurrence = 1 imposée par construction :
- * cette fonction ouvre et referme sa propre session Playwright, appelée
- * séquentiellement). La queue BullMQ multi-hôtels reste Phase D.
+ * Cœur de l'orchestration d'un scan pour un hôtel — Playwright → Expérience
+ * → récupération des données → scoring/signaux → stockage PostgreSQL, pour
+ * un `Scan`/`ScanHotel` déjà créés (PENDING). Extrait de `runHotelScan()`
+ * en Phase D1 pour être réutilisé à la fois par le scan mono-hôtel
+ * (Phase C, ci-dessous) et par le worker BullMQ multi-hôtels
+ * (backend/scans/worker.ts) — comportement inchangé pour le premier.
  *
  * Scoring/signaux ne sont calculés QUE si les 5 étapes ont réussi
  * (SUCCESS) — décision volontaire, pas un oubli : calculer un score à
@@ -49,29 +59,16 @@ export interface RunHotelScanResult {
  * qui manque (calculateCRMHealth traite une entrée manquante comme 0, ce
  * qui pénaliserait injustement l'hôtel). En PARTIAL_SUCCESS, les KPI
  * récupérés sont stockés et affichables, mais healthScore/signaux restent
- * null plutôt que calculés sur une base tronquée. À confirmer — voir le
- * message de fin de session.
+ * null plutôt que calculés sur une base tronquée.
+ *
+ * Limite connue (héritée de la Phase C, pas nouvelle ici) : si
+ * `sessionProvider.open()` lui-même échoue, le ScanHotel reste bloqué à
+ * RUNNING (jamais finalisé) — pas de filet de sécurité pour ce cas précis.
+ * À revoir avec la robustesse générale en Phase D3.
  */
-export async function runHotelScan(options: RunHotelScanOptions): Promise<RunHotelScanResult> {
+export async function executeHotelScan(options: ExecuteHotelScanOptions): Promise<RunHotelScanResult> {
   const hotel = await prisma.hotel.findUniqueOrThrow({ where: { id: options.hotelId } });
-
-  const scan = await prisma.scan.create({
-    data: {
-      requestedById: options.requestedById,
-      period: options.period as object
-    }
-  });
-
-  const scanHotel = await prisma.scanHotel.create({
-    data: {
-      scanId: scan.id,
-      hotelId: hotel.id,
-      status: "PENDING",
-      steps: { create: STEP_NAMES.map((name) => ({ name, status: "PENDING" as StepStatus })) }
-    }
-  });
-
-  await prisma.scanHotel.update({ where: { id: scanHotel.id }, data: { status: "RUNNING", startedAt: new Date() } });
+  await prisma.scanHotel.update({ where: { id: options.scanHotelId }, data: { status: "RUNNING", startedAt: new Date() } });
 
   const startedAt = Date.now();
   const session = await options.sessionProvider.open();
@@ -90,18 +87,18 @@ export async function runHotelScan(options: RunHotelScanOptions): Promise<RunHot
       const classified = handleExperienceError("BASE", error);
       await Promise.all(
         STEP_NAMES.map((name) =>
-          persistStepFailure(scanHotel.id, name, classified.errorType, classified.userMessage, classified.technicalMessage)
+          persistStepFailure(options.scanHotelId, name, classified.errorType, classified.userMessage, classified.technicalMessage)
         )
       );
-      return finalizeScanHotel(scanHotel.id, "FAILED", startedAt);
+      return await finalizeScanHotel(options.scanHotelId, "FAILED", startedAt);
     }
 
-    await Promise.all(STEP_NAMES.map((name) => persistStepOutcome(scanHotel.id, name, collectResult)));
+    await Promise.all(STEP_NAMES.map((name) => persistStepOutcome(options.scanHotelId, name, collectResult)));
 
     const kpiRows = mapKpiResults(collectResult);
     await prisma.kPIResult.createMany({
       data: kpiRows.map((row) => ({
-        scanHotelId: scanHotel.id,
+        scanHotelId: options.scanHotelId,
         kpiDefinitionId: row.kpiDefinitionId,
         value: row.value,
         available: row.available,
@@ -113,7 +110,7 @@ export async function runHotelScan(options: RunHotelScanOptions): Promise<RunHot
     const allStepsOk = STEP_NAMES.every((name) => stepOf(collectResult, name).status === "OK");
 
     if (allStepsOk) {
-      await computeAndPersistScoreAndSignals(scanHotel.id, collectResult);
+      await computeAndPersistScoreAndSignals(options.scanHotelId, collectResult);
     }
 
     const status: ScanHotelStatus = allStepsOk ? "SUCCESS" : STEP_NAMES.some((name) => stepOf(collectResult, name).status === "OK") ? "PARTIAL_SUCCESS" : "FAILED";
@@ -129,11 +126,63 @@ export async function runHotelScan(options: RunHotelScanOptions): Promise<RunHot
       });
     }
 
-    return finalizeScanHotel(scanHotel.id, status, startedAt);
+    return await finalizeScanHotel(options.scanHotelId, status, startedAt);
   } finally {
     await session.close();
-    await prisma.scan.update({ where: { id: scan.id }, data: { finishedAt: new Date() } });
+    await maybeFinalizeParentScan(options.scanId);
   }
+}
+
+/**
+ * Marque le `Scan` parent terminé une fois que plus aucun de ses
+ * `ScanHotel` n'est PENDING/RUNNING — fonctionne aussi bien pour un scan
+ * mono-hôtel (1 seul ScanHotel, donc terminé dès qu'il l'est) que pour un
+ * scan portefeuille multi-hôtels (Phase D1, terminé seulement quand le
+ * dernier hôtel a fini).
+ */
+async function maybeFinalizeParentScan(scanId: string): Promise<void> {
+  const remaining = await prisma.scanHotel.count({ where: { scanId, status: { in: ["PENDING", "RUNNING"] } } });
+  if (remaining === 0) {
+    await prisma.scan.update({ where: { id: scanId }, data: { finishedAt: new Date() } });
+  }
+}
+
+/**
+ * Orchestration du premier vertical slice — brief §49 : sélection hôtel +
+ * période → scan mono-hôtel → PostgreSQL. Crée son propre Scan/ScanHotel
+ * puis délègue à `executeHotelScan()`. Aucune queue ici (concurrence = 1
+ * imposée par construction — appelée de façon synchrone par la route HTTP,
+ * cf. backend/src/api/routes/hotels.ts) : c'est le scan portefeuille
+ * multi-hôtels (backend/scans/run-portfolio-scan.ts) qui passe par la
+ * queue BullMQ.
+ */
+export async function runHotelScan(options: RunHotelScanOptions): Promise<RunHotelScanResult> {
+  const scan = await prisma.scan.create({
+    data: {
+      requestedById: options.requestedById,
+      period: options.period as object
+    }
+  });
+
+  const scanHotel = await prisma.scanHotel.create({
+    data: {
+      scanId: scan.id,
+      hotelId: options.hotelId,
+      status: "PENDING",
+      steps: { create: STEP_NAMES.map((name) => ({ name, status: "PENDING" as StepStatus })) }
+    }
+  });
+
+  return executeHotelScan({
+    scanId: scan.id,
+    scanHotelId: scanHotel.id,
+    hotelId: options.hotelId,
+    period: options.period,
+    sessionProvider: options.sessionProvider,
+    credentials: options.credentials,
+    connectToExperience: options.connectToExperience,
+    collectHotelKpis: options.collectHotelKpis
+  });
 }
 
 function stepOf(result: CollectHotelKpisResult, name: ScanStepName): StepResult<unknown> {

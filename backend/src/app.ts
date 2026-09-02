@@ -21,7 +21,7 @@ export async function buildApp(env: Env) {
   await app.register(healthRoutes);
   await app.register(authRoutes);
   await app.register(hotelsRoutes, { env });
-  await app.register(portfoliosRoutes);
+  await app.register(portfoliosRoutes, { env });
   await app.register(usersRoutes);
   await app.register(invitesRoutes);
 

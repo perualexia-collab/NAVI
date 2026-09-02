@@ -2,6 +2,9 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../../db/prisma.js";
 import { requireUser } from "../require-auth.js";
+import type { Env } from "../../config/env.js";
+import { periodSchema } from "./hotels.js";
+import { launchPortfolioScan } from "../../../scans/run-portfolio-scan.js";
 
 const createPortfolioSchema = z.object({
   name: z.string().trim().min(1, "Nom du portefeuille requis."),
@@ -129,7 +132,7 @@ async function getLatestScanByHotelId(hotelIds: string[]): Promise<Map<string, L
  * gérées côté frontend — ces routes ne concernent que les portefeuilles
  * réellement créés par un utilisateur.
  */
-export async function portfoliosRoutes(app: FastifyInstance) {
+export async function portfoliosRoutes(app: FastifyInstance, options: { env: Env }) {
   app.get("/api/portfolios", async (request, reply) => {
     const user = await requireUser(request, reply);
     if (!user) return;
@@ -225,5 +228,35 @@ export async function portfoliosRoutes(app: FastifyInstance) {
     // appelle systématiquement response.json() sur une réponse ok, comme
     // pour /auth/logout.
     return reply.code(200).send({ ok: true });
+  });
+
+  // Scan portefeuille — Phase D1 : un job BullMQ indépendant par hôtel,
+  // retour immédiat (les scans tournent en arrière-plan). Pas de
+  // progression temps réel ici (Phase D2) — l'utilisateur doit recharger
+  // pour voir les statuts se mettre à jour, comportement assumé et
+  // explicitement validé avant de construire l'affichage temps réel.
+  app.post("/api/portfolios/:portfolioId/scans", async (request, reply) => {
+    const user = await requireUser(request, reply);
+    if (!user) return;
+
+    const { portfolioId } = request.params as { portfolioId: string };
+    const existing = await prisma.portfolio.findUnique({ where: { id: portfolioId } });
+    if (!existing || existing.ownerId !== user.id) return reply.code(404).send({ error: "Portefeuille introuvable." });
+
+    const body = periodSchema.safeParse((request.body as { period?: unknown } | undefined)?.period);
+    if (!body.success) return reply.code(400).send({ error: "Période invalide." });
+
+    try {
+      const result = await launchPortfolioScan({
+        portfolioId,
+        period: body.data,
+        requestedById: user.id,
+        redisUrl: options.env.REDIS_URL
+      });
+      return reply.code(202).send(result);
+    } catch (error) {
+      request.log.error(error);
+      return reply.code(502).send({ error: "Le scan du portefeuille n'a pas pu être lancé." });
+    }
   });
 }

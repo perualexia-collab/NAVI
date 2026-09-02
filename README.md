@@ -4,7 +4,7 @@ Copilote CRM hôtelier posé au-dessus d'Expérience (D-EDGE). Voir [`docs/archi
 
 ## Statut
 
-**Phase C — premier vertical slice réel**, validée avec de vraies données Expérience (connexion, 2FA, scan, scoring, persistance — voir [`docs/reference/phase-c-real-connection-notes.md`](docs/reference/phase-c-real-connection-notes.md)). Prochaine étape : Phase D (scan multi-hôtels).
+**Phase C** validée avec de vraies données Expérience (voir [`docs/reference/phase-c-real-connection-notes.md`](docs/reference/phase-c-real-connection-notes.md)). **Phase D — scan multi-hôtels** en cours (D1 infra Redis/BullMQ livré, voir [`docs/reference/phase-d-notes.md`](docs/reference/phase-d-notes.md)), découpage D1 → D3 → D2.
 
 ## Structure
 
