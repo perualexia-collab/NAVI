@@ -11,7 +11,7 @@ export type StepStatus = "PENDING" | "RUNNING" | "OK" | "ERROR" | "SKIPPED";
 export type ScanStepName = "BASE" | "CAPTURE" | "OTA" | "RETURNING" | "MARKETING";
 export type SignalSeverity = "ALERT" | "VIGILANCE" | "OPPORTUNITY";
 export type AudienceMode = "NONE" | "SINGLE" | "MULTIPLE";
-export type ScanPeriodValue = "last3Months" | "last6Months" | "last12Months";
+export type ScanPeriodValue = "last3Months" | "last6Months" | "last12Months" | "thisYear" | "thisMonth" | "lastMonth";
 
 export interface RealHotel {
   id: string;
@@ -79,6 +79,7 @@ export interface RealSignalResult {
 
 export interface RealScanSummary {
   scanHotelId: string;
+  period: { mode: "preset"; value: ScanPeriodValue };
   status: ScanHotelStatus;
   startedAt: string;
   finishedAt: string | null;

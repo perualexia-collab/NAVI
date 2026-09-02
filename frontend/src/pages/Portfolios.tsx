@@ -5,6 +5,7 @@ import { ScoreRing } from "../components/ui/ScoreRing.js";
 import { Modal } from "../components/ui/Modal.js";
 import { TrendLabel } from "../components/ui/StatusPill.js";
 import { DateRangeControl } from "../components/ui/DateRangeControl.js";
+import { RealPeriodSelector } from "../components/ui/RealPeriodSelector.js";
 import { Icon } from "../components/ui/icons.js";
 import { HotelsTable } from "../components/HotelsTable.js";
 import { hotelsByPortfolio, portfolios as mockPortfolios } from "../mock/data.js";
@@ -287,15 +288,7 @@ export function Portfolios() {
           </div>
           {selectedRealPortfolio ? (
             <>
-              <select
-                value={scanPeriod}
-                onChange={(e) => setScanPeriod(e.target.value as ScanPeriodValue)}
-                className="rounded-lg border border-graphite/15 bg-linen px-3 py-2 text-sm text-graphite-soft"
-              >
-                <option value="last3Months">3 derniers mois</option>
-                <option value="last6Months">6 derniers mois</option>
-                <option value="last12Months">12 derniers mois</option>
-              </select>
+              <RealPeriodSelector value={scanPeriod} onChange={setScanPeriod} />
               <button
                 onClick={() => scanPortfolioMutation.mutate(selectedRealPortfolio.id)}
                 disabled={

@@ -129,3 +129,38 @@ portefeuille multi-hôtels se lance, chaque hôtel est traité
 indépendamment, un échec n'en bloque pas d'autres, la progression et les
 statuts sont visibles en direct, et CRM Health présente les résultats
 consolidés disponibles une fois terminé.
+
+## Retours post-D2 (2026-09-02)
+
+- **Couleur anneau/badge** : `scoreTone()` utilisait des seuils (60/75)
+  différents de ceux du badge de statut (dérivé de `getHealthLevel()`,
+  40/60/75/90) — un score "Fragile" (40-59) affichait un anneau rouge à
+  côté d'un badge jaune. Seuils alignés partout sur 40/60.
+
+- **Préréglages de période réels** : l'utilisateur a fourni une capture
+  d'écran du vrai sélecteur "Déterminer un préréglage" d'Expérience —
+  `12 DERNIERS MOIS`, `L'ANNÉE DERNIÈRE`, `CETTE ANNÉE`, `CE MOIS-CI`,
+  `LE MOIS DERNIER` (+ une section "Plage de date" avec dates de
+  début/fin, hors scope ici — pas de période personnalisée ajoutée au
+  moteur, non demandée explicitement). `PERIOD_PRESETS`
+  (backend/experience/core/config.ts) étendu avec `thisYear`/
+  `thisMonth`/`lastMonth` ("Cette année"/"Ce mois-ci"/"Le mois dernier"),
+  "L'année dernière" volontairement exclu. `3 derniers mois`/
+  `6 derniers mois` conservés par prudence bien qu'absents de cette
+  capture — voir l'avertissement dans config.ts, à trancher si un scan
+  réel sur ces périodes échoue.
+
+  Nouveau composant partagé `frontend/src/components/ui/RealPeriodSelector.tsx`
+  (aperçu de plage de dates mis à jour immédiatement au choix d'un
+  préréglage, pas de champ "Date de création") remplace les `<select>`
+  disparates sur la fiche hôtel (`RealHotelOverview.tsx`) et le
+  portefeuille (`Portfolios.tsx`) — un seul composant, un seul
+  comportement partout où un scan réel se lance.
+
+- **Période analysée visible sur la fiche hôtel** : la carte "Évolution"
+  (qui n'affichait qu'un texte générique "historique insuffisant" / à
+  construire en Phase D/E) est remplacée par "Période analysée",
+  affichant la période réellement utilisée pour le dernier scan
+  (`Scan.period`, désormais exposé par `GET /api/hotels/:id/health`) —
+  pour ne jamais perdre de vue sur quelle période portent les chiffres
+  affichés.

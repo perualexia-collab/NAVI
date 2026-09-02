@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardHeader } from "../../components/ui/Card.js";
 import { ScoreRing } from "../../components/ui/ScoreRing.js";
 import { scoreTone } from "../../components/ui/score-color.js";
+import { PERIOD_LABEL, RealPeriodSelector } from "../../components/ui/RealPeriodSelector.js";
 import { Icon } from "../../components/ui/icons.js";
 import { formatDateTime, formatNumber, formatCurrency } from "../../lib/format.js";
 import { api, ApiError } from "../../lib/api.js";
@@ -109,11 +110,7 @@ export function RealHotelOverview({ hotel }: { hotel: RealHotel }) {
     <div>
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm">
-          <select value={period} onChange={(e) => setPeriod(e.target.value as ScanPeriodValue)} className="rounded-lg border border-graphite/15 bg-linen px-3 py-2">
-            <option value="last3Months">3 derniers mois</option>
-            <option value="last6Months">6 derniers mois</option>
-            <option value="last12Months">12 derniers mois</option>
-          </select>
+          <RealPeriodSelector value={period} onChange={setPeriod} />
           <button
             onClick={() => scanMutation.mutate()}
             disabled={scanMutation.isPending}
@@ -152,13 +149,13 @@ export function RealHotelOverview({ hotel }: { hotel: RealHotel }) {
       )}
 
       {healthQuery.data?.latestScan && (
-        <ScanResult scan={healthQuery.data.latestScan} scanCount={healthQuery.data.scanCount} />
+        <ScanResult scan={healthQuery.data.latestScan} />
       )}
     </div>
   );
 }
 
-function ScanResult({ scan, scanCount }: { scan: RealScanSummary; scanCount: number }) {
+function ScanResult({ scan }: { scan: RealScanSummary }) {
   const tone = scoreTone(scan.healthScore);
 
   return (
@@ -186,10 +183,8 @@ function ScanResult({ scan, scanCount }: { scan: RealScanSummary; scanCount: num
           <div className="mt-3 flex items-center gap-2 text-sm"><Icon.Clock className="text-graphite-faint" width={16} height={16} /> {formatDateTime(scan.startedAt)}</div>
         </Card>
         <Card>
-          <div className="text-xs font-medium uppercase tracking-wide text-graphite-faint">Évolution</div>
-          <div className="mt-3 text-sm text-graphite-faint">
-            {scanCount < 2 ? "Première analyse — historique insuffisant" : "Comparaison temporelle : Phase D/E"}
-          </div>
+          <div className="text-xs font-medium uppercase tracking-wide text-graphite-faint">Période analysée</div>
+          <div className="mt-3 text-sm text-graphite">{PERIOD_LABEL[scan.period.value]}</div>
         </Card>
       </div>
 

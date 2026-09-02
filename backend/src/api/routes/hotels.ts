@@ -8,7 +8,7 @@ import type { Env } from "../../config/env.js";
 
 export const periodSchema = z.object({
   mode: z.literal("preset"),
-  value: z.enum(["last3Months", "last6Months", "last12Months"])
+  value: z.enum(["last3Months", "last6Months", "last12Months", "thisYear", "thisMonth", "lastMonth"])
 });
 
 const createHotelSchema = z.object({
@@ -75,6 +75,7 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
       where: { hotelId },
       orderBy: { startedAt: "desc" },
       include: {
+        scan: { select: { period: true } },
         steps: true,
         errors: true,
         kpiResults: { include: { kpiDefinition: true }, orderBy: { id: "asc" } },
@@ -88,6 +89,7 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
       averageScanDurationMs: durationAgg._avg.durationMs,
       latestScan: latestScanHotel && {
         scanHotelId: latestScanHotel.id,
+        period: latestScanHotel.scan.period,
         status: latestScanHotel.status,
         startedAt: latestScanHotel.startedAt,
         finishedAt: latestScanHotel.finishedAt,
