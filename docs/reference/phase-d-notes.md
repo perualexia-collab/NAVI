@@ -212,7 +212,10 @@ consolidés disponibles une fois terminé.
   (saisie de texte) supprimés. `applyPeriodWithToggle()`/`setMarketingPeriod()`
   inchangés — `selectPeriodInPanel()` reste le seul point de délégation.
 
-  Correction poussée le 2026-09-02, en attente de re-test réel par
-  l'utilisateur sur un hôtel réel avec une période personnalisée — à
-  documenter ici dès confirmation (ou nouvel écart DOM à corriger, même
-  méthode).
+  **Confirmé par l'utilisateur le 2026-09-02** — re-test sur Hôtel Cactus,
+  période personnalisée 1 août → 16 août 2026 : scan `SUCCESS`, les 5
+  étapes récupérées (Base exploitable, Returning Guests, Statistiques
+  Marketing, Dépendance OTA, Captation e-mail), score 38/100 (Critique)
+  et signaux cohérents avec les indicateurs affichés. Point fermé : la
+  période personnalisée fonctionne de bout en bout, même mécanisme que
+  les préréglages (`selectPeriodInPanel()` → `Valider`).
