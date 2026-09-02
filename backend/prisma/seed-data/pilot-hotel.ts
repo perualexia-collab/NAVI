@@ -6,17 +6,19 @@
  * entre Apollinaire et "Baudelaire Opéra", jamais résolu, cf.
  * docs/reference/phase-c-real-connection-notes.md).
  *
- * experienceLabel reprend le nom NAVI comme hypothèse de départ — à
- * confirmer contre le libellé exact affiché dans Expérience avant le
- * premier scan réel (selectHotel() fait une recherche en correspondance
- * exacte) ; corriger cette valeur ici si le libellé réel diffère.
+ * experienceLabel = libellé exact confirmé par l'utilisateur directement
+ * dans Expérience le 2026-09-02 ("Louis II", sans le préfixe "Hôtel" —
+ * différent du nom NAVI) ; selectHotel() fait une recherche en
+ * correspondance exacte, donc cette valeur doit rester synchronisée avec
+ * Expérience.
  *
- * Le statut est volontairement TO_VERIFY, pas ACTIVE : aucune validation
- * Expérience réelle n'a encore eu lieu.
+ * Le statut reste TO_VERIFY, pas ACTIVE : le libellé est confirmé par
+ * l'utilisateur mais pas encore par un scan réel réussi (selectHotel()
+ * pas encore exécuté contre le vrai DOM).
  */
 export const pilotHotel = {
   id: "pilot-louis-ii",
   name: "Hôtel Louis II",
-  experienceLabel: "Hôtel Louis II",
+  experienceLabel: "Louis II",
   experienceStatus: "TO_VERIFY" as const
 };
