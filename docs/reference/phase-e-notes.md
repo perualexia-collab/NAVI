@@ -239,11 +239,100 @@ mesures consécutives dans la même session (jamais testées pour E2, qui
 n'en fait qu'une) tiennent la charge sans problème — calendrier et
 lecture du volume compris. E3/P11 déclaré terminé.
 
-## À venir
+## E3 — P10, "Comparer les audiences" (2026-09-03)
 
-- **P10** — "Comparer les audiences" (mesure des campagnes du mois avant
-  le choix utilisateur, règle ⭐ conservée). Explicitement signalé par
-  l'architecture comme le playbook le plus fragile du moteur existant
-  (détection d'automations actives/inactives par géométrie DOM,
-  bibliothèque de 36 campagnes/12 mois) — mérite une passe dédiée,
-  pas regroupée avec P11.
+Ferme la Phase E (E1/E2/E3 P11+P10). Le playbook explicitement signalé
+comme le plus fragile du moteur existant (détection d'automations par
+géométrie DOM, bibliothèque de 36 campagnes/12 mois).
+
+### Changement de logique assumé vs le script d'origine
+
+Le script d'origine (`runP10Playbook`) demandait le choix de campagne
+**avant** toute mesure d'audience ("AUCUNE audience n'est créée avant ce
+choix"). L'architecture validée pour NAVI inverse volontairement cet
+ordre — texte exact de l'audit : *"le nouveau playbook P10 doit mesurer
+les audiences des campagnes pertinentes du mois (...) avant de présenter
+le choix à l'utilisateur — sur le modèle P11"*. NAVI mesure donc
+systématiquement les 3 campagnes du mois avant d'afficher quoi que ce
+soit à choisir — même modèle que P11 (mesurer d'abord, choisir ensuite
+avec le volume réel sous les yeux), réutilisant le même
+`AudienceComparison`/`AudienceResult`.
+
+### Construit
+
+- `backend/experience/audience-builder/p10-automation-status.ts` —
+  `openAutomationStatusP10()` (navigation Changer d'espace → Campagnes →
+  Marketing automatisé → Activation rapide), `readAutomationDistributionP10()`
+  (**partie la plus fragile** : Expérience n'expose la colonne
+  actif/inactif d'une automation que par sa position visuelle sur l'écran,
+  pas par un attribut DOM — la classification lit la position X de chaque
+  texte par rapport aux deux en-têtes de colonne), `classifyAutomationStatusP10()`
+  (UNKNOWN/INACTIVE/PARTIAL/ACTIVE → action MANUAL_CHECK/ACTIVATE_AUTOMATIONS/
+  FIX_AUTOMATION_CONFIGURATION/SEARCH_PUNCTUAL_CAMPAIGN). Tant que le
+  statut n'est pas `ACTIVE`, NAVI s'arrête là — aucune campagne recherchée
+  ni mesurée, le statut est retourné tel quel pour affichage.
+- `backend/experience/audience-builder/p10-campaigns.ts` — `P10_LIBRARY`
+  (36 campagnes, 3 par mois, texte du référentiel porté tel quel),
+  `getP10StarRule()` (Returning Guests < 7 % → met en avant Repeaters/
+  One-timers/Vient souvent dans la région-ville), `getMonthlyRecommendationsP10()`.
+  `AUDIENCE_TAG_TO_DEFINITION_ID` relie chaque tag d'audience du
+  référentiel (ex. "Loisirs", "Couples + Loisirs") à un id `AudienceDefinition`
+  — 9 nouvelles lignes ajoutées à `backend/prisma/seed-data/audience-definitions.ts`
+  (`P10_REPEATERS`, `P10_NATIONAL`, `P10_LEISURE`, `P10_COUPLES`,
+  `P10_BUSINESS`, `P10_ONETIMER`, `P10_FREQUENT_DESTINATION`,
+  `P10_HIGH_VALUE`, `P10_COUPLES_LEISURE`) — **nécessite un `pnpm prisma:seed`**
+  après avoir tiré cette branche (upsert, sans risque pour les données
+  existantes).
+- `backend/experience/audience-builder/p10-filters.ts` — les 6 filtres
+  propres à P10 (National/Loisirs/Couples/Business/Vient souvent/Couples+Loisirs
+  — listes IN/NOT IN, OR entre deux conditions) ; Repeaters/One-timers/
+  Clients à forte valeur réutilisent `addStayCountFilter`/`addStayAmountFilter`
+  (`filters.ts`, déjà validés en E2/E3-P11 — mêmes champs). `selectListOperator()`/
+  `selectListValue()`/`addOrCondition()` (primitives génériques de liste
+  multi-valeurs et de condition OR) ajoutées à `filters.ts`, réutilisables
+  au-delà de P10.
+- `backend/experience/audience-builder/compute-audience.ts` — refactoré :
+  `computeAudiencePreview()` prend désormais un callback `buildFilters(page)`
+  plutôt qu'une définition déclarative, pour rester réutilisable par les 3
+  playbooks à audience (E2, P11 : filtres déclaratifs via
+  `buildAudienceDefinition()` ; P10 : filtres propres, non déclaratifs)
+  sans dupliquer tout le cycle créer/mesurer/supprimer.
+- `backend/scans/run-p10-comparison.ts` — `executeP10Comparison()` :
+  vérifie le statut des automations, puis (si `ACTIVE`) mesure les 3
+  campagnes du mois et persiste un `AudienceComparison` (`playbookId: "P10"`),
+  `highlighted` = règle ⭐ directement (pas de score numérique comme P11).
+- `POST /api/hotels/:hotelId/recommendations/:recommendationId/compare-audiences`
+  — synchrone comme les routes E2/E3-P11. `GET /api/hotels/:hotelId/health`
+  expose la dernière comparaison P10 connue ; le nom/angle/pourquoi-maintenant
+  de chaque campagne est retrouvé dans la bibliothèque du **mois en
+  cours** (les campagnes tournent chaque mois, contrairement aux tags
+  d'audience qui sont stables) — si un résultat persisté ne correspond à
+  aucune campagne du mois affiché (comparaison d'un mois précédent), NAVI
+  retombe sur le seul nom du tag d'audience plutôt que d'échouer.
+- Frontend — bouton "Comparer les audiences" (P10), affichage des 3
+  campagnes du mois (nom, angle, destinataires, ⭐), "Choisir"/"✓ Choisie"
+  (même mécanique que P11). Si les automations bloquent la recherche,
+  message explicatif (pas une erreur — bandeau neutre, pas rouge) avec le
+  détail des automations inattendues le cas échéant.
+
+### Non testé en conditions réelles — risque élevé assumé
+
+Contrairement à E1/E2/E3-P11 (validés en conditions réelles avant de
+passer à la suite), P10 n'a **pas** encore été testé contre une vraie
+session Expérience. Points les plus susceptibles de casser, par ordre de
+probabilité :
+1. `readAutomationDistributionP10()` — la classification par position X
+   dépend de la mise en page réelle de l'écran "Activation rapide",
+   jamais vue en vrai dans ce projet.
+2. Les libellés de navigation "Marketing automatisé"/"Activation rapide"
+   — supposés identiques au script d'origine, non revérifiés.
+3. Les 6 nouveaux filtres (National/Loisirs/Couples/Business/Vient
+   souvent/Couples+Loisirs) — mécanique de liste multi-valeurs
+   (`selectListOperator`/`selectListValue`) jamais exercée dans ce projet
+   avant P10.
+
+Même méthode que d'habitude en cas d'échec : message d'erreur exact →
+inspection du vrai DOM si nécessaire → correction du sélecteur en cause.
+À tester sur un hôtel dont le scan a déclenché P10 (activation CRM
+< 8 ‰, ET activabilité < 50 % — sinon c'est P11 qui se déclenche à la
+place, cf. `detect-signals.ts`).

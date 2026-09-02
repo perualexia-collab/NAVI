@@ -4,6 +4,7 @@ import { connectToExperience as defaultConnectToExperience } from "../experience
 import { selectHotel } from "../experience/core/navigation.js";
 import { classifyErrorType } from "../experience/errors.js";
 import { P11_OPPORTUNITIES } from "../experience/audience-builder/p11-opportunities.js";
+import { buildAudienceDefinition } from "../experience/audience-builder/filters.js";
 import { computeAudiencePreview } from "../experience/audience-builder/compute-audience.js";
 import { calculateOpportunityScore } from "../src/services/scoring/p11-opportunity.js";
 
@@ -41,8 +42,9 @@ export async function executeP11OpportunityFinder(options: ExecuteP11Opportunity
       const preview = await computeAudiencePreview(session.page, {
         hotelName: options.hotelName,
         playbookId: "P11",
-        definition: opportunity,
-        dynamicValues: {}
+        audienceId: opportunity.id,
+        audienceName: opportunity.name,
+        buildFilters: (page) => buildAudienceDefinition(page, opportunity, {})
       });
       const scoring = calculateOpportunityScore(opportunity, preview.recipients);
       measurements.push({ opportunity, recipients: preview.recipients, scoring });

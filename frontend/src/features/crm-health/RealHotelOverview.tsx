@@ -7,7 +7,21 @@ import { periodLabel, RealPeriodSelector } from "../../components/ui/RealPeriodS
 import { Icon } from "../../components/ui/icons.js";
 import { formatDateTime, formatNumber, formatCurrency } from "../../lib/format.js";
 import { api, ApiError } from "../../lib/api.js";
-import type { RealHotel, RealKpiResult, RealScanPeriod, RealScanSummary } from "../../lib/real-hotel-types.js";
+import type { RealHotel, RealKpiResult, RealScanPeriod, RealScanSummary, RealAutomationStatus } from "../../lib/real-hotel-types.js";
+
+/** P10 — le statut des automations bloque ou non la recherche de campagne ponctuelle (backend/experience/audience-builder/p10-automation-status.ts). */
+function automationStatusMessage(status: RealAutomationStatus): string {
+  switch (status.action) {
+    case "ACTIVATE_AUTOMATIONS":
+      return "Le pack d'automations marketing n'est pas activé — active-le avant de chercher une campagne ponctuelle.";
+    case "FIX_AUTOMATION_CONFIGURATION":
+      return "Le pack d'automations est partiellement configuré — corrige les automations inactives inattendues avant de proposer une campagne ponctuelle.";
+    case "MANUAL_CHECK":
+      return "Impossible de lire l'état des automations marketing — vérification manuelle nécessaire.";
+    default:
+      return "Statut des automations inconnu.";
+  }
+}
 
 const STEP_LABEL: Record<string, string> = {
   BASE: "Base exploitable",
@@ -195,7 +209,34 @@ function ScanResult({ scan, hotelId }: { scan: RealScanSummary; hotelId: string 
     },
     onSettled: () => setComparingRecommendationId(null)
   });
-  const audienceActionRunning = computingRecommendationId !== null || comparingRecommendationId !== null;
+
+  // Phase E3 — "Comparer les audiences" (P10) : le statut des automations
+  // peut bloquer la recherche de campagne — ce n'est pas une erreur (la
+  // requête réussit), donc traité à part d'audienceComparisonError.
+  const [comparingAudiencesRecommendationId, setComparingAudiencesRecommendationId] = useState<string | null>(null);
+  const [audienceComparisonError, setAudienceComparisonError] = useState<{ recommendationId: string; message: string } | null>(null);
+  const [automationBlockedMessage, setAutomationBlockedMessage] = useState<{ recommendationId: string; message: string; unexpectedInactive: string[] } | null>(null);
+  const compareAudiencesMutation = useMutation({
+    mutationFn: (recommendationId: string) => api.compareAudiences(hotelId, recommendationId),
+    onMutate: (recommendationId: string) => {
+      setComparingAudiencesRecommendationId(recommendationId);
+      setAudienceComparisonError(null);
+      setAutomationBlockedMessage(null);
+    },
+    onSuccess: (result: Awaited<ReturnType<typeof api.compareAudiences>>, recommendationId: string) => {
+      if (result.blocked) {
+        setAutomationBlockedMessage({ recommendationId, message: automationStatusMessage(result.automationStatus), unexpectedInactive: result.automationStatus.unexpectedInactive });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["hotel-health", hotelId] });
+      }
+    },
+    onError: (error: unknown, recommendationId: string) => {
+      setAudienceComparisonError({ recommendationId, message: error instanceof ApiError ? error.message : "La comparaison des audiences a échoué." });
+    },
+    onSettled: () => setComparingAudiencesRecommendationId(null)
+  });
+
+  const audienceActionRunning = computingRecommendationId !== null || comparingRecommendationId !== null || comparingAudiencesRecommendationId !== null;
 
   // Choix d'une option comparée — écriture simple, pas de session
   // Expérience impliquée, donc indépendant de audienceActionRunning.
@@ -319,7 +360,7 @@ function ScanResult({ scan, hotelId }: { scan: RealScanSummary; hotelId: string 
                       </div>
                     )}
 
-                    {/* Phase E3 — P11 uniquement (MULTIPLE) ; P10 pas encore construit, pas de bouton tant que ce n'est pas fait. */}
+                    {/* Phase E3 — P11 (Comparer les opportunités). */}
                     {signal.playbookId === "P11" && signal.recommendationId && (
                       <div className="mt-2">
                         {signal.comparison ? (
@@ -374,6 +415,79 @@ function ScanResult({ scan, hotelId }: { scan: RealScanSummary; hotelId: string 
 
                         {comparisonError?.recommendationId === signal.recommendationId && (
                           <div className="mt-1 text-xs text-alert">{comparisonError.message}</div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Phase E3 — P10 (Comparer les audiences) : bibliothèque de campagnes du mois, bloqué si les automations ne sont pas correctement actives. */}
+                    {signal.playbookId === "P10" && signal.recommendationId && (
+                      <div className="mt-2">
+                        {signal.comparison ? (
+                          <div className="flex flex-col gap-1.5">
+                            {signal.comparison.month && <div className="text-[11px] uppercase tracking-wide text-graphite-faint">Campagnes de {signal.comparison.month}</div>}
+                            {signal.comparison.results.map((result) => (
+                              <div
+                                key={result.id}
+                                className={`flex items-center justify-between gap-2 rounded-md px-2 py-1.5 ${result.highlighted ? "bg-terracotta-soft" : "bg-linen"}`}
+                              >
+                                <div>
+                                  <span className="font-medium text-graphite">
+                                    {result.highlighted ? "⭐ " : ""}
+                                    {result.name}
+                                  </span>
+                                  <span className="ml-2 text-graphite-faint">
+                                    {result.angle ? `${result.angle} — ` : ""}👥 {formatNumber(result.recipients)}
+                                  </span>
+                                </div>
+                                {signal.comparison!.chosenResultId === result.id ? (
+                                  <span className="whitespace-nowrap font-medium text-sage">✓ Choisie</span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => chooseMutation.mutate({ comparisonId: signal.comparison!.id, resultId: result.id })}
+                                    disabled={choosingResultId !== null}
+                                    className="whitespace-nowrap rounded-md border border-graphite/20 px-2 py-1 text-xs font-medium text-graphite hover:bg-linen-deep disabled:opacity-50"
+                                  >
+                                    {choosingResultId === result.id ? "…" : "Choisir"}
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                            <button
+                              type="button"
+                              onClick={() => compareAudiencesMutation.mutate(signal.recommendationId!)}
+                              disabled={audienceActionRunning}
+                              className="mt-1 self-start rounded-md border border-graphite/20 px-2.5 py-1 text-xs font-medium text-graphite hover:bg-linen-deep disabled:opacity-50"
+                            >
+                              {comparingAudiencesRecommendationId === signal.recommendationId ? "Comparaison en cours — Expérience…" : "Recalculer la comparaison"}
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => compareAudiencesMutation.mutate(signal.recommendationId!)}
+                            disabled={audienceActionRunning}
+                            className="rounded-md bg-terracotta px-2.5 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+                          >
+                            {comparingAudiencesRecommendationId === signal.recommendationId ? "Comparaison en cours — Expérience…" : "Comparer les audiences"}
+                          </button>
+                        )}
+
+                        {automationBlockedMessage?.recommendationId === signal.recommendationId && (
+                          <div className="mt-2 rounded-md bg-warn-soft px-2 py-1.5 text-xs text-warn-ink">
+                            {automationBlockedMessage.message}
+                            {automationBlockedMessage.unexpectedInactive.length > 0 && (
+                              <ul className="mt-1 list-disc pl-4">
+                                {automationBlockedMessage.unexpectedInactive.map((name) => (
+                                  <li key={name}>{name}</li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        )}
+
+                        {audienceComparisonError?.recommendationId === signal.recommendationId && (
+                          <div className="mt-1 text-xs text-alert">{audienceComparisonError.message}</div>
                         )}
                       </div>
                     )}

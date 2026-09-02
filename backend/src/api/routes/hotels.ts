@@ -5,11 +5,13 @@ import { requireUser } from "../require-auth.js";
 import { runHotelScan } from "../../../scans/run-hotel-scan.js";
 import { executeAudienceCompute } from "../../../scans/run-audience-compute.js";
 import { executeP11OpportunityFinder } from "../../../scans/run-p11-opportunity-finder.js";
+import { executeP10Comparison } from "../../../scans/run-p10-comparison.js";
 import { PersistentProfileSessionProvider } from "../../../experience/core/session.js";
 import type { Env } from "../../config/env.js";
 import type { ScanPeriod } from "../../../experience/core/config.js";
 import { P11_OPPORTUNITIES } from "../../../experience/audience-builder/p11-opportunities.js";
 import { calculateOpportunityScore } from "../../services/scoring/p11-opportunity.js";
+import { P10_LIBRARY, AUDIENCE_TAG_TO_DEFINITION_ID, currentMonthNameFR } from "../../../experience/audience-builder/p10-campaigns.js";
 
 const presetPeriodSchema = z.object({
   mode: z.literal("preset"),
@@ -111,11 +113,10 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
     });
     const audienceResultByDefinitionId = new Map(latestAudienceResults.map((result) => [result.audienceDefinitionId, result]));
 
-    // Phase E3 — dernière comparaison P11 connue pour cet hôtel (playbookId
-    // fixé à "P11" : seul playbook MULTIPLE implémenté pour l'instant, P10
-    // reste à construire). Les scores (volume/potentiel/actionnabilité)
-    // sont recalculés à la lecture depuis P11_OPPORTUNITIES — fonctions
-    // pures, pas besoin de les persister.
+    // Phase E3 — dernière comparaison P11 connue pour cet hôtel. Les
+    // scores (volume/potentiel/actionnabilité) sont recalculés à la
+    // lecture depuis P11_OPPORTUNITIES — fonctions pures, pas besoin de
+    // les persister.
     const latestP11Comparison = await prisma.audienceComparison.findFirst({
       where: { hotelId, playbookId: "P11" },
       orderBy: { id: "desc" },
@@ -135,6 +136,42 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
           highlighted: result.highlighted,
           totalScore: scoring?.totalScore ?? null,
           level: scoring?.level ?? null
+        };
+      })
+    };
+
+    // Phase E3 — dernière comparaison P10 connue. Contrairement à P11
+    // (pas de score numérique) : `highlighted` est déjà la règle ⭐
+    // (returningRate < 7 %), persistée telle quelle au moment de la
+    // mesure — pas recalculée ici. Le nom/angle/pourquoi-maintenant de
+    // chaque campagne sont retrouvés dans la bibliothèque du MOIS ACTUEL
+    // (les campagnes tournent chaque mois, contrairement aux tags
+    // d'audience qui sont stables) ; si un résultat persisté ne
+    // correspond à aucune campagne du mois en cours (comparaison datant
+    // d'un mois précédent), on retombe sur le seul nom du tag d'audience.
+    const currentMonth = currentMonthNameFR();
+    const campaignByAudienceDefinitionId = new Map(
+      (P10_LIBRARY[currentMonth] ?? []).map((campaign) => [AUDIENCE_TAG_TO_DEFINITION_ID[campaign.audience], campaign])
+    );
+    const latestP10Comparison = await prisma.audienceComparison.findFirst({
+      where: { hotelId, playbookId: "P10" },
+      orderBy: { id: "desc" },
+      include: { results: { include: { audienceDefinition: true } } }
+    });
+    const p10Comparison = latestP10Comparison && {
+      id: latestP10Comparison.id,
+      chosenResultId: latestP10Comparison.chosenResultId,
+      month: currentMonth,
+      results: latestP10Comparison.results.map((result) => {
+        const campaign = campaignByAudienceDefinitionId.get(result.audienceDefinitionId);
+        return {
+          id: result.id,
+          audienceDefinitionId: result.audienceDefinitionId,
+          name: campaign?.name ?? result.audienceDefinition.name,
+          angle: campaign?.angle ?? null,
+          whyNow: campaign?.whyNow ?? null,
+          recipients: result.recipients,
+          highlighted: result.highlighted
         };
       })
     };
@@ -197,11 +234,9 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
             recommendationId: recommendation?.id ?? null,
             audienceDefinitionId: recommendation?.audienceDefinitionId ?? null,
             audienceResult: audienceResult && { recipients: audienceResult.recipients, measuredAt: audienceResult.measuredAt },
-            // Phase E3 — uniquement pour P11 (MULTIPLE) : null tant que
-            // "Comparer les opportunités" n'a pas été lancé au moins une
-            // fois. P10 (aussi MULTIPLE) reste sans comparaison possible
-            // pour l'instant — le frontend n'affiche donc pas de bouton.
-            comparison: result.playbookId === "P11" ? p11Comparison : null
+            // Phase E3 — MULTIPLE (P10, P11) : null tant que "Comparer..."
+            // n'a pas été lancé au moins une fois.
+            comparison: result.playbookId === "P11" ? p11Comparison : result.playbookId === "P10" ? p10Comparison : null
           };
         })
       }
@@ -339,6 +374,63 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
       request.log.error(error);
       return reply.code(502).send({
         error: error instanceof Error ? error.message : "La comparaison des opportunités a échoué dans Expérience."
+      });
+    }
+  });
+
+  // Phase E3 — "Comparer les audiences" (P10). Vérifie d'abord le statut
+  // des automations marketing (bloquant si non correctement actives) puis
+  // mesure les 3 campagnes du mois — même raisonnement synchrone que les
+  // routes ci-dessus.
+  app.post("/api/hotels/:hotelId/recommendations/:recommendationId/compare-audiences", async (request, reply) => {
+    const user = await requireUser(request, reply);
+    if (!user) return;
+
+    const { hotelId, recommendationId } = request.params as { hotelId: string; recommendationId: string };
+
+    const recommendation = await prisma.recommendation.findUnique({
+      where: { id: recommendationId },
+      include: { signalResult: { include: { scanHotel: { include: { scan: true } } } } }
+    });
+
+    if (!recommendation || recommendation.signalResult.scanHotel.hotelId !== hotelId) {
+      return reply.code(404).send({ error: "Recommandation introuvable." });
+    }
+    if (recommendation.signalResult.playbookId !== "P10") {
+      return reply.code(400).send({ error: "Cette recommandation ne propose pas de comparaison d'audiences." });
+    }
+
+    const returningKpi = await prisma.kPIResult.findFirst({
+      where: { scanHotelId: recommendation.signalResult.scanHotelId, kpiDefinitionId: "returningGuestsRate" }
+    });
+    if (!returningKpi || returningKpi.value === null) {
+      return reply.code(400).send({ error: "Returning Guests indisponible pour ce scan — impossible d'appliquer la règle de mise en avant." });
+    }
+
+    const hotel = await prisma.hotel.findUniqueOrThrow({ where: { id: hotelId } });
+
+    const sessionProvider = new PersistentProfileSessionProvider({
+      userDataDir: options.env.EXPERIENCE_PROFILE_DIR,
+      headless: options.env.PLAYWRIGHT_HEADLESS
+    });
+
+    try {
+      const result = await executeP10Comparison({
+        hotelId,
+        hotelName: hotel.experienceLabel,
+        returningRate: returningKpi.value,
+        period: recommendation.signalResult.scanHotel.scan.period as unknown as ScanPeriod,
+        sessionProvider,
+        credentials: {
+          email: options.env.EXPERIENCE_SERVICE_ACCOUNT_EMAIL,
+          password: options.env.EXPERIENCE_SERVICE_ACCOUNT_PASSWORD
+        }
+      });
+      return result;
+    } catch (error) {
+      request.log.error(error);
+      return reply.code(502).send({
+        error: error instanceof Error ? error.message : "La comparaison des audiences a échoué dans Expérience."
       });
     }
   });

@@ -84,7 +84,7 @@ export interface RealSignalResult {
   audienceDefinitionId: string | null;
   /** Dernière mesure connue — null tant que "Calculer l'audience" n'a pas été cliqué. */
   audienceResult: { recipients: number; measuredAt: string } | null;
-  /** Phase E3 — uniquement pour P11 (playbookId === "P11"). null pour les autres signaux, y compris P10 (pas encore construit). */
+  /** Phase E3 — uniquement pour P10/P11 (playbookId). null pour les autres signaux. */
   comparison: RealAudienceComparison | null;
 }
 
@@ -94,14 +94,27 @@ export interface RealAudienceComparisonResult {
   name: string;
   recipients: number;
   highlighted: boolean;
+  /** P11 uniquement — score relatif /100. null pour P10 (pas de score numérique, seule la règle ⭐ s'applique). */
   totalScore: number | null;
   level: string | null;
+  /** P10 uniquement — angle/pourquoi-maintenant de la campagne du mois. null pour P11. */
+  angle?: string | null;
+  whyNow?: string | null;
 }
 
 export interface RealAudienceComparison {
   id: string;
   chosenResultId: string | null;
   results: RealAudienceComparisonResult[];
+  /** P10 uniquement. */
+  month?: string;
+}
+
+/** P10 — statut des automations marketing, condition préalable à "Comparer les audiences". */
+export interface RealAutomationStatus {
+  status: "UNKNOWN" | "INACTIVE" | "PARTIAL" | "ACTIVE";
+  action: "MANUAL_CHECK" | "ACTIVATE_AUTOMATIONS" | "FIX_AUTOMATION_CONFIGURATION" | "SEARCH_PUNCTUAL_CAMPAIGN";
+  unexpectedInactive: string[];
 }
 
 export interface RealScanSummary {

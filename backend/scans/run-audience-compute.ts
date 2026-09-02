@@ -5,6 +5,7 @@ import { selectHotel } from "../experience/core/navigation.js";
 import type { ScanPeriod } from "../experience/core/config.js";
 import { classifyErrorType } from "../experience/errors.js";
 import { AUDIENCE_DEFINITIONS } from "../experience/audience-builder/definitions.js";
+import { buildAudienceDefinition } from "../experience/audience-builder/filters.js";
 import { scrapeAverageSpendPerBooking } from "../experience/audience-builder/average-spend.js";
 import { computeAudiencePreview } from "../experience/audience-builder/compute-audience.js";
 
@@ -58,8 +59,9 @@ export async function executeAudienceCompute(options: ExecuteAudienceComputeOpti
     const preview = await computeAudiencePreview(session.page, {
       hotelName: options.hotelName,
       playbookId: options.playbookId,
-      definition,
-      dynamicValues
+      audienceId: definition.id,
+      audienceName: definition.name,
+      buildFilters: (page) => buildAudienceDefinition(page, definition, dynamicValues)
     });
 
     const audienceResult = await prisma.audienceResult.create({

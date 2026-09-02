@@ -16,7 +16,7 @@ import type { AudienceDefinitionConfig } from "./definitions.js";
  * codegen, ne pas généraliser), les suivantes passent par le titre
  * "Ajouter une condition".
  */
-async function addAndCondition(page: Page, isFirstCondition: boolean): Promise<void> {
+export async function addAndCondition(page: Page, isFirstCondition: boolean): Promise<void> {
   if (isFirstCondition) {
     const zones = page.locator("div").filter({ hasText: /^Ajouter une condition$/ });
     const count = await zones.count();
@@ -30,7 +30,7 @@ async function addAndCondition(page: Page, isFirstCondition: boolean): Promise<v
   await sleep(350);
 }
 
-async function addStayCountFilter(page: Page, operator: "=" | ">=", value: number, isFirstCondition: boolean): Promise<void> {
+export async function addStayCountFilter(page: Page, operator: "=" | ">=", value: number, isFirstCondition: boolean): Promise<void> {
   await addAndCondition(page, isFirstCondition);
 
   const search = page.getByRole("textbox", { name: "Rechercher" });
@@ -205,7 +205,7 @@ async function addEmailNotOpenedSinceFilter(page: Page, months: number, isFirstC
 }
 
 /** P09 — montant de réservation >= dépense moyenne par réservation (valeur dynamique, cf. average-spend.ts). */
-async function addStayAmountFilter(page: Page, operator: "=" | ">=", value: number, isFirstCondition: boolean): Promise<void> {
+export async function addStayAmountFilter(page: Page, operator: "=" | ">=", value: number, isFirstCondition: boolean): Promise<void> {
   if (!Number.isFinite(value)) throw new Error(`Montant de la réservation invalide : ${value}`);
 
   await addAndCondition(page, isFirstCondition);
@@ -227,6 +227,105 @@ async function addStayAmountFilter(page: Page, operator: "=" | ">=", value: numb
 
   await page.getByRole("button", { name: "Valider" }).click();
   await sleep(450);
+}
+
+/**
+ * Sélectionne une valeur dans un champ de filtre à liste (multi-select ou
+ * simple) — porté à l'identique depuis `selectListValue()` (bloc 5/8).
+ * Essaie dans l'ordre : option déjà visible, ouverture d'un combobox non
+ * natif, recherche via un champ de recherche, puis un fallback en texte
+ * exact — l'interface Expérience varie selon le champ (liste déroulante
+ * simple, multi-select avec recherche, etc.), d'où les paliers successifs.
+ */
+export async function selectListValue(page: Page, value: string): Promise<void> {
+  let option = page.getByRole("option", { name: value, exact: true });
+  if (await option.isVisible().catch(() => false)) {
+    await option.click();
+    return;
+  }
+
+  const comboboxes = page.getByRole("combobox");
+  const comboCount = await comboboxes.count();
+  for (let i = comboCount - 1; i >= 0; i--) {
+    const combo = comboboxes.nth(i);
+    if (!(await combo.isVisible().catch(() => false))) continue;
+
+    const tagName = await combo.evaluate((el) => el.tagName.toLowerCase()).catch(() => "");
+    if (tagName === "select") continue;
+
+    await combo.click().catch(() => {});
+    await sleep(300);
+
+    option = page.getByRole("option", { name: value, exact: true });
+    if (await option.isVisible().catch(() => false)) {
+      await option.click();
+      return;
+    }
+  }
+
+  const searchboxes = page.getByRole("searchbox");
+  const searchCount = await searchboxes.count();
+  for (let i = searchCount - 1; i >= 0; i--) {
+    const search = searchboxes.nth(i);
+    if (!(await search.isVisible().catch(() => false))) continue;
+
+    await search.fill(value).catch(() => null);
+    await sleep(400);
+
+    option = page.getByRole("option", { name: value, exact: true });
+    if (await option.isVisible().catch(() => false)) {
+      await option.click();
+      return;
+    }
+  }
+
+  const exactText = page.getByText(value, { exact: true });
+  const textCount = await exactText.count();
+  for (let i = 0; i < textCount; i++) {
+    const candidate = exactText.nth(i);
+    if (await candidate.isVisible().catch(() => false)) {
+      await candidate.click();
+      return;
+    }
+  }
+
+  throw new Error(`Impossible de sélectionner "${value}".`);
+}
+
+/** Sélectionne l'opérateur d'un filtre à liste (In/NotIn) — cherche le premier <select> visible qui accepte cette valeur d'option. */
+export async function selectListOperator(page: Page, operatorValue: "In" | "NotIn"): Promise<void> {
+  const combos = page.getByRole("combobox");
+  const count = await combos.count();
+
+  for (let i = 0; i < count; i++) {
+    const combo = combos.nth(i);
+    if (!(await combo.isVisible().catch(() => false))) continue;
+
+    const tagName = await combo.evaluate((el) => el.tagName.toLowerCase()).catch(() => "");
+    if (tagName !== "select") continue;
+
+    const values = await combo
+      .locator("option")
+      .evaluateAll((nodes) => nodes.map((node) => (node as HTMLOptionElement).value))
+      .catch(() => [] as string[]);
+
+    if (values.includes(operatorValue)) {
+      await combo.selectOption(operatorValue);
+      await sleep(250);
+      return;
+    }
+  }
+
+  throw new Error(`Opérateur ${operatorValue} introuvable.`);
+}
+
+/** Ouvre une zone "OU" — combine la condition précédente avec la suivante en OR plutôt qu'en AND. */
+export async function addOrCondition(page: Page): Promise<void> {
+  const zones = page.locator("div").filter({ hasText: /^Ajouter une condition$/ });
+  const count = await zones.count();
+  if (count < 1) throw new Error('Zone OR "Ajouter une condition" introuvable.');
+  await zones.last().click();
+  await sleep(350);
 }
 
 /**

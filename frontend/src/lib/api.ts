@@ -1,5 +1,5 @@
 import type { User } from "@navi/shared";
-import type { RealHotel, RealHotelHealth, RealPortfolio, RealScanPeriod, RealUser } from "./real-hotel-types.js";
+import type { RealHotel, RealHotelHealth, RealPortfolio, RealScanPeriod, RealUser, RealAutomationStatus } from "./real-hotel-types.js";
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -47,6 +47,11 @@ export const api = {
     ),
   compareOpportunities: (hotelId: string, recommendationId: string) =>
     request<{ comparisonId: string }>(`/hotels/${hotelId}/recommendations/${recommendationId}/compare-opportunities`, { method: "POST" }),
+  compareAudiences: (hotelId: string, recommendationId: string) =>
+    request<{ blocked: boolean; automationStatus: RealAutomationStatus; comparisonId: string | null }>(
+      `/hotels/${hotelId}/recommendations/${recommendationId}/compare-audiences`,
+      { method: "POST" }
+    ),
   chooseAudienceComparisonResult: (hotelId: string, comparisonId: string, resultId: string) =>
     request<{ comparisonId: string; chosenResultId: string }>(`/hotels/${hotelId}/audience-comparisons/${comparisonId}/choose`, {
       method: "POST",

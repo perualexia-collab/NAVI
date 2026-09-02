@@ -48,5 +48,55 @@ export const audienceDefinitions: AudienceDefinitionSeed[] = [
     id: "P11_OTA",
     name: "OTA convertibles (P11)",
     description: "≥ 2 séjours, dernier séjour via Booking/Expedia, dernier séjour il y a moins de 36 mois. (P11)"
+  },
+  // P10 — les 9 tags d'audience de la bibliothèque de 36 campagnes
+  // (backend/experience/audience-builder/p10-campaigns.ts). Un tag peut
+  // être réutilisé par plusieurs campagnes de mois différents : c'est le
+  // même segment, seule la campagne (nom/angle/pourquoi maintenant)
+  // change.
+  {
+    id: "P10_REPEATERS",
+    name: "Repeaters",
+    description: "≥ 2 réservations au total."
+  },
+  {
+    id: "P10_NATIONAL",
+    name: "Clientèle nationale",
+    description: "Pays du client = France."
+  },
+  {
+    id: "P10_LEISURE",
+    name: "Loisirs",
+    description: "Raison de la visite hors salon/séminaire et voyage d'affaires."
+  },
+  {
+    id: "P10_COUPLES",
+    name: "Couples",
+    description: "Segment visiteur \"En couple\" ou raison de la visite \"Voyage de noces\"."
+  },
+  {
+    id: "P10_BUSINESS",
+    name: "Business",
+    description: "Raison de la visite : salon/séminaire ou voyage d'affaires."
+  },
+  {
+    id: "P10_ONETIMER",
+    name: "One-timers",
+    description: "Exactement 1 réservation au total."
+  },
+  {
+    id: "P10_FREQUENT_DESTINATION",
+    name: "Vient souvent dans la région/ville",
+    description: "Vient souvent dans la ville/région = oui."
+  },
+  {
+    id: "P10_HIGH_VALUE",
+    name: "Clients à forte valeur",
+    description: "Montant de la réservation ≥ dépense moyenne par réservation de l'hôtel."
+  },
+  {
+    id: "P10_COUPLES_LEISURE",
+    name: "Couples + Loisirs",
+    description: "Segment visiteur \"En couple\" ou raison de la visite hors salon/séminaire et voyage d'affaires."
   }
 ];

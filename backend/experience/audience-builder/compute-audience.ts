@@ -1,13 +1,20 @@
 import type { Page } from "playwright";
-import type { AudienceDefinitionConfig } from "./definitions.js";
 import { openMailingLists, startNewAudience, recalculateResults, selectNaviMode, createTempName, saveTemporaryAudience, reopenTemporaryAudience, readAudienceRecipientCount, deleteAudience } from "./mailing-lists.js";
-import { buildAudienceDefinition } from "./filters.js";
 
 export interface AudiencePreviewInput {
   hotelName: string;
   playbookId: string;
-  definition: AudienceDefinitionConfig;
-  dynamicValues?: Record<string, number>;
+  /** Identifiant stable de l'audience (ex. id AudienceDefinition) — sert au nom de liste temporaire et au résultat retourné. */
+  audienceId: string;
+  audienceName: string;
+  /**
+   * Construit les filtres dans le panneau Expérience déjà ouvert — via le
+   * dispatcher générique `buildAudienceDefinition()` (E2/P11, filtres
+   * déclaratifs) ou une fonction dédiée (P10 : plusieurs audiences ne
+   * suivent pas le modèle déclaratif — OR, opérateurs IN/NOT IN sur liste,
+   * cf. backend/experience/audience-builder/p10-filters.ts).
+   */
+  buildFilters: (page: Page) => Promise<void>;
 }
 
 export interface AudiencePreviewResult {
@@ -29,27 +36,27 @@ export interface AudiencePreviewResult {
  * dans Expérience.
  */
 export async function computeAudiencePreview(page: Page, input: AudiencePreviewInput): Promise<AudiencePreviewResult> {
-  const { hotelName, playbookId, definition, dynamicValues = {} } = input;
+  const { hotelName, playbookId, audienceId, audienceName, buildFilters } = input;
   let tempName: string | null = null;
 
   try {
     await openMailingLists(page);
     await startNewAudience(page);
-    await buildAudienceDefinition(page, definition, dynamicValues);
+    await buildFilters(page);
     await recalculateResults(page);
     await selectNaviMode(page);
 
-    tempName = createTempName(playbookId, hotelName, definition.id);
+    tempName = createTempName(playbookId, hotelName, audienceId);
     await saveTemporaryAudience(page, tempName);
     await reopenTemporaryAudience(page, tempName);
 
     const recipients = await readAudienceRecipientCount(page);
-    console.log(`[audience-builder] ${definition.name} (${playbookId}, ${hotelName}) : ${recipients} destinataire(s)`);
+    console.log(`[audience-builder] ${audienceName} (${playbookId}, ${hotelName}) : ${recipients} destinataire(s)`);
 
     await deleteAudience(page, tempName);
     tempName = null;
 
-    return { definitionId: definition.id, name: definition.name, recipients };
+    return { definitionId: audienceId, name: audienceName, recipients };
   } catch (error) {
     if (tempName) {
       try {
