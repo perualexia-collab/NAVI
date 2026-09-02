@@ -228,14 +228,16 @@ Construit :
   se désactivent mutuellement pendant qu'un calcul tourne — une seule
   session Expérience possible à la fois côté serveur.
 
-### Non testé en conditions réelles
+### Confirmé par l'utilisateur le 2026-09-03
 
-Comme pour chaque étape précédente : porté fidèlement, mais pas encore
-exécuté contre une vraie session Expérience. À valider sur un hôtel dont
-le scan déclenche P11 (base activable ≥ 50 % et activation CRM < 8 ‰) —
-observer notamment si `readAudienceRecipientCount()`/le calendrier tiennent
-la charge sur 3 mesures consécutives dans la même session, chose jamais
-testée pour E2 (un seul calcul à la fois).
+Test réel sur un hôtel déclenchant P11 (activabilité 74,55 % ≥ 50 %,
+activation CRM 7,42 ‰ < 8) : les 3 opportunités mesurées correctement
+(One-timers à réactiver 2 769 destinataires — 80/100, Repeaters dormants
+310 — 70/100, OTA convertibles 0 — 45/100), classement cohérent, la
+mieux classée marquée ⭐ et choisie avec succès ("✓ Choisie"). Les 3
+mesures consécutives dans la même session (jamais testées pour E2, qui
+n'en fait qu'une) tiennent la charge sans problème — calendrier et
+lecture du volume compris. E3/P11 déclaré terminé.
 
 ## À venir
 
