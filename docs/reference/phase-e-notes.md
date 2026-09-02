@@ -177,8 +177,71 @@ le nombre de destinataires s'affiche correctement dans les deux cas. Le
 cycle complet fonctionne de bout en bout (calendrier vdp-datepicker +
 lecture du volume) — E2 déclaré terminé.
 
+## E3 — P11, "Comparer les opportunités" (2026-09-03)
+
+P11 seulement pour l'instant — P10 reste à construire (voir "À venir").
+Conforme à l'audit de l'architecture ("P11 fait déjà exactement ça —
+mesurer les 3 opportunités avant de classer — donc P11 ne change quasiment
+pas") : la mesure d'une opportunité réutilise **telle quelle**
+`computeAudiencePreview()` construite pour E2, appelée 3 fois de suite
+(une par opportunité) plutôt que réimplémentée.
+
+Construit :
+- `backend/experience/audience-builder/p11-opportunities.ts` — les 3
+  opportunités (`P11_ONETIMER`, `P11_REPEATER`, `P11_OTA` — ids alignés
+  sur le catalogue `AudienceDefinition` en base, différents des ids du
+  script d'origine `ONETIMER`/`REPEATER`/`OTA`), chacune avec ses filtres
+  et ses poids fixes (`potentialScore`/`actionabilityScore`).
+- `backend/src/services/scoring/p11-opportunity.ts` — scoring relatif
+  porté à l'identique (`getVolumeScore`, `getOpportunityLevel`,
+  `calculateOpportunityScore`) : fonctions pures, pas persistées en base
+  (recalculées à la lecture depuis `recipients` + les poids fixes de
+  l'opportunité — évite toute colonne supplémentaire sur `AudienceResult`).
+- `backend/scans/run-p11-opportunity-finder.ts` — `executeP11OpportunityFinder()` :
+  mesure les 3 opportunités (session Expérience unique, séquentielle),
+  classe (score total desc, puis potentiel desc, puis volume desc, même
+  comparateur que le script d'origine), persiste un `AudienceComparison`
+  (`playbookId: "P11"`) avec ses 3 `AudienceResult` — `highlighted: true`
+  uniquement sur la mieux classée ET si son score ≥ 40/100 (sinon aucune
+  n'est mise en avant, comme l'original).
+- `persistSignalsAndRecommendations()` (`run-hotel-scan.ts`) étendu :
+  les signaux `MULTIPLE` (P10, P11) matérialisent aussi une
+  `Recommendation` désormais, mais avec `audienceDefinitionId` toujours
+  `null` (elle ne pointe vers aucune définition unique — le frontend
+  distingue le bouton à afficher via `audienceMode` + `playbookId`, pas
+  via `audienceDefinitionId`).
+- `POST /api/hotels/:hotelId/recommendations/:recommendationId/compare-opportunities`
+  — synchrone comme `compute-audience` (E2), refuse tout playbook autre
+  que P11 explicitement (P10 pas encore construit).
+- `POST /api/hotels/:hotelId/audience-comparisons/:comparisonId/choose` —
+  enregistre `chosenResultId` ; n'agit sur rien d'autre (la suite du flux
+  contextuel, brief §22, reste Phase F).
+- `GET /api/hotels/:hotelId/health` expose, pour le signal P11, la
+  dernière comparaison connue (`comparison: { id, chosenResultId,
+  results: [{ id, name, recipients, highlighted, totalScore, level }] } | null`).
+- Frontend (`RealHotelOverview.tsx`) — sous la recommandation P11, bouton
+  "Comparer les opportunités" tant qu'aucune comparaison n'existe ;
+  ensuite, les 3 options côte à côte (nom, destinataires, score/niveau,
+  ⭐ sur la recommandée), un bouton "Choisir" par option (remplacé par
+  "✓ Choisie" une fois le choix fait), et "Recalculer la comparaison"
+  pour relancer. Les boutons P11 et le bouton "Calculer l'audience" (E2)
+  se désactivent mutuellement pendant qu'un calcul tourne — une seule
+  session Expérience possible à la fois côté serveur.
+
+### Non testé en conditions réelles
+
+Comme pour chaque étape précédente : porté fidèlement, mais pas encore
+exécuté contre une vraie session Expérience. À valider sur un hôtel dont
+le scan déclenche P11 (base activable ≥ 50 % et activation CRM < 8 ‰) —
+observer notamment si `readAudienceRecipientCount()`/le calendrier tiennent
+la charge sur 3 mesures consécutives dans la même session, chose jamais
+testée pour E2 (un seul calcul à la fois).
+
 ## À venir
 
-- **E3** — P11 ("Comparer les opportunités") puis P10 ("Comparer les
-  audiences" — mesure des campagnes du mois avant le choix utilisateur,
-  la règle ⭐ conservée).
+- **P10** — "Comparer les audiences" (mesure des campagnes du mois avant
+  le choix utilisateur, règle ⭐ conservée). Explicitement signalé par
+  l'architecture comme le playbook le plus fragile du moteur existant
+  (détection d'automations actives/inactives par géométrie DOM,
+  bibliothèque de 36 campagnes/12 mois) — mérite une passe dédiée,
+  pas regroupée avec P11.

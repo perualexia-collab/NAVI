@@ -4,7 +4,7 @@ Copilote CRM hôtelier posé au-dessus d'Expérience (D-EDGE). Voir [`docs/archi
 
 ## Statut
 
-**Phase C** validée avec de vraies données Expérience (voir [`docs/reference/phase-c-real-connection-notes.md`](docs/reference/phase-c-real-connection-notes.md)). **Phase D — scan multi-hôtels**, livrée (D1 infra Redis/BullMQ, D3 robustesse, D2 progression temps réel — voir [`docs/reference/phase-d-notes.md`](docs/reference/phase-d-notes.md)). **Phase E — moteur métier**, en cours (E1 playbooks sans audience et E2 calcul d'audience à option unique validés avec de vraies données Expérience — voir [`docs/reference/phase-e-notes.md`](docs/reference/phase-e-notes.md)).
+**Phase C** validée avec de vraies données Expérience (voir [`docs/reference/phase-c-real-connection-notes.md`](docs/reference/phase-c-real-connection-notes.md)). **Phase D — scan multi-hôtels**, livrée (D1 infra Redis/BullMQ, D3 robustesse, D2 progression temps réel — voir [`docs/reference/phase-d-notes.md`](docs/reference/phase-d-notes.md)). **Phase E — moteur métier**, en cours (E1 playbooks sans audience et E2 calcul d'audience à option unique validés avec de vraies données Expérience ; E3 P11 "Comparer les opportunités" livré, en attente de validation réelle ; P10 à construire — voir [`docs/reference/phase-e-notes.md`](docs/reference/phase-e-notes.md)).
 
 ## Structure
 

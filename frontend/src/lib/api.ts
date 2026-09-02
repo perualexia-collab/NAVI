@@ -45,6 +45,13 @@ export const api = {
       `/hotels/${hotelId}/recommendations/${recommendationId}/compute-audience`,
       { method: "POST" }
     ),
+  compareOpportunities: (hotelId: string, recommendationId: string) =>
+    request<{ comparisonId: string }>(`/hotels/${hotelId}/recommendations/${recommendationId}/compare-opportunities`, { method: "POST" }),
+  chooseAudienceComparisonResult: (hotelId: string, comparisonId: string, resultId: string) =>
+    request<{ comparisonId: string; chosenResultId: string }>(`/hotels/${hotelId}/audience-comparisons/${comparisonId}/choose`, {
+      method: "POST",
+      body: JSON.stringify({ resultId })
+    }),
 
   listPortfolios: () => request<RealPortfolio[]>("/portfolios"),
   createPortfolio: (name: string, hotelIds: string[]) =>

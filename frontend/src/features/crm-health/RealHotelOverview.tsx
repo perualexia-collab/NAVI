@@ -177,6 +177,36 @@ function ScanResult({ scan, hotelId }: { scan: RealScanSummary; hotelId: string 
     onSettled: () => setComputingRecommendationId(null)
   });
 
+  // Phase E3 — "Comparer les opportunités" (P11) : même contrainte que
+  // ci-dessus (une seule session Expérience à la fois côté serveur) —
+  // audienceActionRunning couvre les deux mutations pour désactiver tous
+  // les boutons pendant qu'un calcul, quel qu'il soit, est en cours.
+  const [comparingRecommendationId, setComparingRecommendationId] = useState<string | null>(null);
+  const [comparisonError, setComparisonError] = useState<{ recommendationId: string; message: string } | null>(null);
+  const compareOpportunitiesMutation = useMutation({
+    mutationFn: (recommendationId: string) => api.compareOpportunities(hotelId, recommendationId),
+    onMutate: (recommendationId: string) => {
+      setComparingRecommendationId(recommendationId);
+      setComparisonError(null);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["hotel-health", hotelId] }),
+    onError: (error: unknown, recommendationId: string) => {
+      setComparisonError({ recommendationId, message: error instanceof ApiError ? error.message : "La comparaison des opportunités a échoué." });
+    },
+    onSettled: () => setComparingRecommendationId(null)
+  });
+  const audienceActionRunning = computingRecommendationId !== null || comparingRecommendationId !== null;
+
+  // Choix d'une option comparée — écriture simple, pas de session
+  // Expérience impliquée, donc indépendant de audienceActionRunning.
+  const [choosingResultId, setChoosingResultId] = useState<string | null>(null);
+  const chooseMutation = useMutation({
+    mutationFn: ({ comparisonId, resultId }: { comparisonId: string; resultId: string }) => api.chooseAudienceComparisonResult(hotelId, comparisonId, resultId),
+    onMutate: ({ resultId }: { comparisonId: string; resultId: string }) => setChoosingResultId(resultId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["hotel-health", hotelId] }),
+    onSettled: () => setChoosingResultId(null)
+  });
+
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-4 gap-4">
@@ -276,7 +306,7 @@ function ScanResult({ scan, hotelId }: { scan: RealScanSummary; hotelId: string 
                           <button
                             type="button"
                             onClick={() => computeAudienceMutation.mutate(signal.recommendationId!)}
-                            disabled={computingRecommendationId !== null}
+                            disabled={audienceActionRunning}
                             className="rounded-md bg-terracotta px-2.5 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
                           >
                             {computingRecommendationId === signal.recommendationId ? "Calcul en cours — Expérience…" : "Calculer l'audience"}
@@ -285,6 +315,65 @@ function ScanResult({ scan, hotelId }: { scan: RealScanSummary; hotelId: string 
 
                         {audienceError?.recommendationId === signal.recommendationId && (
                           <div className="mt-1 text-alert">{audienceError.message}</div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Phase E3 — P11 uniquement (MULTIPLE) ; P10 pas encore construit, pas de bouton tant que ce n'est pas fait. */}
+                    {signal.playbookId === "P11" && signal.recommendationId && (
+                      <div className="mt-2">
+                        {signal.comparison ? (
+                          <div className="flex flex-col gap-1.5">
+                            {signal.comparison.results.map((result) => (
+                              <div
+                                key={result.id}
+                                className={`flex items-center justify-between gap-2 rounded-md px-2 py-1.5 ${result.highlighted ? "bg-terracotta-soft" : "bg-linen"}`}
+                              >
+                                <div>
+                                  <span className="font-medium text-graphite">
+                                    {result.highlighted ? "⭐ " : ""}
+                                    {result.name}
+                                  </span>
+                                  <span className="ml-2 text-graphite-faint">
+                                    👥 {formatNumber(result.recipients)} — {result.level ?? "—"} ({result.totalScore ?? "—"}/100)
+                                  </span>
+                                </div>
+                                {signal.comparison!.chosenResultId === result.id ? (
+                                  <span className="whitespace-nowrap font-medium text-sage">✓ Choisie</span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => chooseMutation.mutate({ comparisonId: signal.comparison!.id, resultId: result.id })}
+                                    disabled={choosingResultId !== null}
+                                    className="whitespace-nowrap rounded-md border border-graphite/20 px-2 py-1 text-xs font-medium text-graphite hover:bg-linen-deep disabled:opacity-50"
+                                  >
+                                    {choosingResultId === result.id ? "…" : "Choisir"}
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                            <button
+                              type="button"
+                              onClick={() => compareOpportunitiesMutation.mutate(signal.recommendationId!)}
+                              disabled={audienceActionRunning}
+                              className="mt-1 self-start rounded-md border border-graphite/20 px-2.5 py-1 text-xs font-medium text-graphite hover:bg-linen-deep disabled:opacity-50"
+                            >
+                              {comparingRecommendationId === signal.recommendationId ? "Comparaison en cours — Expérience…" : "Recalculer la comparaison"}
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => compareOpportunitiesMutation.mutate(signal.recommendationId!)}
+                            disabled={audienceActionRunning}
+                            className="rounded-md bg-terracotta px-2.5 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+                          >
+                            {comparingRecommendationId === signal.recommendationId ? "Comparaison en cours — Expérience…" : "Comparer les opportunités"}
+                          </button>
+                        )}
+
+                        {comparisonError?.recommendationId === signal.recommendationId && (
+                          <div className="mt-1 text-xs text-alert">{comparisonError.message}</div>
                         )}
                       </div>
                     )}

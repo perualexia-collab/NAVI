@@ -84,6 +84,24 @@ export interface RealSignalResult {
   audienceDefinitionId: string | null;
   /** Dernière mesure connue — null tant que "Calculer l'audience" n'a pas été cliqué. */
   audienceResult: { recipients: number; measuredAt: string } | null;
+  /** Phase E3 — uniquement pour P11 (playbookId === "P11"). null pour les autres signaux, y compris P10 (pas encore construit). */
+  comparison: RealAudienceComparison | null;
+}
+
+export interface RealAudienceComparisonResult {
+  id: string;
+  audienceDefinitionId: string;
+  name: string;
+  recipients: number;
+  highlighted: boolean;
+  totalScore: number | null;
+  level: string | null;
+}
+
+export interface RealAudienceComparison {
+  id: string;
+  chosenResultId: string | null;
+  results: RealAudienceComparisonResult[];
 }
 
 export interface RealScanSummary {

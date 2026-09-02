@@ -320,9 +320,15 @@ async function computeAndPersistScoreAndSignals(scanHotelId: string, result: Col
  * mesurée, reste affichable (c'est la recommandation), simplement
  * incomplet tant que l'audience n'a pas été calculée.
  *
- * Les signaux MULTIPLE (P10, P11) restent de simples SignalResult tant
- * que E3 n'existe pas — leur flux "Comparer les audiences" n'est pas une
- * Recommendation à option unique.
+ * Phase E3 — signaux MULTIPLE (P10, P11) : une Recommendation est aussi
+ * créée, mais avec `audienceDefinitionId` toujours null — contrairement à
+ * SINGLE, elle ne pointe pas vers une définition unique (le choix entre
+ * plusieurs options n'a pas encore été fait). Le frontend distingue le
+ * bouton à afficher ("Comparer les opportunités"/"Comparer les
+ * audiences") via `signal.audienceMode` + `playbookId`, pas via
+ * `audienceDefinitionId`. P10 n'a pas encore d'implémentation du calcul
+ * (seul P11 est construit) — le bouton reste masqué pour P10 côté
+ * frontend tant que ce n'est pas fait.
  */
 async function persistSignalsAndRecommendations(scanHotelId: string, signals: { playbookId: string; trigger: string }[]): Promise<void> {
   const definitions = await prisma.signalDefinition.findMany({
@@ -352,6 +358,10 @@ async function persistSignalsAndRecommendations(scanHotelId: string, signals: { 
       const audienceDefinitionId = AUDIENCE_DEFINITION_ID_BY_PLAYBOOK[result.playbookId];
       if (!audienceDefinitionId) return [];
       return [{ scanHotelId, signalResultId: result.id, text: definition.recommendedAction, audienceDefinitionId }];
+    }
+
+    if (definition.audienceMode === "MULTIPLE") {
+      return [{ scanHotelId, signalResultId: result.id, text: definition.recommendedAction, audienceDefinitionId: null }];
     }
 
     return [];
