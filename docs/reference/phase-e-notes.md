@@ -129,16 +129,34 @@ interrogée directement pour découvrir les libellés Booking/Expedia
 réellement disponibles pour l'hôtel (ils varient d'un hôtel à l'autre) —
 comportement conservé tel quel, pas un oubli.
 
-### Non testé en conditions réelles
+### Premier test réel (Belinda Hôtel & Spa, P09) et correction du calendrier
 
-Comme pour la période personnalisée (Phase D), ce cycle est un port fidèle
-du moteur existant mais n'a pas encore été exécuté contre une vraie session
-Expérience dans ce projet — à valider sur un hôtel réel dont le scan a
-déclenché un signal P02/P03/P04/P06/P07/P09 (P04, dépendant uniquement de
-l'activabilité, est probablement le plus simple à déclencher en premier vu
-les scores déjà observés). En cas d'échec, même méthode que d'habitude :
-`ScanError`/message d'erreur exact → inspection du vrai DOM si nécessaire
-→ correction du sélecteur en cause.
+Premier essai en échec : `Header "Mois Année" du calendrier introuvable.`
+dans `selectDateWithCalendar` (`addLastStayAfterFilter`/`addLastStayBetweenFilter`,
+donc tout filtre "Date de départ"). Cause : le calendrier de l'Audience
+Builder porté depuis le script d'origine (`docs/reference/moteur-experience-existant.js`,
+mécanique "flèche `<` pour reculer d'une année, clic sur texte exact mois
+puis jour") correspondait à une version antérieure d'Expérience — plus
+celle en production.
+
+DOM réel fourni par l'utilisateur (Belinda Hôtel & Spa, filtre "Date de
+départ") : c'est en fait le **même composant vue-datepicker** que le
+sélecteur de période Reporting déjà corrigé en Phase D
+(`docs/reference/phase-d-notes.md`) — `.vdp-datepicker`, input en lecture
+seule, 3 vues empilées (jour/mois/année) navigables uniquement au clic sur
+les liens d'en-tête `.up`. Seule différence avec Reporting : pas de classe
+`.date-start`/`.date-end` sur le conteneur (un seul champ affiché à la
+fois, ou deux instances indépendantes pour "Between") — le conteneur est
+donc retrouvé en remontant depuis l'input via XPath plutôt que par classe.
+`backend/experience/audience-builder/calendar.ts` réécrit avec la même
+mécanique que `setVdpDate()` (`backend/experience/core/navigation.ts`) :
+remontée jusqu'à la vue année (boucle bornée à 2, `.up`) → clic année
+exacte → clic mois (nom complet français) → clic jour exact. Ne gère pas
+la pagination de décennie (fenêtre "2020 - 2029" affichée) — hors scope
+tant qu'aucun filtre ne demande une date plus ancienne que 2020.
+
+Poussé, en attente de re-test réel sur Belinda Hôtel & Spa (P09) ou tout
+autre hôtel déclenchant P02/P03/P04/P06/P07/P09.
 
 ## À venir
 
