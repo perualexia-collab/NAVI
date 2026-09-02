@@ -118,6 +118,17 @@ export async function runHotelScan(options: RunHotelScanOptions): Promise<RunHot
 
     const status: ScanHotelStatus = allStepsOk ? "SUCCESS" : STEP_NAMES.some((name) => stepOf(collectResult, name).status === "OK") ? "PARTIAL_SUCCESS" : "FAILED";
 
+    // Un scan SUCCESS/PARTIAL_SUCCESS prouve que l'hôtel a bien été trouvé
+    // et au moins partiellement scrapé dans Expérience — retours réels
+    // Phase C (2026-09-02) : experienceStatus restait bloqué à TO_VERIFY
+    // (valeur de création) même après un scan réel réussi.
+    if (status === "SUCCESS" || status === "PARTIAL_SUCCESS") {
+      await prisma.hotel.update({
+        where: { id: hotel.id },
+        data: { experienceStatus: "ACTIVE", lastConnectionCheckAt: new Date() }
+      });
+    }
+
     return finalizeScanHotel(scanHotel.id, status, startedAt);
   } finally {
     await session.close();
