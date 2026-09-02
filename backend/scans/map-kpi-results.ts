@@ -20,6 +20,10 @@ export interface KpiResultRow {
   kpiDefinitionId: string;
   value: number | null;
   available: boolean;
+  // Comparaison année N vs N-1 — uniquement pour les KPI non filtrables par
+  // période (OTA, Returning Guests), déjà scrapés sur les deux années.
+  previousValue?: number | null;
+  evolutionPoints?: number | null;
 }
 
 export function mapKpiResults(result: CollectHotelKpisResult): KpiResultRow[] {
@@ -29,6 +33,7 @@ export function mapKpiResults(result: CollectHotelKpisResult): KpiResultRow[] {
   rows.push(
     { kpiDefinitionId: "totalProfiles", value: base?.totalProfiles ?? null, available: result.base.status === "OK" },
     { kpiDefinitionId: "usableEmails", value: base?.usableEmails ?? null, available: result.base.status === "OK" },
+    { kpiDefinitionId: "activabilityRate", value: base?.activabilityRate ?? null, available: result.base.status === "OK" },
     { kpiDefinitionId: "otaAgencyEmailShare", value: base?.otaAgencyRate ?? null, available: result.base.status === "OK" },
     { kpiDefinitionId: "unsubscribedShare", value: base?.unsubscribedRate ?? null, available: result.base.status === "OK" }
   );
@@ -38,16 +43,58 @@ export function mapKpiResults(result: CollectHotelKpisResult): KpiResultRow[] {
 
   const ota = result.ota.data;
   rows.push(
-    { kpiDefinitionId: "otaBookingReservationShare", value: ota?.booking.reservationShare.N ?? null, available: result.ota.status === "OK" },
-    { kpiDefinitionId: "otaBookingRevenueShare", value: ota?.booking.revenueShare.N ?? null, available: result.ota.status === "OK" },
-    { kpiDefinitionId: "otaExpediaReservationShare", value: ota?.expedia.reservationShare.N ?? null, available: result.ota.status === "OK" },
-    { kpiDefinitionId: "otaExpediaRevenueShare", value: ota?.expedia.revenueShare.N ?? null, available: result.ota.status === "OK" },
-    { kpiDefinitionId: "nonOtaReservationShare", value: ota?.nonOta.reservationShare.N ?? null, available: result.ota.status === "OK" },
-    { kpiDefinitionId: "nonOtaRevenueShare", value: ota?.nonOta.revenueShare.N ?? null, available: result.ota.status === "OK" }
+    {
+      kpiDefinitionId: "otaBookingReservationShare",
+      value: ota?.booking.reservationShare.N ?? null,
+      available: result.ota.status === "OK",
+      previousValue: ota?.booking.reservationShare.N1 ?? null,
+      evolutionPoints: ota?.booking.reservationEvolution ?? null
+    },
+    {
+      kpiDefinitionId: "otaBookingRevenueShare",
+      value: ota?.booking.revenueShare.N ?? null,
+      available: result.ota.status === "OK",
+      previousValue: ota?.booking.revenueShare.N1 ?? null,
+      evolutionPoints: ota?.booking.revenueEvolution ?? null
+    },
+    {
+      kpiDefinitionId: "otaExpediaReservationShare",
+      value: ota?.expedia.reservationShare.N ?? null,
+      available: result.ota.status === "OK",
+      previousValue: ota?.expedia.reservationShare.N1 ?? null,
+      evolutionPoints: ota?.expedia.reservationEvolution ?? null
+    },
+    {
+      kpiDefinitionId: "otaExpediaRevenueShare",
+      value: ota?.expedia.revenueShare.N ?? null,
+      available: result.ota.status === "OK",
+      previousValue: ota?.expedia.revenueShare.N1 ?? null,
+      evolutionPoints: ota?.expedia.revenueEvolution ?? null
+    },
+    {
+      kpiDefinitionId: "nonOtaReservationShare",
+      value: ota?.nonOta.reservationShare.N ?? null,
+      available: result.ota.status === "OK",
+      previousValue: ota?.nonOta.reservationShare.N1 ?? null,
+      evolutionPoints: ota?.nonOta.reservationEvolution ?? null
+    },
+    {
+      kpiDefinitionId: "nonOtaRevenueShare",
+      value: ota?.nonOta.revenueShare.N ?? null,
+      available: result.ota.status === "OK",
+      previousValue: ota?.nonOta.revenueShare.N1 ?? null,
+      evolutionPoints: ota?.nonOta.revenueEvolution ?? null
+    }
   );
 
   const returning = result.returning.data;
-  rows.push({ kpiDefinitionId: "returningGuestsRate", value: returning?.N ?? null, available: result.returning.status === "OK" });
+  rows.push({
+    kpiDefinitionId: "returningGuestsRate",
+    value: returning?.N ?? null,
+    available: result.returning.status === "OK",
+    previousValue: returning?.N1 ?? null,
+    evolutionPoints: returning?.evolution ?? null
+  });
 
   const marketing = result.marketing.data;
   rows.push(

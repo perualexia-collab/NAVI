@@ -20,6 +20,10 @@ export interface KPIDefinitionSeed {
 export const kpiDefinitions: KPIDefinitionSeed[] = [
   { id: "totalProfiles", label: "Taille de la base", source: "Analyse base client → Général", dateFilterable: true, version: "V1", scraped: true },
   { id: "usableEmails", label: "Emails utilisables", source: "Analyse base client → Général", dateFilterable: true, version: "V1", scraped: true },
+  // Dérivé (usableEmails / totalProfiles) — déjà calculé par
+  // scrapeGeneralKPIs() (base.ts) mais jamais persisté avant les retours
+  // réels Phase C (2026-09-02) ; pas de "source" Expérience dédiée.
+  { id: "activabilityRate", label: "Taux d'activabilité", source: "Analyse base client → Général", dateFilterable: true, version: "V1", scraped: true },
   { id: "emailCaptureRate", label: "Taux de captation e-mail", source: "Activité", dateFilterable: true, version: "V1", scraped: true },
   { id: "otaAgencyEmailShare", label: "% e-mails OTA / agences", source: "Analyse base client → Général", dateFilterable: true, version: "V1", scraped: true },
   { id: "unsubscribedShare", label: "Désinscrits", source: "Analyse base client → Général", dateFilterable: true, version: "V1", scraped: true },
@@ -33,9 +37,9 @@ export const kpiDefinitions: KPIDefinitionSeed[] = [
   { id: "crmRevenue", label: "CA CRM", source: "Statistiques Marketing", dateFilterable: true, version: "V1", scraped: true },
   { id: "crmBookings", label: "Réservations CRM", source: "Statistiques Marketing", dateFilterable: true, version: "V1", scraped: true },
   { id: "emailSendCount", label: "Nombre d'envois", source: "Statistiques Marketing", dateFilterable: true, version: "V2", scraped: false },
-  { id: "automationRevenue", label: "CA par automation", source: "Statistiques Marketing", dateFilterable: true, version: "V1", scraped: true },
+  { id: "automationRevenue", label: "CA automation", source: "Statistiques Marketing", dateFilterable: true, version: "V1", scraped: true },
   { id: "automationBookings", label: "Réservations par automation", source: "Statistiques Marketing", dateFilterable: true, version: "V1", scraped: true },
-  { id: "campaignRevenue", label: "CA par campagne ponctuelle", source: "Statistiques Marketing", dateFilterable: true, version: "V1", scraped: true },
+  { id: "campaignRevenue", label: "CA campagne ponctuelle", source: "Statistiques Marketing", dateFilterable: true, version: "V1", scraped: true },
   { id: "campaignBookings", label: "Réservations par campagne ponctuelle", source: "Statistiques Marketing", dateFilterable: true, version: "V1", scraped: true },
   { id: "globalSatisfaction", label: "Satisfaction globale", source: "Activité / Satisfaction", dateFilterable: true, version: "V2", scraped: false },
   { id: "reputationScores", label: "Notes e-réputation principales", source: "E-réputation", dateFilterable: true, version: "V2", scraped: false },

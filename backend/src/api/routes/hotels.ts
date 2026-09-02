@@ -63,13 +63,21 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
 
     const scanCount = await prisma.scanHotel.count({ where: { hotelId, status: { in: ["SUCCESS", "PARTIAL_SUCCESS"] } } });
 
+    // Estimation du temps restant pendant un scan en cours (retours réels
+    // Phase C, 2026-09-02) — moyenne des scans terminés précédents, pas une
+    // valeur inventée. null tant qu'aucun scan n'a de durationMs connu.
+    const durationAgg = await prisma.scanHotel.aggregate({
+      where: { hotelId, durationMs: { not: null } },
+      _avg: { durationMs: true }
+    });
+
     const latestScanHotel = await prisma.scanHotel.findFirst({
       where: { hotelId },
       orderBy: { startedAt: "desc" },
       include: {
         steps: true,
         errors: true,
-        kpiResults: { include: { kpiDefinition: true } },
+        kpiResults: { include: { kpiDefinition: true }, orderBy: { id: "asc" } },
         signalResults: { include: { signal: true } }
       }
     });
@@ -77,6 +85,7 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
     return {
       hotel,
       scanCount,
+      averageScanDurationMs: durationAgg._avg.durationMs,
       latestScan: latestScanHotel && {
         scanHotelId: latestScanHotel.id,
         status: latestScanHotel.status,
@@ -105,7 +114,9 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
           label: result.kpiDefinition.label,
           dateFilterable: result.kpiDefinition.dateFilterable,
           value: result.value,
-          available: result.available
+          available: result.available,
+          previousValue: result.previousValue,
+          evolutionPoints: result.evolutionPoints
         })),
         signalResults: latestScanHotel.signalResults.map((result) => ({
           playbookId: result.playbookId,

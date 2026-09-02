@@ -56,6 +56,51 @@ scrapée vers un `kpiDefinitionId` du catalogue réel. À reconfirmer avec de
 vraies valeurs que rien n'est décalé (ex. confusion entre taux Booking vs
 Expedia, N vs N-1).
 
+## Retours réels post-connexion (2026-09-02) — présentation CRM Health
+
+Une fois le premier scan réel réussi (`PARTIAL_SUCCESS` puis un scan
+complet avec score calculé, `55.82/100 "Fragile"`), plusieurs écarts de
+présentation invisibles avec les données mockées sont apparus :
+- Étiquette de niveau ("Fragile", "Critique"...) pas alignée sur la
+  couleur de l'anneau de score → corrigé (`scoreTone` réutilisé pour les
+  deux).
+- Score affiché à 2 décimales → arrondi à l'unité **à l'affichage
+  uniquement** (`ScoreRing`) ; la valeur stockée en base reste précise
+  (pas de modification du moteur de scoring, cf. avertissement en tête de
+  `crm-health.ts`).
+- Parts/taux affichés sans unité → suffixe `%` ajouté par
+  `kpiDefinitionId` (liste explicite en dur côté frontend, le référentiel
+  Excel ne portant pas cette information).
+- CA (CRM / automation / campagne) sans devise → `formatCurrency` (€).
+- Libellés renommés dans le catalogue KPI : "CA par automation" → "CA
+  automation", "CA par campagne ponctuelle" → "CA campagne ponctuelle".
+- Comparaison N vs N-1 des KPI non filtrables (OTA, Returning Guests) :
+  le moteur scrapait déjà les deux années
+  (`backend/experience/scrapers/{ota,returning-guests}.ts`) mais seule la
+  valeur N était persistée. Ajout de `KPIResult.previousValue` /
+  `evolutionPoints` (migration `20260902130000_add_kpi_result_evolution`)
+  + affichage "VS X% en {N-1}, +/- pts" coloré (vert hausse / rouge
+  baisse).
+- Nouvel indicateur "Taux d'activabilité" (`usableEmails / totalProfiles`,
+  déjà calculé par `scrapeGeneralKPIs()` mais jamais persisté) ajouté au
+  catalogue et affiché à la place de "Désinscrits" dans la grille (KPI
+  toujours scrapé/persisté, juste masqué de cet affichage).
+- Estimation de temps pendant un scan en cours : remplace le texte
+  générique "peut prendre plusieurs minutes" par une estimation basée sur
+  la durée moyenne des scans précédents pour cet hôtel
+  (`averageScanDurationMs`, exposé par `GET /api/hotels/:id/health`) —
+  reste générique tant qu'aucun scan précédent n'a de durée connue
+  (premier scan d'un hôtel).
+
+**Point laissé ouvert, pas tranché unilatéralement** : l'utilisateur avait
+initialement demandé une logique de nouvelle tentative (3 essais) au
+niveau du scan pour absorber les lenteurs de chargement d'Expérience. Le
+correctif appliqué sur `readBaseSummary()` (polling ciblé jusqu'à ce que
+le texte contienne de vrais chiffres) traite la cause racine constatée
+pour cette étape précise, mais ne remplace pas un filet de sécurité plus
+général au niveau du scan pour d'autres étapes non encore vérifiées en
+réel. Pas implémenté ici — à décider avec l'utilisateur si nécessaire.
+
 ## Bugs / erreurs rencontrées pendant le premier run réel
 
 | Date | Étape | Symptôme | Cause | Correctif |

@@ -253,6 +253,12 @@ model KPIResult {
   kpiDefinitionId String
   value           Float?
   available       Boolean  @default(true) // brief §37 — distingue 0 réel de non récupéré
+  // Comparaison année N vs N-1 — uniquement pour les KPI non filtrables par
+  // période (OTA, Returning Guests) où le moteur scrape déjà les deux
+  // années (backend/experience/scrapers/ota.ts, returning-guests.ts).
+  // null pour tous les autres KPI (retours réels Phase C, 2026-09-02).
+  previousValue   Float?
+  evolutionPoints Float?
 
   scanHotel     ScanHotel     @relation(fields: [scanHotelId], references: [id], onDelete: Cascade)
   kpiDefinition KPIDefinition @relation(fields: [kpiDefinitionId], references: [id])

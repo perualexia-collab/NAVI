@@ -49,6 +49,8 @@ export interface RealKpiResult {
   dateFilterable: boolean;
   value: number | null;
   available: boolean;
+  previousValue: number | null;
+  evolutionPoints: number | null;
 }
 
 export interface RealSignalResult {
@@ -79,5 +81,6 @@ export interface RealScanSummary {
 export interface RealHotelHealth {
   hotel: RealHotel;
   scanCount: number;
+  averageScanDurationMs: number | null;
   latestScan: RealScanSummary | null;
 }

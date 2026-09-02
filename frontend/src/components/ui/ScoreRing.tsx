@@ -38,7 +38,7 @@ export function ScoreRing({ score, size = 64, strokeWidth = 6 }: ScoreRingProps)
       <div className="absolute inset-0 grid place-items-center">
         <div className="flex flex-col items-center leading-none">
           <span className="font-display font-semibold tabular-nums" style={{ fontSize: scoreFontSize, lineHeight: 1 }}>
-            {score ?? "—"}
+            {score === null ? "—" : Math.round(score)}
           </span>
           {score !== null && (
             <span className="text-graphite-faint" style={{ fontSize: suffixFontSize, lineHeight: 1.5 }}>

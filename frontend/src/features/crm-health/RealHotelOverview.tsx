@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardHeader } from "../../components/ui/Card.js";
 import { ScoreRing } from "../../components/ui/ScoreRing.js";
+import { scoreTone } from "../../components/ui/score-color.js";
 import { Icon } from "../../components/ui/icons.js";
-import { formatDateTime } from "../../lib/format.js";
+import { formatDateTime, formatNumber, formatCurrency } from "../../lib/format.js";
 import { api, ApiError } from "../../lib/api.js";
-import type { RealHotel, RealScanSummary, ScanPeriodValue } from "../../lib/real-hotel-types.js";
+import type { RealHotel, RealKpiResult, RealScanSummary, ScanPeriodValue } from "../../lib/real-hotel-types.js";
 
 const STEP_LABEL: Record<string, string> = {
   BASE: "Base exploitable",
@@ -22,6 +23,48 @@ const SEVERITY_STYLE: Record<string, string> = {
   OPPORTUNITY: "bg-sage-soft text-sage-ink"
 };
 
+const HEALTH_LABEL_STYLE: Record<"sage" | "warn" | "alert" | "muted", string> = {
+  sage: "bg-sage-soft text-sage-ink",
+  warn: "bg-warn-soft text-warn-ink",
+  alert: "bg-alert-soft text-alert-ink",
+  muted: "bg-linen-deep text-graphite-faint"
+};
+
+// Retours réels Phase C (2026-09-02) : le catalogue KPI ne porte pas
+// l'unité (référentiel Excel muet là-dessus pour ces lignes) — associée ici
+// à l'affichage plutôt qu'inventée dans le référentiel métier.
+const PERCENT_KPI_IDS = new Set([
+  "emailCaptureRate",
+  "otaAgencyEmailShare",
+  "unsubscribedShare",
+  "activabilityRate",
+  "otaBookingReservationShare",
+  "otaBookingRevenueShare",
+  "otaExpediaReservationShare",
+  "otaExpediaRevenueShare",
+  "nonOtaReservationShare",
+  "nonOtaRevenueShare",
+  "returningGuestsRate"
+]);
+const CURRENCY_KPI_IDS = new Set(["crmRevenue", "automationRevenue", "campaignRevenue"]);
+// Retiré de l'affichage sur demande (2026-09-02) — remplacé par
+// "Taux d'activabilité" dans la grille ; toujours scrapé/persisté
+// (audit/futur usage), juste pas montré ici.
+const HIDDEN_KPI_IDS = new Set(["unsubscribedShare"]);
+
+function formatKpiValue(kpiDefinitionId: string, value: number): string {
+  if (PERCENT_KPI_IDS.has(kpiDefinitionId)) return `${formatNumber(value)}%`;
+  if (CURRENCY_KPI_IDS.has(kpiDefinitionId)) return formatCurrency(value);
+  return formatNumber(value);
+}
+
+function formatScanProgress(elapsedMs: number, averageMs: number | null): string {
+  if (!averageMs) return "Cela peut prendre quelques minutes.";
+  const remainingMs = averageMs - elapsedMs;
+  if (remainingMs <= 1000) return "Ça ne devrait plus tarder…";
+  return `Encore environ ${Math.round(remainingMs / 1000)}s (estimation basée sur les scans précédents).`;
+}
+
 /**
  * Vue "premier vertical slice réel" — brief §49. Contrairement à la fiche
  * mockée (OverviewTab.tsx), chaque donnée affichée ici vient réellement de
@@ -30,11 +73,15 @@ const SEVERITY_STYLE: Record<string, string> = {
  *  - uniquement les KPI du catalogue réel, uniquement s'ils ont été
  *    effectivement récupérés (available: true) ;
  *  - aucune évolution / comparaison temporelle inventée : "Première
- *    analyse" tant qu'il n'existe pas assez de scans réels.
+ *    analyse" tant qu'il n'existe pas assez de scans réels, et la
+ *    comparaison N vs N-1 des KPI non filtrables n'est affichée que si le
+ *    moteur l'a effectivement scrapée (previousValue/evolutionPoints).
  */
 export function RealHotelOverview({ hotel }: { hotel: RealHotel }) {
   const queryClient = useQueryClient();
   const [period, setPeriod] = useState<ScanPeriodValue>("last12Months");
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const scanStartRef = useRef<number | null>(null);
 
   const healthQuery = useQuery({
     queryKey: ["hotel-health", hotel.id],
@@ -43,8 +90,20 @@ export function RealHotelOverview({ hotel }: { hotel: RealHotel }) {
 
   const scanMutation = useMutation({
     mutationFn: () => api.launchScan(hotel.id, period),
+    onMutate: () => {
+      scanStartRef.current = Date.now();
+      setElapsedMs(0);
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["hotel-health", hotel.id] })
   });
+
+  useEffect(() => {
+    if (!scanMutation.isPending) return;
+    const interval = setInterval(() => {
+      if (scanStartRef.current) setElapsedMs(Date.now() - scanStartRef.current);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [scanMutation.isPending]);
 
   return (
     <div>
@@ -67,7 +126,8 @@ export function RealHotelOverview({ hotel }: { hotel: RealHotel }) {
 
       {scanMutation.isPending && (
         <div className="mb-4 rounded-lg bg-horizon-soft px-3 py-2 text-sm text-horizon-ink">
-          Connexion à Expérience et collecte des KPI en cours — peut prendre plusieurs minutes. Ne ferme pas cette page.
+          Connexion à Expérience et collecte des KPI en cours — ne ferme pas cette page.{" "}
+          {formatScanProgress(elapsedMs, healthQuery.data?.averageScanDurationMs ?? null)}
         </div>
       )}
 
@@ -99,6 +159,8 @@ export function RealHotelOverview({ hotel }: { hotel: RealHotel }) {
 }
 
 function ScanResult({ scan, scanCount }: { scan: RealScanSummary; scanCount: number }) {
+  const tone = scoreTone(scan.healthScore);
+
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-4 gap-4">
@@ -107,7 +169,7 @@ function ScanResult({ scan, scanCount }: { scan: RealScanSummary; scanCount: num
             <div className="text-xs font-medium uppercase tracking-wide text-graphite-faint">Santé CRM globale</div>
             <div className="mt-2 text-sm">
               {scan.healthScore !== null ? (
-                <span className="rounded-full bg-sage-soft px-2 py-0.5 text-xs font-medium text-sage-ink">{scan.healthLevel}</span>
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${HEALTH_LABEL_STYLE[tone]}`}>{scan.healthLevel}</span>
               ) : (
                 <span className="text-xs text-graphite-faint">Non calculée — données partielles</span>
               )}
@@ -156,18 +218,14 @@ function ScanResult({ scan, scanCount }: { scan: RealScanSummary; scanCount: num
 
       <Card>
         <CardHeader icon={<Icon.Info className="text-graphite-faint" width={15} height={15} />} title="Indicateurs récupérés" />
-        {scan.kpiResults.filter((k) => k.available).length === 0 ? (
+        {scan.kpiResults.filter((k) => k.available && !HIDDEN_KPI_IDS.has(k.kpiDefinitionId)).length === 0 ? (
           <p className="text-sm text-graphite-faint">Aucun indicateur récupéré sur ce scan.</p>
         ) : (
           <div className="grid grid-cols-4 gap-3">
             {scan.kpiResults
-              .filter((k) => k.available)
+              .filter((k) => k.available && !HIDDEN_KPI_IDS.has(k.kpiDefinitionId))
               .map((kpi) => (
-                <div key={kpi.kpiDefinitionId} className="rounded-lg border border-graphite/10 p-2.5">
-                  <div className="text-[11px] text-graphite-faint">{kpi.label}</div>
-                  <div className="font-display text-sm font-semibold tabular-nums">{kpi.value ?? "—"}</div>
-                  {!kpi.dateFilterable && <div className="mt-1 text-[10px] text-graphite-faint">Année N vs N-1 (non filtrable par période)</div>}
-                </div>
+                <KpiCard key={kpi.kpiDefinitionId} kpi={kpi} />
               ))}
           </div>
         )}
@@ -191,6 +249,27 @@ function ScanResult({ scan, scanCount }: { scan: RealScanSummary; scanCount: num
           </div>
         )}
       </Card>
+    </div>
+  );
+}
+
+const PREVIOUS_YEAR = new Date().getFullYear() - 1;
+
+function KpiCard({ kpi }: { kpi: RealKpiResult }) {
+  const hasEvolution = !kpi.dateFilterable && kpi.evolutionPoints !== null && kpi.previousValue !== null;
+
+  return (
+    <div className="rounded-lg border border-graphite/10 p-2.5">
+      <div className="text-[11px] text-graphite-faint">{kpi.label}</div>
+      <div className="font-display text-sm font-semibold tabular-nums">{kpi.value !== null ? formatKpiValue(kpi.kpiDefinitionId, kpi.value) : "—"}</div>
+      {hasEvolution ? (
+        <div className={`mt-1 text-[10px] font-medium ${kpi.evolutionPoints! >= 0 ? "text-sage" : "text-alert"}`}>
+          VS {formatNumber(kpi.previousValue!)}% en {PREVIOUS_YEAR}, {kpi.evolutionPoints! >= 0 ? "+" : ""}
+          {formatNumber(kpi.evolutionPoints!)} pts
+        </div>
+      ) : (
+        !kpi.dateFilterable && <div className="mt-1 text-[10px] text-graphite-faint">Comparaison N-1 indisponible</div>
+      )}
     </div>
   );
 }

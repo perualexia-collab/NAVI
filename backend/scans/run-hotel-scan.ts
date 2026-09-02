@@ -100,7 +100,14 @@ export async function runHotelScan(options: RunHotelScanOptions): Promise<RunHot
 
     const kpiRows = mapKpiResults(collectResult);
     await prisma.kPIResult.createMany({
-      data: kpiRows.map((row) => ({ scanHotelId: scanHotel.id, kpiDefinitionId: row.kpiDefinitionId, value: row.value, available: row.available }))
+      data: kpiRows.map((row) => ({
+        scanHotelId: scanHotel.id,
+        kpiDefinitionId: row.kpiDefinitionId,
+        value: row.value,
+        available: row.available,
+        previousValue: row.previousValue ?? null,
+        evolutionPoints: row.evolutionPoints ?? null
+      }))
     });
 
     const allStepsOk = STEP_NAMES.every((name) => stepOf(collectResult, name).status === "OK");
