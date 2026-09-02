@@ -1,5 +1,21 @@
 # Phase C — clôture réelle : notes de connexion Expérience
 
+## Phase C déclarée close le 2026-09-02
+
+Critère de clôture (brief utilisateur) validé de bout en bout, avec de
+vraies données Expérience, sur deux hôtels réels (Louis II, Apollinaire) :
+connexion + 2FA réelles et persistées, sélection d'hôtel réelle, scans
+réels (`SUCCESS` et `PARTIAL_SUCCESS` observés), scoring/signaux calculés
+uniquement sur `SUCCESS`, KPI persistés en PostgreSQL et affichés sans
+mock ni repli silencieux, bugs réels rencontrés documentés et corrigés
+(voir table ci-dessous), test E2E reproductible en place.
+
+**Point non approfondi, à garder en tête** : le sélecteur de période (3/6/
+12 derniers mois) est câblé jusqu'à Expérience, mais son effet réel sur
+les données retournées par Expérience n'a pas été vérifié précisément
+KPI par KPI pendant cette clôture — les runs réels ont tous été faits sur
+la période par défaut. À vérifier si un écart apparaît.
+
 Document vivant — à compléter au fil des vrais essais contre Expérience
 (le code n'a été porté qu'à partir du script existant, jamais exécuté
 contre une session réelle par l'agent qui l'a écrit : ni identifiants, ni
