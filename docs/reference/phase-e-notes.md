@@ -171,8 +171,11 @@ imbriquée dans un `.evaluate()` — `extractNumericHeadingFromAnchor()`
 corrigée pour suivre le même style (logique inlinée, aucune fonction
 nommée interne).
 
-Poussé, en attente de re-test réel sur Belinda Hôtel & Spa (P09) ou tout
-autre hôtel déclenchant P02/P03/P04/P06/P07/P09.
+**Confirmé par l'utilisateur le 2026-09-02** — re-test sur Belinda Hôtel &
+Spa (P09, HIGH_VALUE_ONE_TIMER) et East Paris Suite (P07, SECOND_BOOKING) :
+le nombre de destinataires s'affiche correctement dans les deux cas. Le
+cycle complet fonctionne de bout en bout (calendrier vdp-datepicker +
+lecture du volume) — E2 déclaré terminé.
 
 ## À venir
 
