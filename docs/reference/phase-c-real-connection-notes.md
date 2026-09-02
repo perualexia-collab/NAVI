@@ -7,19 +7,24 @@ accès réseau à `crm.experience-hotel.com` dans son environnement).
 
 ## Points ouverts, non tranchés — à vérifier/décider pendant le premier run réel
 
-### 1. Identité de l'hôtel pilote : Apollinaire ou Baudelaire Opéra ?
+### 1. Identité de l'hôtel pilote : Hôtel Louis II (décidé le 2026-09-02)
 
-`backend/prisma/seed-data/pilot-hotel.ts` utilise `"Hôtel Apollinaire"`,
-qui reprend la valeur *littéralement exécutée* par `CONFIG.hotels` dans
-`docs/reference/moteur-experience-existant.js`. Mais un commentaire du
-même script affirme "on reste volontairement sur Baudelaire Opéra, qui
-déclenche P06" — en contradiction avec la valeur réellement utilisée.
-Cette divergence existait déjà dans le script d'origine et n'a jamais été
-résolue. **Avant le premier scan réel**, confirmer lequel des deux noms
-correspond à un hôtel qui existe réellement dans Expérience avec ce
-libellé exact, et corriger `pilot-hotel.ts` si besoin (`experienceLabel`
-doit correspondre au nom exact affiché dans Expérience — `selectHotel()`
-fait une recherche en correspondance exacte).
+L'ambiguïté d'origine (Apollinaire vs "Baudelaire Opéra", script existant
+contradictoire) est devenue sans objet : l'utilisateur a choisi **Hôtel
+Louis II** comme hôtel pilote pour le premier test réel.
+`backend/prisma/seed-data/pilot-hotel.ts` a été mis à jour en conséquence
+(`id: "pilot-louis-ii"`, `name`/`experienceLabel: "Hôtel Louis II"`).
+
+`experienceLabel` reste une hypothèse (reprend le nom NAVI tel quel) —
+**avant le premier scan réel**, vérifier le libellé exact affiché dans
+Expérience pour cet hôtel et corriger `pilot-hotel.ts` si besoin
+(`selectHotel()` fait une recherche en correspondance exacte).
+
+⚠️ Ce nom coïncide avec un hôtel du jeu de données mocké
+(`frontend/src/mock/data.ts`, "Hôtel Louis II" dans le portefeuille "Paris
+Collection") — pure coïncidence de nom, aucun lien : ce sont deux entités
+distinctes (mock vs `Hotel` réel en base), mais à garder en tête si les
+deux apparaissent dans l'UI en même temps pendant les tests.
 
 ### 2. Sélecteurs du formulaire de connexion (email/mot de passe)
 

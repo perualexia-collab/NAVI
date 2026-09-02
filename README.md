@@ -42,7 +42,7 @@ Playwright, PostgreSQL et Redis, et forwarde automatiquement les ports.
    - E-mail : `admin@navi.local`
    - Mot de passe : `navi-codespaces-dev`
 
-Ce compte et l'hôtel pilote (`Hôtel Apollinaire`) sont recréés à chaque
+Ce compte et l'hôtel pilote (`Hôtel Louis II`) sont recréés à chaque
 démarrage du Codespace si absents (`.devcontainer/post-start.sh`) — rien à
 faire manuellement après la première fois.
 

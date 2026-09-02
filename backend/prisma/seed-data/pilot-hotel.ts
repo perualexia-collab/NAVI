@@ -1,23 +1,22 @@
 /**
- * Hôtel pilote du premier vertical slice (Phase C) — reprend la valeur
- * littérale de CONFIG.hotels dans docs/reference/moteur-experience-existant.js.
+ * Hôtel pilote du premier vertical slice réel (Phase C, clôture) —
+ * "Hôtel Louis II", choisi explicitement par l'utilisateur pour le
+ * premier test réel contre Expérience (2026-09-02), en remplacement de
+ * "Hôtel Apollinaire" (jamais testé en réel — script d'origine ambigu
+ * entre Apollinaire et "Baudelaire Opéra", jamais résolu, cf.
+ * docs/reference/phase-c-real-connection-notes.md).
  *
- * Écart relevé, non résolu : le commentaire du script d'origine dit
- * "on reste volontairement sur Baudelaire Opéra, qui déclenche P06", mais
- * la valeur réellement utilisée est CONFIG.hotels = ['Hôtel Apollinaire'].
- * Le commentaire et la donnée exécutée divergent dans le script existant
- * lui-même — j'ai retenu la valeur réellement exécutée (Hôtel Apollinaire),
- * pas le commentaire, mais je ne peux pas savoir laquelle des deux reflète
- * l'intention réelle. À confirmer si un autre hôtel de test était prévu.
+ * experienceLabel reprend le nom NAVI comme hypothèse de départ — à
+ * confirmer contre le libellé exact affiché dans Expérience avant le
+ * premier scan réel (selectHotel() fait une recherche en correspondance
+ * exacte) ; corriger cette valeur ici si le libellé réel diffère.
  *
- * Ce fixture remplace temporairement le flux "Paramètres → Ajouter un
- * hôtel → testHotelConnection()" (Phase G, hors scope) : le statut est
- * volontairement TO_VERIFY, pas ACTIVE — aucune validation Expérience
- * réelle n'a eu lieu.
+ * Le statut est volontairement TO_VERIFY, pas ACTIVE : aucune validation
+ * Expérience réelle n'a encore eu lieu.
  */
 export const pilotHotel = {
-  id: "pilot-apollinaire",
-  name: "Hôtel Apollinaire",
-  experienceLabel: "Hôtel Apollinaire",
+  id: "pilot-louis-ii",
+  name: "Hôtel Louis II",
+  experienceLabel: "Hôtel Louis II",
   experienceStatus: "TO_VERIFY" as const
 };
