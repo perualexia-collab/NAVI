@@ -13,7 +13,12 @@ const envSchema = z.object({
     .string()
     .default("true")
     .transform((value) => value !== "false"),
-  EXPERIENCE_PROFILE_DIR: z.string().default("./experience-profile")
+  EXPERIENCE_PROFILE_DIR: z.string().default("./experience-profile"),
+  // Optionnels : sans eux, la connexion Expérience reste 100% manuelle
+  // (comportement d'origine). Avec eux, seuls email/mot de passe sont
+  // pré-remplis — la 2FA reste toujours manuelle (retours Phase C, clôture).
+  EXPERIENCE_SERVICE_ACCOUNT_EMAIL: z.string().optional(),
+  EXPERIENCE_SERVICE_ACCOUNT_PASSWORD: z.string().optional()
 });
 
 export type Env = z.infer<typeof envSchema>;

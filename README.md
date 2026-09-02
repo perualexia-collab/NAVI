@@ -46,6 +46,54 @@ Ce compte et l'hôtel pilote (`Hôtel Apollinaire`) sont recréés à chaque
 démarrage du Codespace si absents (`.devcontainer/post-start.sh`) — rien à
 faire manuellement après la première fois.
 
+## Connecter NAVI à Expérience (données réelles)
+
+Une seule connexion manuelle est nécessaire (2FA) ; ensuite, tous les scans
+lancés depuis l'UI NAVI (Paramètres → Hôtels → ... → CRM Health → "Lancer un
+nouveau scan") réutilisent automatiquement la session, en headless.
+
+1. Renseigner dans `backend/.env` (jamais committé) :
+   ```
+   EXPERIENCE_SERVICE_ACCOUNT_EMAIL=...
+   EXPERIENCE_SERVICE_ACCOUNT_PASSWORD=...
+   ```
+   Optionnel : sans ces deux valeurs, la connexion reste possible mais 100%
+   manuelle (email et mot de passe compris). Avec elles, seuls email/mot de
+   passe sont pré-remplis — **la 2FA reste toujours manuelle**.
+2. Dans le terminal du Codespace :
+   ```bash
+   pnpm --filter @navi/backend connect:experience
+   ```
+   Ce script ouvre un Chromium **visible** (pas headless), affiché sur un
+   écran virtuel (Xvfb) exposé via noVNC.
+3. Onglet **PORTS** → port **6080** → ouvrir dans le navigateur, puis
+   ajouter `/vnc.html` à l'URL affichée. Se connecter (2FA comprise) dans
+   ce navigateur distant.
+4. Une fois l'interface Expérience authentifiée détectée, le script
+   l'affiche dans le terminal et se termine tout seul — la session est
+   persistée dans `backend/experience-profile/` (jamais committé). Fermer
+   l'onglet noVNC à ce moment-là est sans risque : Xvfb/x11vnc/noVNC sont
+   des processus indépendants du client noVNC, et ne s'arrêtent pas avec
+   lui.
+5. Retour dans NAVI (port 5173) : sélectionner l'hôtel pilote dans
+   **CRM Health**, choisir une période, cliquer **"Lancer un nouveau
+   scan"** — le scan tourne headless, sans repasser par noVNC.
+
+La session Expérience peut expirer : si un scan échoue avec une erreur
+d'authentification, relancer l'étape 2.
+
+## Test E2E réel (local, hors CI)
+
+```bash
+pnpm --filter @navi/backend test:e2e
+```
+
+Rejoue le vertical slice complet sur l'hôtel pilote via une vraie session
+Expérience déjà authentifiée (étapes ci-dessus). Ignoré proprement (jamais
+en échec) si `backend/experience-profile/` est absent ou la session
+expirée — voir `backend/experience/__tests__/vertical-slice.e2e.test.ts`.
+Ne tourne pas en CI (nécessite la 2FA manuelle en amont).
+
 ## Démarrage en local (alternative)
 
 ```bash

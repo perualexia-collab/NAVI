@@ -16,6 +16,10 @@ services:
       REDIS_URL: redis://redis:6379
       SCAN_QUEUE_CONCURRENCY: "1"
       PLAYWRIGHT_HEADLESS: "true"
+      # Display X virtuel (Xvfb, démarré par .devcontainer/start-vnc.sh) —
+      # utilisé uniquement par backend/experience/login.ts (headless:
+      # false forcé), jamais par les scans réguliers de l'API.
+      DISPLAY: ":99"
       # L'image mcr.microsoft.com/playwright embarque déjà les navigateurs
       # à cet emplacement — inutile de les retélécharger au pnpm install.
       PLAYWRIGHT_BROWSERS_PATH: /ms-playwright

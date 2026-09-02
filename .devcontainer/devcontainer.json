@@ -5,7 +5,7 @@
   "workspaceFolder": "/workspace",
   "shutdownAction": "stopCompose",
 
-  "forwardPorts": [4000, 5173],
+  "forwardPorts": [4000, 5173, 6080],
   "portsAttributes": {
     "5173": {
       "label": "NAVI — Frontend",
@@ -13,6 +13,10 @@
     },
     "4000": {
       "label": "NAVI — API",
+      "onAutoForward": "silent"
+    },
+    "6080": {
+      "label": "NAVI — Navigateur distant (2FA Expérience)",
       "onAutoForward": "silent"
     }
   },

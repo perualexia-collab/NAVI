@@ -2,7 +2,7 @@ import type { ScanErrorType, ScanHotelStatus, ScanStepName, StepStatus } from "@
 import { prisma } from "../src/db/prisma.js";
 import { calculateActivationRate, calculateCRMHealth, getHealthLevel } from "../src/services/scoring/crm-health.js";
 import { detectSignals } from "../src/services/signals/detect-signals.js";
-import type { SessionProvider, ExperienceSession } from "../experience/core/session.js";
+import type { SessionProvider, ExperienceSession, ExperienceCredentials } from "../experience/core/session.js";
 import { connectToExperience as defaultConnectToExperience } from "../experience/core/session.js";
 import { collectHotelKpis as defaultCollectHotelKpis, type CollectHotelKpisResult, type StepResult } from "../experience/collect-hotel-kpis.js";
 import { handleExperienceError } from "../experience/errors.js";
@@ -16,13 +16,15 @@ export interface RunHotelScanOptions {
   period: ScanPeriod;
   requestedById: string;
   sessionProvider: SessionProvider;
+  /** Pré-remplissage best-effort du formulaire de connexion — la 2FA reste manuelle (cf. backend/experience/core/session.ts). */
+  credentials?: ExperienceCredentials;
   /**
    * Points d'injection pour les tests (C4) — permettent de valider toute
    * l'orchestration (persistance, scoring, signaux) avec des fixtures,
    * sans navigateur ni accès réel à Expérience. Par défaut, les vraies
    * implémentations Playwright (backend/experience).
    */
-  connectToExperience?: (page: ExperienceSession["page"]) => Promise<void>;
+  connectToExperience?: (page: ExperienceSession["page"], credentials?: ExperienceCredentials) => Promise<void>;
   collectHotelKpis?: (page: ExperienceSession["page"], hotelName: string, period: ScanPeriod) => Promise<CollectHotelKpisResult>;
 }
 
@@ -80,7 +82,7 @@ export async function runHotelScan(options: RunHotelScanOptions): Promise<RunHot
     let collectResult: CollectHotelKpisResult;
 
     try {
-      await connect(session.page);
+      await connect(session.page, options.credentials);
       collectResult = await collect(session.page, hotel.experienceLabel, options.period);
     } catch (error) {
       // Échec avant même la collecte (session/authentification) : les 5

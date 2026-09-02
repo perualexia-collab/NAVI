@@ -4,6 +4,8 @@
 set -euo pipefail
 cd /workspace
 
+bash .devcontainer/start-vnc.sh
+
 echo "Attente de PostgreSQL..."
 for _ in $(seq 1 30); do
   if bash -c "echo > /dev/tcp/postgres/5432" 2>/dev/null; then
@@ -33,5 +35,14 @@ NAVI est prêt.
 
    (Ce compte n'existe que dans CE Codespace — jamais dans un
    environnement partagé ou de production.)
+
+Pour connecter NAVI à Expérience (données réelles) :
+
+4. pnpm --filter @navi/backend connect:experience
+5. Onglet "PORTS" → port 6080 → ouvrir dans le navigateur,
+   puis /vnc.html sur cette page — connexion + 2FA à la main.
+6. Une fois connecté, ferme l'onglet noVNC : le script se
+   termine tout seul et la session est mémorisée. Les scans
+   suivants (depuis l'UI NAVI) n'ont plus besoin de noVNC.
 ────────────────────────────────────────────────────────────
 EOF

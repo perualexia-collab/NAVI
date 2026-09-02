@@ -140,7 +140,11 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
         hotelId,
         period: body.data,
         requestedById: user.id,
-        sessionProvider
+        sessionProvider,
+        credentials: {
+          email: options.env.EXPERIENCE_SERVICE_ACCOUNT_EMAIL,
+          password: options.env.EXPERIENCE_SERVICE_ACCOUNT_PASSWORD
+        }
       });
       return result;
     } catch (error) {
