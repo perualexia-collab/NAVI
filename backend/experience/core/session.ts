@@ -108,7 +108,8 @@ export async function connectToExperience(page: Page, credentials?: ExperienceCr
 async function fillLoginCredentials(page: Page, email: string, password: string): Promise<void> {
   try {
     const emailField = page
-      .getByLabel(/e-?mail/i)
+      .locator('input[name="username"]')
+      .or(page.getByLabel(/e-?mail/i))
       .or(page.getByPlaceholder(/e-?mail/i))
       .or(page.locator('input[type="email"]'));
     if (await emailField.first().isVisible({ timeout: 5000 }).catch(() => false)) {

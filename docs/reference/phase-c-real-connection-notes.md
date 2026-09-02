@@ -26,15 +26,16 @@ Collection") — pure coïncidence de nom, aucun lien : ce sont deux entités
 distinctes (mock vs `Hotel` réel en base), mais à garder en tête si les
 deux apparaissent dans l'UI en même temps pendant les tests.
 
-### 2. Sélecteurs du formulaire de connexion (email/mot de passe)
+### 2. Sélecteurs du formulaire de connexion (email/mot de passe) — RÉSOLU le 2026-09-02
 
-`backend/experience/core/session.ts` → `fillLoginCredentials()` : le
-script d'origine n'a **jamais automatisé** cette étape (2FA manuelle
-comprise dès le départ), donc ces sélecteurs (`getByLabel(/e-?mail/i)`,
-`input[type="email"]`, etc.) sont une hypothèse raisonnable, pas une
-certitude vérifiée. Si le pré-remplissage ne fonctionne pas au premier
-essai, ce n'est pas bloquant (repli sur saisie manuelle dans noVNC comme
-avant) — mais à corriger ici une fois les vrais sélecteurs observés.
+Confirmé contre le vrai DOM via inspection réseau (onglet Payload) : champ
+identifiant = `input[name="username"]` (accepte email ou nom
+d'utilisateur, pas de `type="email"`), champ mot de passe =
+`input[type="password"]` (fonctionnait déjà). `fillLoginCredentials()`
+corrigé en conséquence — voir table des bugs ci-dessous. Ne pas saisir le
+mot de passe à la main dans noVNC (bug clavier Majuscule/Shift identifié,
+voir table des bugs) : toujours passer par l'auto-remplissage
+(`connect:experience`), la 2FA restant seule étape manuelle.
 
 ### 3. Scrapers jamais vérifiés contre le vrai DOM
 
@@ -58,11 +59,10 @@ Expedia, N vs N-1).
 
 ## Bugs / erreurs rencontrées pendant le premier run réel
 
-_(à compléter — rien à ce jour, aucun run réel n'a encore eu lieu)_
-
 | Date | Étape | Symptôme | Cause | Correctif |
 | --- | --- | --- | --- | --- |
-| — | — | — | — | — |
+| 2026-09-02 | Connexion Expérience (saisie manuelle noVNC) | "Erreur, identifiants incorrects" alors que les identifiants sont corrects (vérifiés OK dans un navigateur classique) | Désynchronisation Majuscule/Shift entre le clavier local et la session X11 distante via noVNC/x11vnc — les lettres tapées en majuscule (ex. `C`, `Y`) arrivaient en minuscule dans le formulaire (confirmé via inspection du payload réseau réel : `username`/`password` envoyés). Bug du pont clavier VNC, sans rapport avec le compte. | Contourné en utilisant l'auto-remplissage Playwright (`connect:experience`), qui fixe la valeur du champ directement (pas de simulation de frappe clavier, donc insensible à ce bug). Ne pas taper le mot de passe à la main dans noVNC ; éditer `backend/.env` via l'éditeur du Codespace (clavier local, hors noVNC) si la valeur doit changer. |
+| 2026-09-02 | Auto-remplissage (`fillLoginCredentials`) | Mot de passe rempli, mais champ e-mail/utilisateur laissé vide | Le champ n'est pas un vrai `<label>` associé et n'est pas `input[type="email"]` (label visuel "ADRESSE EMAIL OU NOM D'UTILISATEUR", accepte aussi un nom d'utilisateur) — confirmé via le payload réseau : `name="username"`. Les sélecteurs `getByLabel(/e-?mail/i)` / `input[type="email"]` ne matchaient donc jamais ce champ ; seul le mot de passe (`type="password"`, toujours présent) était trouvé. | `backend/experience/core/session.ts` → `fillLoginCredentials()` : ajout de `input[name="username"]` comme sélecteur prioritaire (nom de champ réel confirmé). |
 
 ## Ce qui a été vérifié (hors connexion réelle)
 
