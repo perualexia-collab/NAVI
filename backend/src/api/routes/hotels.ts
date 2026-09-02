@@ -6,10 +6,22 @@ import { runHotelScan } from "../../../scans/run-hotel-scan.js";
 import { PersistentProfileSessionProvider } from "../../../experience/core/session.js";
 import type { Env } from "../../config/env.js";
 
-export const periodSchema = z.object({
+const presetPeriodSchema = z.object({
   mode: z.literal("preset"),
-  value: z.enum(["last3Months", "last6Months", "last12Months", "thisYear", "thisMonth", "lastMonth"])
+  value: z.enum(["last12Months", "thisYear", "thisMonth", "lastMonth"])
 });
+
+const customPeriodSchema = z.object({
+  mode: z.literal("custom"),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date de début invalide."),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date de fin invalide.")
+});
+
+export const periodSchema = z
+  .discriminatedUnion("mode", [presetPeriodSchema, customPeriodSchema])
+  .refine((period) => period.mode !== "custom" || period.startDate <= period.endDate, {
+    message: "La date de début doit précéder la date de fin."
+  });
 
 const createHotelSchema = z.object({
   name: z.string().trim().min(1, "Nom de l'hôtel requis.")

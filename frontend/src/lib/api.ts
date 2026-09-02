@@ -1,5 +1,5 @@
 import type { User } from "@navi/shared";
-import type { RealHotel, RealHotelHealth, RealPortfolio, RealUser, ScanPeriodValue } from "./real-hotel-types.js";
+import type { RealHotel, RealHotelHealth, RealPortfolio, RealScanPeriod, RealUser } from "./real-hotel-types.js";
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -35,10 +35,10 @@ export const api = {
   listRealHotels: () => request<RealHotel[]>("/hotels"),
   createHotel: (name: string) => request<RealHotel>("/hotels", { method: "POST", body: JSON.stringify({ name }) }),
   getHotelHealth: (hotelId: string) => request<RealHotelHealth>(`/hotels/${hotelId}/health`),
-  launchScan: (hotelId: string, periodValue: ScanPeriodValue) =>
+  launchScan: (hotelId: string, period: RealScanPeriod) =>
     request<{ scanId: string; scanHotelId: string; status: string }>(`/hotels/${hotelId}/scans`, {
       method: "POST",
-      body: JSON.stringify({ period: { mode: "preset", value: periodValue } })
+      body: JSON.stringify({ period })
     }),
 
   listPortfolios: () => request<RealPortfolio[]>("/portfolios"),
@@ -47,10 +47,10 @@ export const api = {
   updatePortfolio: (portfolioId: string, input: { name?: string; hotelIds?: string[] }) =>
     request<RealPortfolio>(`/portfolios/${portfolioId}`, { method: "PATCH", body: JSON.stringify(input) }),
   deletePortfolio: (portfolioId: string) => request<{ ok: true }>(`/portfolios/${portfolioId}`, { method: "DELETE" }),
-  launchPortfolioScan: (portfolioId: string, periodValue: ScanPeriodValue) =>
+  launchPortfolioScan: (portfolioId: string, period: RealScanPeriod) =>
     request<{ scanId: string; scanHotelIds: string[] }>(`/portfolios/${portfolioId}/scans`, {
       method: "POST",
-      body: JSON.stringify({ period: { mode: "preset", value: periodValue } })
+      body: JSON.stringify({ period })
     }),
 
   listUsers: () => request<RealUser[]>("/users"),

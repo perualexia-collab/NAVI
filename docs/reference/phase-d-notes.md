@@ -164,3 +164,26 @@ consolidés disponibles une fois terminé.
   (`Scan.period`, désormais exposé par `GET /api/hotels/:id/health`) —
   pour ne jamais perdre de vue sur quelle période portent les chiffres
   affichés.
+
+- **Période personnalisée + retrait de "3/6 derniers mois"** (retours
+  utilisateur, même jour) : `3 derniers mois`/`6 derniers mois` retirés
+  de `PERIOD_PRESETS` (le point ouvert ci-dessus est donc tranché — s'ils
+  sont un jour nécessaires, ce sera via la période personnalisée).
+  `ScanPeriod` devient une union `{ mode: "preset"; value }` |
+  `{ mode: "custom"; startDate; endDate }` (dates ISO). `RealPeriodSelector`
+  expose désormais deux champs de date natifs (Du/Au) éditables — modifier
+  l'un des deux bascule immédiatement en période personnalisée, sans bouton
+  "Appliquer".
+
+  Côté moteur, `applyPeriodWithToggle()`/`setMarketingPeriod()` partagent
+  désormais `selectPeriodInPanel()`, qui délègue au clic sur un préréglage
+  (inchangé, déjà validé) ou à `fillCustomDateRange()` pour le mode
+  personnalisé. **Non vérifié contre le vrai DOM** — construit uniquement
+  à partir de la capture d'écran du sélecteur ("Plage de date" avec deux
+  champs Début/Fin affichés au format `03 SEP 2023`), sans accès direct à
+  Expérience pour confirmer le mécanisme d'édition réel (saisie directe vs
+  calendrier à cliquer) ni le format exact attendu. Échoue bruyamment
+  (pas de fallback silencieux) si les champs ne sont pas trouvés — à
+  corriger avec les vrais sélecteurs/format dès le premier test réel
+  d'une période personnalisée, même méthode que pour le formulaire de
+  connexion en clôture de Phase C.

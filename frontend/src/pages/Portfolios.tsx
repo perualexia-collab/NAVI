@@ -15,8 +15,8 @@ import type {
   RealHotel,
   RealPortfolio,
   RealPortfolioHotel,
+  RealScanPeriod,
   ScanHotelStatus,
-  ScanPeriodValue,
   ScanProgressEvent
 } from "../lib/real-hotel-types.js";
 
@@ -111,7 +111,7 @@ export function Portfolios() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]>("Tous les statuts");
   const [formModal, setFormModal] = useState<FormModalState>(null);
-  const [scanPeriod, setScanPeriod] = useState<ScanPeriodValue>("last12Months");
+  const [scanPeriod, setScanPeriod] = useState<RealScanPeriod>({ mode: "preset", value: "last12Months" });
   const [scanProgress, setScanProgress] = useState<ScanProgressEvent | null>(null);
   const [scanningPortfolioId, setScanningPortfolioId] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);

@@ -82,7 +82,7 @@ describe("Vertical slice réel — hôtel pilote (Phase C)", () => {
 
     const result = await runHotelScan({
       hotelId: hotel!.id,
-      period: { mode: "preset", value: "last3Months" },
+      period: { mode: "preset", value: "last12Months" },
       requestedById: admin!.id,
       sessionProvider,
       credentials: {

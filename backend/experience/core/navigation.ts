@@ -63,30 +63,80 @@ export async function openReporting(page: Page): Promise<void> {
 }
 
 /**
- * Applique une période préréglée via le toggle (Reporting) — Expérience :
- * toggle → preset → Valider. Seul le mode "preset" est supporté à ce
- * stade (cf. backend/experience/core/config.ts).
+ * Applique une période (préréglage ou personnalisée) via le toggle
+ * (Reporting) — Expérience : toggle → préréglage OU plage de date →
+ * Valider.
  */
 export async function applyPeriodWithToggle(page: Page, period: ScanPeriod): Promise<void> {
-  if (!period || period.mode !== "preset") {
-    throw new Error("Pour ce vertical slice, NAVI n'attend qu'une période preset Expérience.");
-  }
-
-  const label = PERIOD_PRESETS[period.value];
-  if (!label) throw new Error(`Preset de période inconnu : ${period.value}`);
-
   const toggle = page.locator(".bigicon.toggle > .button").first();
   await toggle.waitFor({ state: "visible", timeout: 15000 });
   await toggle.click();
 
-  const preset = page.getByRole("button", { name: label, exact: false });
-  await preset.waitFor({ state: "visible", timeout: 10000 });
-  await preset.click();
+  await selectPeriodInPanel(page, period);
 
   const validate = page.getByRole("button", { name: "Valider" });
   await validate.waitFor({ state: "visible", timeout: 10000 });
   await validate.click();
   await sleep(1800);
+}
+
+/**
+ * Choisit un préréglage ou remplit la plage de date personnalisée dans le
+ * panneau "Déterminer un préréglage" d'Expérience — partagé entre
+ * applyPeriodWithToggle() et setMarketingPeriod(), qui ouvrent ce même
+ * panneau par des chemins différents.
+ */
+async function selectPeriodInPanel(page: Page, period: ScanPeriod): Promise<void> {
+  if (period.mode === "preset") {
+    const label = PERIOD_PRESETS[period.value];
+    if (!label) throw new Error(`Preset de période inconnu : ${period.value}`);
+
+    const preset = page.getByRole("button", { name: label, exact: false });
+    await preset.waitFor({ state: "visible", timeout: 10000 });
+    await preset.click();
+    return;
+  }
+
+  await fillCustomDateRange(page, period);
+}
+
+/**
+ * Période personnalisée — remplit les champs "Début"/"Fin" de la section
+ * "Plage de date" du panneau de période Expérience. Jamais vérifié
+ * contre le vrai DOM (retours utilisateur du 2026-09-02, capture d'écran
+ * uniquement — voir docs/reference/phase-d-notes.md) : l'affichage au
+ * format "03 SEP 2023" suggère un widget de saisie personnalisé, pas un
+ * <input type="date"> natif. Meilleure hypothèse raisonnable, pas une
+ * certitude — à corriger une fois les vrais sélecteurs/format observés
+ * en conditions réelles (même méthode que pour le formulaire de
+ * connexion, cf. docs/reference/phase-c-real-connection-notes.md).
+ * Échoue bruyamment plutôt que d'avaler l'erreur : une période mal
+ * appliquée produirait un scan sur la mauvaise plage sans que personne
+ * ne s'en aperçoive, pire qu'un échec visible.
+ */
+async function fillCustomDateRange(page: Page, period: { startDate: string; endDate: string }): Promise<void> {
+  const startField = page
+    .getByLabel(/^Début$/i)
+    .or(page.getByRole("textbox", { name: /Début/i }))
+    .or(page.locator("label", { hasText: "Début" }).locator("xpath=following::input[1]"));
+  const endField = page
+    .getByLabel(/^Fin$/i)
+    .or(page.getByRole("textbox", { name: /Fin/i }))
+    .or(page.locator("label", { hasText: "Fin" }).locator("xpath=following::input[1]"));
+
+  await startField.first().waitFor({ state: "visible", timeout: 10000 });
+  await startField.first().fill(formatExperienceDate(period.startDate));
+
+  await endField.first().waitFor({ state: "visible", timeout: 10000 });
+  await endField.first().fill(formatExperienceDate(period.endDate));
+}
+
+const EXPERIENCE_MONTH_LABELS = ["JAN", "FÉV", "MAR", "AVR", "MAI", "JUIN", "JUIL", "AOÛT", "SEP", "OCT", "NOV", "DÉC"];
+
+/** "YYYY-MM-DD" → "03 SEP 2023", format observé sur la capture d'écran du sélecteur Expérience. */
+function formatExperienceDate(isoDate: string): string {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  return `${String(day).padStart(2, "0")} ${EXPERIENCE_MONTH_LABELS[month! - 1]} ${year}`;
 }
 
 export async function openCustomerAnalysis(page: Page): Promise<void> {
@@ -123,16 +173,11 @@ export async function openMarketingStats(page: Page): Promise<void> {
 }
 
 export async function setMarketingPeriod(page: Page, period: ScanPeriod): Promise<void> {
-  const label = PERIOD_PRESETS[period.value];
-  if (!label) throw new Error(`Preset marketing inconnu : ${period.value}`);
-
   const periodControl = page.getByText("Période", { exact: true }).first();
   await periodControl.waitFor({ state: "visible", timeout: 15000 });
   await periodControl.click();
 
-  const presetButton = page.getByRole("button", { name: label, exact: false });
-  await presetButton.waitFor({ state: "visible", timeout: 10000 });
-  await presetButton.click();
+  await selectPeriodInPanel(page, period);
 
   await page.getByRole("button", { name: "Valider" }).click();
   await sleep(1800);

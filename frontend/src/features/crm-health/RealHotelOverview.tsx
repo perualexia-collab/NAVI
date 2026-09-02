@@ -3,11 +3,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardHeader } from "../../components/ui/Card.js";
 import { ScoreRing } from "../../components/ui/ScoreRing.js";
 import { scoreTone } from "../../components/ui/score-color.js";
-import { PERIOD_LABEL, RealPeriodSelector } from "../../components/ui/RealPeriodSelector.js";
+import { periodLabel, RealPeriodSelector } from "../../components/ui/RealPeriodSelector.js";
 import { Icon } from "../../components/ui/icons.js";
 import { formatDateTime, formatNumber, formatCurrency } from "../../lib/format.js";
 import { api, ApiError } from "../../lib/api.js";
-import type { RealHotel, RealKpiResult, RealScanSummary, ScanPeriodValue } from "../../lib/real-hotel-types.js";
+import type { RealHotel, RealKpiResult, RealScanPeriod, RealScanSummary } from "../../lib/real-hotel-types.js";
 
 const STEP_LABEL: Record<string, string> = {
   BASE: "Base exploitable",
@@ -80,7 +80,7 @@ function formatScanProgress(elapsedMs: number, averageMs: number | null): string
  */
 export function RealHotelOverview({ hotel }: { hotel: RealHotel }) {
   const queryClient = useQueryClient();
-  const [period, setPeriod] = useState<ScanPeriodValue>("last12Months");
+  const [period, setPeriod] = useState<RealScanPeriod>({ mode: "preset", value: "last12Months" });
   const [elapsedMs, setElapsedMs] = useState(0);
   const scanStartRef = useRef<number | null>(null);
 
@@ -184,7 +184,7 @@ function ScanResult({ scan }: { scan: RealScanSummary }) {
         </Card>
         <Card>
           <div className="text-xs font-medium uppercase tracking-wide text-graphite-faint">Période analysée</div>
-          <div className="mt-3 text-sm text-graphite">{PERIOD_LABEL[scan.period.value]}</div>
+          <div className="mt-3 text-sm text-graphite">{periodLabel(scan.period)}</div>
         </Card>
       </div>
 
