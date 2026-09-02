@@ -60,10 +60,15 @@ actuellement vrai au niveau de la queue/BullMQ, chaque job étant isolé,
 mais ce cas précis d'échec avant d'entrer dans le scan proprement dit
 mériterait un filet de sécurité explicite).
 
-### À valider par l'utilisateur avant de passer à D3
+### Validé par l'utilisateur le 2026-09-02
 
-Lancer un scan sur un portefeuille de plusieurs hôtels réels et confirmer :
-- chaque hôtel obtient un statut indépendant (`SUCCESS`/`PARTIAL_SUCCESS`/`FAILED`) ;
-- un hôtel en échec n'empêche pas les autres de se terminer ;
-- les données déjà validées en Phase C (KPI, score, signaux, gating sur
-  `SUCCESS`) restent correctes pour chaque hôtel individuellement.
+Scan réel sur un portefeuille de 6 hôtels ("test" : 55 Montparnasse,
+Andréa, Arvor, Atelier Vavin, Apollinaire, Louis II) : les 6 ont terminé
+avec un score et des signaux indépendants (41 à 56/100, 1 à 2 alertes
+selon l'hôtel), agrégat portefeuille correct (48/100, 6 scannés/0 à
+scanner/0 critique). Un faux-positif de perte de données en cours de
+test (2 hôtels au lieu de 6) s'est révélé être une confusion entre deux
+portefeuilles ("zeze" vs "test") — la base n'a jamais rien perdu,
+vérifié par requête SQL directe.
+
+D1 déclaré terminé. Passage à D3 (robustesse métier multi-hôtels).
