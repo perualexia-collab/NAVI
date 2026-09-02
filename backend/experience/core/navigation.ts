@@ -101,42 +101,79 @@ async function selectPeriodInPanel(page: Page, period: ScanPeriod): Promise<void
 }
 
 /**
- * Période personnalisée — remplit les champs "Début"/"Fin" de la section
- * "Plage de date" du panneau de période Expérience. Jamais vérifié
- * contre le vrai DOM (retours utilisateur du 2026-09-02, capture d'écran
- * uniquement — voir docs/reference/phase-d-notes.md) : l'affichage au
- * format "03 SEP 2023" suggère un widget de saisie personnalisé, pas un
- * <input type="date"> natif. Meilleure hypothèse raisonnable, pas une
- * certitude — à corriger une fois les vrais sélecteurs/format observés
- * en conditions réelles (même méthode que pour le formulaire de
- * connexion, cf. docs/reference/phase-c-real-connection-notes.md).
- * Échoue bruyamment plutôt que d'avaler l'erreur : une période mal
- * appliquée produirait un scan sur la mauvaise plage sans que personne
- * ne s'en aperçoive, pire qu'un échec visible.
+ * Période personnalisée — champs "Début"/"Fin" de la section "Plage de
+ * date" du panneau de période Expérience. Confirmé contre le vrai DOM
+ * (retours utilisateur du 2026-09-02, cf. docs/reference/phase-d-notes.md) :
+ * ce n'est PAS un champ texte éditable, mais un composant vue-datepicker
+ * (`vdp-datepicker`) — l'input est en lecture seule, la date se choisit en
+ * cliquant dans un calendrier à 3 niveaux (jour → mois → année, empilés,
+ * un seul visible à la fois). Remplace l'ancienne implémentation par
+ * saisie de texte, qui ne matchait aucun élément réel (ScanError TIMEOUT
+ * confirmé sur "Hôtel Cactus").
  */
 async function fillCustomDateRange(page: Page, period: { startDate: string; endDate: string }): Promise<void> {
-  const startField = page
-    .getByLabel(/^Début$/i)
-    .or(page.getByRole("textbox", { name: /Début/i }))
-    .or(page.locator("label", { hasText: "Début" }).locator("xpath=following::input[1]"));
-  const endField = page
-    .getByLabel(/^Fin$/i)
-    .or(page.getByRole("textbox", { name: /Fin/i }))
-    .or(page.locator("label", { hasText: "Fin" }).locator("xpath=following::input[1]"));
-
-  await startField.first().waitFor({ state: "visible", timeout: 10000 });
-  await startField.first().fill(formatExperienceDate(period.startDate));
-
-  await endField.first().waitFor({ state: "visible", timeout: 10000 });
-  await endField.first().fill(formatExperienceDate(period.endDate));
+  await setVdpDate(page, "date-start", period.startDate);
+  await setVdpDate(page, "date-end", period.endDate);
 }
 
-const EXPERIENCE_MONTH_LABELS = ["JAN", "FÉV", "MAR", "AVR", "MAI", "JUIN", "JUIL", "AOÛT", "SEP", "OCT", "NOV", "DÉC"];
+const FULL_MONTH_NAMES_FR = [
+  "Janvier",
+  "Février",
+  "Mars",
+  "Avril",
+  "Mai",
+  "Juin",
+  "Juillet",
+  "Août",
+  "Septembre",
+  "Octobre",
+  "Novembre",
+  "Décembre"
+];
 
-/** "YYYY-MM-DD" → "03 SEP 2023", format observé sur la capture d'écran du sélecteur Expérience. */
-function formatExperienceDate(isoDate: string): string {
+/**
+ * Sélectionne une date dans un widget vue-datepicker (`.vdp-datepicker`).
+ * `wrapperClass` distingue le champ "Début" (`date-start`) du champ "Fin"
+ * (`date-end`) — les deux widgets coexistent dans le même panneau.
+ */
+async function setVdpDate(page: Page, wrapperClass: "date-start" | "date-end", isoDate: string): Promise<void> {
   const [year, month, day] = isoDate.split("-").map(Number);
-  return `${String(day).padStart(2, "0")} ${EXPERIENCE_MONTH_LABELS[month! - 1]} ${year}`;
+  const wrapper = page.locator(`.vdp-datepicker.${wrapperClass}`).first();
+  await wrapper.waitFor({ state: "visible", timeout: 10000 });
+
+  await wrapper.locator("input").first().click();
+  await sleep(300);
+
+  // Le calendrier s'ouvre sur la vue jour (mois déjà sélectionné) — on
+  // remonte jusqu'à la vue année en cliquant l'en-tête ".up", quelle que
+  // soit la vue de départ.
+  for (let i = 0; i < 2; i++) {
+    const yearCells = wrapper.locator(".vdp-datepicker__calendar:visible .cell.year");
+    if (await yearCells.first().isVisible().catch(() => false)) break;
+    const upLink = wrapper.locator(".vdp-datepicker__calendar:visible .up");
+    await upLink.first().waitFor({ state: "visible", timeout: 5000 });
+    await upLink.first().click();
+    await sleep(150);
+  }
+
+  const yearCell = wrapper.locator(".vdp-datepicker__calendar:visible .cell.year", { hasText: new RegExp(`^${year}$`) });
+  await yearCell.first().waitFor({ state: "visible", timeout: 5000 });
+  await yearCell.first().click();
+  await sleep(150);
+
+  const monthCell = wrapper.locator(".vdp-datepicker__calendar:visible .cell.month", {
+    hasText: new RegExp(`^${FULL_MONTH_NAMES_FR[month! - 1]}$`, "i")
+  });
+  await monthCell.first().waitFor({ state: "visible", timeout: 5000 });
+  await monthCell.first().click();
+  await sleep(150);
+
+  const dayCell = wrapper.locator(".vdp-datepicker__calendar:visible .cell.day:not(.blank):not(.muted)", {
+    hasText: new RegExp(`^${day}$`)
+  });
+  await dayCell.first().waitFor({ state: "visible", timeout: 5000 });
+  await dayCell.first().click();
+  await sleep(150);
 }
 
 export async function openCustomerAnalysis(page: Page): Promise<void> {

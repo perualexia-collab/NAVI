@@ -178,12 +178,41 @@ consolidés disponibles une fois terminé.
   Côté moteur, `applyPeriodWithToggle()`/`setMarketingPeriod()` partagent
   désormais `selectPeriodInPanel()`, qui délègue au clic sur un préréglage
   (inchangé, déjà validé) ou à `fillCustomDateRange()` pour le mode
-  personnalisé. **Non vérifié contre le vrai DOM** — construit uniquement
-  à partir de la capture d'écran du sélecteur ("Plage de date" avec deux
-  champs Début/Fin affichés au format `03 SEP 2023`), sans accès direct à
-  Expérience pour confirmer le mécanisme d'édition réel (saisie directe vs
-  calendrier à cliquer) ni le format exact attendu. Échoue bruyamment
-  (pas de fallback silencieux) si les champs ne sont pas trouvés — à
-  corriger avec les vrais sélecteurs/format dès le premier test réel
-  d'une période personnalisée, même méthode que pour le formulaire de
-  connexion en clôture de Phase C.
+  personnalisé.
+
+  **Premier test réel (Hôtel Cactus, période personnalisée 1-16 août
+  2026)** : PARTIAL_SUCCESS — les 3 étapes dépendantes de la période
+  (BASE, CAPTURE, MARKETING) ont échoué en `TIMEOUT`, les 2 étapes
+  indépendantes de la période (Returning Guests, Dépendance OTA — toujours
+  année N vs N-1) ont réussi normalement, confirmant à la fois que
+  l'isolation par étape (D3) fonctionne et que l'implémentation initiale
+  de `fillCustomDateRange()` (par saisie de texte formaté `03 SEP 2023`)
+  ne correspondait à aucun élément réel du panneau. Le `ScanError.technicalMessage`
+  confirmait un simple timeout de `locator.waitFor` — aucune des variantes
+  de sélecteur de secours (`getByLabel`, `getByRole("textbox")`, label
+  suivi d'un input) ne matchait quoi que ce soit.
+
+  Diagnostic confirmé par inspection du vrai DOM (DevTools, outerHTML
+  fourni par l'utilisateur) : le composant "Plage de date" n'est pas un
+  champ texte mais un **vue-datepicker** (`vdp-datepicker`, deux instances
+  distinguées par les classes `.date-start`/`.date-end`). L'`<input>` est
+  en lecture seule — impossible d'y écrire directement. Le calendrier
+  s'ouvre au clic sur l'input et empile 3 vues (jour / mois / année, une
+  seule visible à la fois, `.vdp-datepicker__calendar`) : cliquer l'en-tête
+  `.up` fait remonter d'un niveau (jour→mois, puis mois→année), et les
+  cellules (`.cell.year` / `.cell.month` / `.cell.day`) se cliquent pour
+  descendre et fixer la valeur. `fillCustomDateRange()`/`setVdpDate()`
+  (`backend/experience/core/navigation.ts`) réécrits en conséquence :
+  clic sur l'input → remontée jusqu'à la vue année (boucle bornée à 2,
+  s'arrête dès que des cellules `.cell.year` sont visibles) → clic année
+  exacte → clic mois (nom complet français, ex. "Août") → clic jour exact
+  (`.cell.day:not(.blank):not(.muted)`, texte exactement égal au numéro de
+  jour, pour éviter de matcher un jour du mois adjacent affiché en
+  atténué). Les anciens `EXPERIENCE_MONTH_LABELS`/`formatExperienceDate`
+  (saisie de texte) supprimés. `applyPeriodWithToggle()`/`setMarketingPeriod()`
+  inchangés — `selectPeriodInPanel()` reste le seul point de délégation.
+
+  Correction poussée le 2026-09-02, en attente de re-test réel par
+  l'utilisateur sur un hôtel réel avec une période personnalisée — à
+  documenter ici dès confirmation (ou nouvel écart DOM à corriger, même
+  méthode).
