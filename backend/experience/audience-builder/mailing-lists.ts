@@ -144,15 +144,12 @@ export async function reopenTemporaryAudience(page: Page, tempName: string): Pro
  * qui porte le volume affiché juste à côté du libellé "Destinataire(s)".
  */
 async function extractNumericHeadingFromAnchor(anchor: Locator): Promise<{ success: boolean; value?: number }> {
+  // Pas de fonction imbriquée nommée ici : le callback est sérialisé et
+  // réévalué tel quel dans le navigateur par Playwright — un helper
+  // esbuild (__name, injecté par tsx pour les fonctions nommées) n'y
+  // existe pas et fait planter l'évaluation (constaté en conditions
+  // réelles, cf. docs/reference/phase-e-notes.md).
   return anchor.evaluate((element) => {
-    function parseHeadingNumber(raw: string | null): number | null {
-      const clean = String(raw ?? "")
-        .replace(/ /g, "")
-        .replace(/\s+/g, "")
-        .trim();
-      return /^\d+$/.test(clean) ? Number(clean) : null;
-    }
-
     let parent: Element | null = element;
     for (let level = 0; level < 12; level++) {
       parent = parent.parentElement;
@@ -161,8 +158,11 @@ async function extractNumericHeadingFromAnchor(anchor: Locator): Promise<{ succe
       const headings = Array.from(parent.querySelectorAll('h1,h2,h3,h4,h5,h6,[role="heading"]'));
       const numbers: number[] = [];
       for (const heading of headings) {
-        const value = parseHeadingNumber(heading.textContent);
-        if (value !== null) numbers.push(value);
+        const clean = String(heading.textContent ?? "")
+          .replace(/\u00A0/g, "")
+          .replace(/\s+/g, "")
+          .trim();
+        if (/^\d+$/.test(clean)) numbers.push(Number(clean));
       }
 
       if (numbers.length === 1) return { success: true, value: numbers[0] };

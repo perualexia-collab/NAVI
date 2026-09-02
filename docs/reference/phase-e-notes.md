@@ -155,6 +155,22 @@ exacte → clic mois (nom complet français) → clic jour exact. Ne gère pas
 la pagination de décennie (fenêtre "2020 - 2029" affichée) — hors scope
 tant qu'aucun filtre ne demande une date plus ancienne que 2020.
 
+Re-test : le calendrier fonctionne (plus d'erreur "Header 'Mois Année'"),
+le cycle avance jusqu'à `readAudienceRecipientCount()` — nouvel échec,
+différent : `locator.evaluate: ReferenceError: __name is not defined`.
+Pas un problème de sélecteur — `extractNumericHeadingFromAnchor()`
+définissait une fonction nommée (`parseHeadingNumber`) **à l'intérieur**
+du callback `.evaluate()`. Playwright sérialise ce callback (son
+`toString()`) et le réévalue tel quel dans le contexte navigateur, qui ne
+connaît pas l'aide `__name` que `tsx`/esbuild injecte côté Node pour les
+fonctions nommées — d'où l'erreur, uniquement en conditions réelles
+(jamais en `typecheck`/`build`, qui ne détectent rien ici). Les scrapers
+KPI déjà en prod (`backend/experience/scrapers/capture.ts`,
+`marketing.ts`) évitent ce piège en n'utilisant jamais de fonction nommée
+imbriquée dans un `.evaluate()` — `extractNumericHeadingFromAnchor()`
+corrigée pour suivre le même style (logique inlinée, aucune fonction
+nommée interne).
+
 Poussé, en attente de re-test réel sur Belinda Hôtel & Spa (P09) ou tout
 autre hôtel déclenchant P02/P03/P04/P06/P07/P09.
 
