@@ -16,6 +16,11 @@ const updatePortfolioSchema = z.object({
 interface LatestHotelScan {
   status: string;
   healthScore: number | null;
+  healthLevel: string | null;
+  startedAt: Date | null;
+  alerts: number;
+  vigilances: number;
+  opportunities: number;
 }
 
 function serializePortfolio(
@@ -27,14 +32,29 @@ function serializePortfolio(
   },
   latestScanByHotelId: Map<string, LatestHotelScan>
 ) {
-  const hotels = portfolio.hotels.map((h) => h.hotel);
+  // Détail par hôtel — retours réels Phase C (2026-09-02) : la liste des
+  // hôtels d'un portefeuille doit afficher le même niveau de détail que le
+  // tableau CRM Health générique (dernier scan, santé, alertes/vigilances/
+  // opportunités, statut), pas juste le nom et experienceStatus.
+  const hotels = portfolio.hotels.map((h) => {
+    const scan = latestScanByHotelId.get(h.hotel.id) ?? null;
+    return {
+      ...h.hotel,
+      lastScanAt: scan?.startedAt ?? null,
+      healthScore: scan?.healthScore ?? null,
+      healthLevel: scan?.healthLevel ?? null,
+      alerts: scan ? scan.alerts : null,
+      vigilances: scan ? scan.vigilances : null,
+      opportunities: scan ? scan.opportunities : null
+    };
+  });
 
-  // Santé du portefeuille — retours réels Phase C (2026-09-02) : agrégée
-  // depuis le dernier scan réel de chaque hôtel membre, pas une valeur
-  // figée. scannedCount compte les hôtels avec au moins un scan terminé
-  // (SUCCESS ou PARTIAL_SUCCESS) ; healthScore est la moyenne des scores
-  // calculés disponibles (null s'il n'y en a aucun — pas de score inventé).
-  const scans = hotels.map((h) => latestScanByHotelId.get(h.id) ?? null);
+  // Santé du portefeuille — agrégée depuis le dernier scan réel de chaque
+  // hôtel membre, pas une valeur figée. scannedCount compte les hôtels
+  // avec au moins un scan terminé (SUCCESS ou PARTIAL_SUCCESS) ;
+  // healthScore est la moyenne des scores calculés disponibles (null s'il
+  // n'y en a aucun — pas de score inventé).
+  const scans = portfolio.hotels.map((h) => latestScanByHotelId.get(h.hotel.id) ?? null);
   const scannedCount = scans.filter((s) => s && (s.status === "SUCCESS" || s.status === "PARTIAL_SUCCESS")).length;
   const scoresAvailable = scans.filter((s): s is LatestHotelScan => s !== null && s.healthScore !== null).map((s) => s.healthScore!);
   const healthScore = scoresAvailable.length > 0 ? scoresAvailable.reduce((sum, v) => sum + v, 0) / scoresAvailable.length : null;
@@ -60,9 +80,45 @@ async function getLatestScanByHotelId(hotelIds: string[]): Promise<Map<string, L
     where: { hotelId: { in: hotelIds } },
     orderBy: { startedAt: "desc" },
     distinct: ["hotelId"],
-    select: { hotelId: true, status: true, healthScore: true }
+    select: { id: true, hotelId: true, status: true, healthScore: true, healthLevel: true, startedAt: true }
   });
-  return new Map(latestScans.map((s) => [s.hotelId, { status: s.status, healthScore: s.healthScore }]));
+
+  // Sévérité portée par SignalDefinition (pas SignalResult lui-même) —
+  // groupBy Prisma ne peut pas grouper sur un champ d'une relation, d'où
+  // le comptage en mémoire ci-dessous plutôt qu'un groupBy SQL.
+  const scanHotelIds = latestScans.map((s) => s.id);
+  const signals =
+    scanHotelIds.length === 0
+      ? []
+      : await prisma.signalResult.findMany({
+          where: { scanHotelId: { in: scanHotelIds } },
+          select: { scanHotelId: true, signal: { select: { severity: true } } }
+        });
+
+  const countsByScanHotelId = new Map<string, { ALERT: number; VIGILANCE: number; OPPORTUNITY: number }>();
+  for (const row of signals) {
+    const entry = countsByScanHotelId.get(row.scanHotelId) ?? { ALERT: 0, VIGILANCE: 0, OPPORTUNITY: 0 };
+    entry[row.signal.severity as "ALERT" | "VIGILANCE" | "OPPORTUNITY"]++;
+    countsByScanHotelId.set(row.scanHotelId, entry);
+  }
+
+  return new Map(
+    latestScans.map((s) => {
+      const counts = countsByScanHotelId.get(s.id) ?? { ALERT: 0, VIGILANCE: 0, OPPORTUNITY: 0 };
+      return [
+        s.hotelId,
+        {
+          status: s.status,
+          healthScore: s.healthScore,
+          healthLevel: s.healthLevel,
+          startedAt: s.startedAt,
+          alerts: counts.ALERT,
+          vigilances: counts.VIGILANCE,
+          opportunities: counts.OPPORTUNITY
+        }
+      ];
+    })
+  );
 }
 
 /**

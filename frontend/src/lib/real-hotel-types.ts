@@ -25,11 +25,20 @@ export interface RealHotel {
   lastConnectionCheckAt: string | null;
 }
 
+export interface RealPortfolioHotel extends RealHotel {
+  lastScanAt: string | null;
+  healthScore: number | null;
+  healthLevel: "Critique" | "Fragile" | "Correct" | "Bon" | "Excellent" | null;
+  alerts: number | null;
+  vigilances: number | null;
+  opportunities: number | null;
+}
+
 export interface RealPortfolio {
   id: string;
   name: string;
   createdAt: string;
-  hotels: RealHotel[];
+  hotels: RealPortfolioHotel[];
   health: {
     scannedCount: number;
     toScanCount: number;

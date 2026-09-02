@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card } from "../components/ui/Card.js";
 import { ScoreRing } from "../components/ui/ScoreRing.js";
@@ -9,27 +8,42 @@ import { DateRangeControl } from "../components/ui/DateRangeControl.js";
 import { Icon } from "../components/ui/icons.js";
 import { HotelsTable } from "../components/HotelsTable.js";
 import { hotelsByPortfolio, portfolios as mockPortfolios } from "../mock/data.js";
-import type { MockPortfolio } from "../mock/types.js";
+import type { MockHotel, MockPortfolio } from "../mock/types.js";
 import { api, ApiError } from "../lib/api.js";
-import type { RealHotel, RealPortfolio } from "../lib/real-hotel-types.js";
+import type { RealHotel, RealPortfolio, RealPortfolioHotel } from "../lib/real-hotel-types.js";
 
 const STATUS_FILTERS = ["Tous les statuts", "Excellent", "Sain", "À surveiller", "Critique", "Aucun scan"] as const;
 
-const EXPERIENCE_STATUS_LABEL = {
-  ACTIVE: "Actif",
-  TO_VERIFY: "À vérifier",
-  NOT_FOUND: "Non trouvé",
-  ERROR: "Erreur"
-} as const;
-
-const EXPERIENCE_STATUS_STYLE = {
-  ACTIVE: "bg-sage-soft text-sage-ink",
-  TO_VERIFY: "bg-warn-soft text-warn-ink",
-  NOT_FOUND: "bg-linen-deep text-graphite-faint",
-  ERROR: "bg-alert-soft text-alert-ink"
-} as const;
-
 type FormModalState = { mode: "create" } | { mode: "edit"; portfolio: RealPortfolio } | null;
+
+// Le niveau réel (Critique/Fragile/Correct/Bon/Excellent, moteur de
+// scoring backend) est reregroupé sur le vocabulaire StatusPill existant
+// (Excellent/Sain/À surveiller/Critique/Aucun scan) — retours réels
+// Phase C (2026-09-02) : la liste des hôtels d'un portefeuille réel doit
+// avoir le même format que le tableau CRM Health générique.
+function statusFromHealthLevel(level: RealPortfolioHotel["healthLevel"]): MockHotel["status"] {
+  if (level === null) return "Aucun scan";
+  if (level === "Excellent") return "Excellent";
+  if (level === "Bon" || level === "Correct") return "Sain";
+  if (level === "Fragile") return "À surveiller";
+  return "Critique";
+}
+
+function toMockHotel(hotel: RealPortfolioHotel, portfolioId: string, portfolioName: string): MockHotel {
+  return {
+    id: hotel.id,
+    name: hotel.name,
+    portfolioId,
+    portfolioName,
+    lastScanAt: hotel.lastScanAt,
+    healthScore: hotel.healthScore,
+    healthLevel: hotel.healthLevel,
+    alerts: hotel.alerts,
+    vigilances: hotel.vigilances,
+    opportunities: hotel.opportunities,
+    status: statusFromHealthLevel(hotel.healthLevel)
+  };
+}
 
 /**
  * Portefeuilles NAVI — retours Phase C.5, §1 : les portefeuilles créés via
@@ -220,11 +234,13 @@ export function Portfolios() {
           )}
         </div>
 
-        {selectedRealPortfolio ? (
-          <RealPortfolioHotels hotels={realHotelsInPortfolio} />
-        ) : (
-          <HotelsTable hotels={mockHotels} />
-        )}
+        <HotelsTable
+          hotels={
+            selectedRealPortfolio
+              ? realHotelsInPortfolio.map((h) => toMockHotel(h, selectedRealPortfolio.id, selectedRealPortfolio.name))
+              : mockHotels
+          }
+        />
       </Card>
 
       {formModal && (
@@ -247,32 +263,6 @@ export function Portfolios() {
           }
         />
       )}
-    </div>
-  );
-}
-
-function RealPortfolioHotels({ hotels }: { hotels: RealHotel[] }) {
-  if (hotels.length === 0) {
-    return <p className="py-6 text-center text-sm text-graphite-faint">Aucun hôtel dans ce portefeuille pour l'instant.</p>;
-  }
-  return (
-    <div className="flex flex-col divide-y divide-graphite/10">
-      {hotels.map((hotel) => (
-        <Link key={hotel.id} to={`/crm-health/${hotel.id}`} className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0 hover:opacity-80">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-linen-deep text-graphite-soft">
-              <Icon.Building width={15} height={15} />
-            </div>
-            <div className="text-sm font-medium">{hotel.name}</div>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${EXPERIENCE_STATUS_STYLE[hotel.experienceStatus]}`}>
-              {EXPERIENCE_STATUS_LABEL[hotel.experienceStatus]}
-            </span>
-            <Icon.ChevronRight width={14} height={14} className="text-graphite-faint" />
-          </div>
-        </Link>
-      ))}
     </div>
   );
 }
