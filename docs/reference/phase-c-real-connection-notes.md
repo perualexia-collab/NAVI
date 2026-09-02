@@ -37,18 +37,17 @@ mot de passe à la main dans noVNC (bug clavier Majuscule/Shift identifié,
 voir table des bugs) : toujours passer par l'auto-remplissage
 (`connect:experience`), la 2FA restant seule étape manuelle.
 
-### 3. Scrapers jamais vérifiés contre le vrai DOM
+### 3. Scrapers jamais vérifiés contre le vrai DOM — premier run réel effectué le 2026-09-02
 
-`backend/experience/scrapers/{base,capture,ota,marketing,returning-guests}.ts`
-sont portés à l'identique depuis le script existant. Les sélecteurs
-(`getByText`, `getByRole("cell", ...)`, structure de tableau via
-`xpath=ancestor::tr[1]`, etc.) n'ont été revalidés par personne depuis
-cette extraction. À surveiller particulièrement :
-- `readBaseSummary()` (base.ts) : regex sur un texte libre
-  ("X renseignés sur un total de Y profils clients") — fragile si le
-  libellé Expérience a légèrement changé.
+Premier scan réel exécuté sur l'hôtel pilote : 4 des 5 étapes ont réussi
+du premier coup (CAPTURE, OTA, RETURNING, MARKETING) — les sélecteurs
+portés depuis le script d'origine étaient donc globalement corrects.
+Un bug réel trouvé et corrigé sur BASE (course avec le chargement
+asynchrone d'Expérience, voir table des bugs). À revalider avec un
+nouveau scan pour confirmer le correctif et obtenir un premier `SUCCESS`
+complet.
 - Textes de lignes de tableau (`"Profils avec e-mail renseigné"`, etc.)
-  supposés identiques au script d'origine.
+  confirmés corrects sur ce run réel.
 
 ### 4. Correspondance KPI catalogue ↔ scrapés
 
@@ -63,6 +62,7 @@ Expedia, N vs N-1).
 | --- | --- | --- | --- | --- |
 | 2026-09-02 | Connexion Expérience (saisie manuelle noVNC) | "Erreur, identifiants incorrects" alors que les identifiants sont corrects (vérifiés OK dans un navigateur classique) | Désynchronisation Majuscule/Shift entre le clavier local et la session X11 distante via noVNC/x11vnc — les lettres tapées en majuscule (ex. `C`, `Y`) arrivaient en minuscule dans le formulaire (confirmé via inspection du payload réseau réel : `username`/`password` envoyés). Bug du pont clavier VNC, sans rapport avec le compte. | Contourné en utilisant l'auto-remplissage Playwright (`connect:experience`), qui fixe la valeur du champ directement (pas de simulation de frappe clavier, donc insensible à ce bug). Ne pas taper le mot de passe à la main dans noVNC ; éditer `backend/.env` via l'éditeur du Codespace (clavier local, hors noVNC) si la valeur doit changer. |
 | 2026-09-02 | Auto-remplissage (`fillLoginCredentials`) | Mot de passe rempli, mais champ e-mail/utilisateur laissé vide | Le champ n'est pas un vrai `<label>` associé et n'est pas `input[type="email"]` (label visuel "ADRESSE EMAIL OU NOM D'UTILISATEUR", accepte aussi un nom d'utilisateur) — confirmé via le payload réseau : `name="username"`. Les sélecteurs `getByLabel(/e-?mail/i)` / `input[type="email"]` ne matchaient donc jamais ce champ ; seul le mot de passe (`type="password"`, toujours présent) était trouvé. | `backend/experience/core/session.ts` → `fillLoginCredentials()` : ajout de `input[name="username"]` comme sélecteur prioritaire (nom de champ réel confirmé). |
+| 2026-09-02 | Premier scan réel, étape "Base exploitable" | `ScanHotel` en `PARTIAL_SUCCESS` (4/5 étapes OK) — score/signaux correctement laissés `null`. Erreur BASE persistée (`ScanError.technicalMessage`) : `Error: Résumé base illisible : renseignés sur un total de undefined profils clients` (`base.ts:21`, `ELEMENT_NOT_FOUND`). | Course avec le chargement asynchrone d'Expérience : le conteneur du résumé est visible immédiatement, mais avec les valeurs affichées littéralement comme `undefined` avant que l'appel de données côté Expérience ne se termine et ne les remplace. `summary.waitFor({ state: "visible" })` ne garantit donc pas que le texte contient déjà les vrais chiffres. | `backend/experience/scrapers/base.ts` → `readBaseSummary()` : remplace l'attente de visibilité seule par une boucle de polling (jusqu'à 20 s, intervalle 300 ms) qui relit `innerText()` jusqu'à obtenir un texte qui matche effectivement le motif numérique attendu. Reste à revalider avec un nouveau scan réel (pas encore fait à l'heure de cette note). |
 
 ## Ce qui a été vérifié (hors connexion réelle)
 

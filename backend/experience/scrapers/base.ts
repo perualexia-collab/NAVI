@@ -12,12 +12,30 @@ export interface BaseKpis {
   activabilityRate: number | null;
 }
 
+const BASE_SUMMARY_PATTERN = /([\d\s]+)\s+renseignés\s+sur\s+un\s+total\s+de\s+([\d\s]+)\s+profils?\s+clients?/i;
+
+/**
+ * Expérience affiche d'abord ce résumé avec les valeurs non chargées
+ * (constaté sur un run réel, 2026-09-02 : le texte lu était littéralement
+ * "... un total de undefined profils clients") avant de les remplacer en
+ * asynchrone une fois l'appel de données terminé. Attendre que l'élément
+ * soit visible ne suffit donc pas — il faut attendre que son texte
+ * contienne effectivement des chiffres. Voir
+ * docs/reference/phase-c-real-connection-notes.md.
+ */
 async function readBaseSummary(page: Page): Promise<{ emailsProvided: number; totalProfiles: number }> {
   const summary = page.getByText(/renseignés sur un total/i).first();
   await summary.waitFor({ state: "visible", timeout: 20000 });
-  const text = (await summary.innerText()).replace(/ /g, " ");
 
-  const match = text.match(/([\d\s]+)\s+renseignés\s+sur\s+un\s+total\s+de\s+([\d\s]+)\s+profils?\s+clients?/i);
+  const deadline = Date.now() + 20000;
+  let text = "";
+  let match: RegExpMatchArray | null = null;
+  while (Date.now() < deadline) {
+    text = (await summary.innerText()).replace(/ /g, " ");
+    match = text.match(BASE_SUMMARY_PATTERN);
+    if (match) break;
+    await page.waitForTimeout(300);
+  }
   if (!match) throw new Error(`Résumé base illisible : ${text}`);
 
   return {
