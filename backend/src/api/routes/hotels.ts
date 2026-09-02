@@ -3,8 +3,10 @@ import { z } from "zod";
 import { prisma } from "../../db/prisma.js";
 import { requireUser } from "../require-auth.js";
 import { runHotelScan } from "../../../scans/run-hotel-scan.js";
+import { executeAudienceCompute } from "../../../scans/run-audience-compute.js";
 import { PersistentProfileSessionProvider } from "../../../experience/core/session.js";
 import type { Env } from "../../config/env.js";
+import type { ScanPeriod } from "../../../experience/core/config.js";
 
 const presetPeriodSchema = z.object({
   mode: z.literal("preset"),
@@ -95,6 +97,17 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
       }
     });
 
+    // Phase E2 — dernière mesure connue par définition d'audience (pas
+    // comparée, comparisonId null : réservé à E3/P10-P11). `distinct` +
+    // `orderBy` (DISTINCT ON Postgres) donne la ligne la plus récente par
+    // audienceDefinitionId, même mécanique que "dernier scan par hôtel".
+    const latestAudienceResults = await prisma.audienceResult.findMany({
+      where: { hotelId, comparisonId: null },
+      orderBy: [{ audienceDefinitionId: "asc" }, { measuredAt: "desc" }],
+      distinct: ["audienceDefinitionId"]
+    });
+    const audienceResultByDefinitionId = new Map(latestAudienceResults.map((result) => [result.audienceDefinitionId, result]));
+
     return {
       hotel,
       scanCount,
@@ -132,19 +145,29 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
           previousValue: result.previousValue,
           evolutionPoints: result.evolutionPoints
         })),
-        signalResults: latestScanHotel.signalResults.map((result) => ({
-          playbookId: result.playbookId,
-          name: result.signal.name,
-          severity: result.signal.severity,
-          trigger: result.trigger,
-          recommendedAction: result.signal.recommendedAction,
-          audienceMode: result.signal.audienceMode,
-          // Phase E1 : rempli uniquement pour les signaux sans audience
-          // (P01, P05, P08, P12) — recommandation déjà exploitable telle
-          // quelle. null pour les autres tant que E2/E3 (calcul
-          // d'audience) n'existent pas.
-          recommendationText: result.recommendations[0]?.text ?? null
-        }))
+        signalResults: latestScanHotel.signalResults.map((result) => {
+          const recommendation = result.recommendations[0] ?? null;
+          const audienceResult = recommendation?.audienceDefinitionId ? (audienceResultByDefinitionId.get(recommendation.audienceDefinitionId) ?? null) : null;
+
+          return {
+            playbookId: result.playbookId,
+            name: result.signal.name,
+            severity: result.signal.severity,
+            trigger: result.trigger,
+            recommendedAction: result.signal.recommendedAction,
+            audienceMode: result.signal.audienceMode,
+            // Phase E1 : rempli pour les signaux sans audience (P01, P05,
+            // P08, P12) — recommandation déjà exploitable telle quelle.
+            recommendationText: recommendation?.text ?? null,
+            // Phase E2 — signaux à option unique (P02, P03, P04, P06, P07,
+            // P09) : présent dès qu'une Recommendation a été matérialisée
+            // au scan ; recipients/measuredAt restent null tant que
+            // l'utilisateur n'a pas cliqué "Calculer l'audience".
+            recommendationId: recommendation?.id ?? null,
+            audienceDefinitionId: recommendation?.audienceDefinitionId ?? null,
+            audienceResult: audienceResult && { recipients: audienceResult.recipients, measuredAt: audienceResult.measuredAt }
+          };
+        })
       }
     };
   });
@@ -181,6 +204,57 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
       request.log.error(error);
       return reply.code(502).send({
         error: "Le scan n'a pas pu être exécuté — Expérience est probablement inaccessible depuis cet environnement."
+      });
+    }
+  });
+
+  // Phase E2 — "Calculer l'audience" pour un signal à option unique (P02,
+  // P03, P04, P06, P07, P09). Synchrone comme le scan mono-hôtel
+  // ci-dessus : un seul hôtel, un seul calcul à la fois, pas de fan-out à
+  // gérer via la file BullMQ (réservée aux scans de portefeuille).
+  app.post("/api/hotels/:hotelId/recommendations/:recommendationId/compute-audience", async (request, reply) => {
+    const user = await requireUser(request, reply);
+    if (!user) return;
+
+    const { hotelId, recommendationId } = request.params as { hotelId: string; recommendationId: string };
+
+    const recommendation = await prisma.recommendation.findUnique({
+      where: { id: recommendationId },
+      include: { signalResult: { include: { scanHotel: { include: { scan: true } } } } }
+    });
+
+    if (!recommendation || recommendation.signalResult.scanHotel.hotelId !== hotelId) {
+      return reply.code(404).send({ error: "Recommandation introuvable." });
+    }
+    if (!recommendation.audienceDefinitionId) {
+      return reply.code(400).send({ error: "Cette recommandation ne nécessite pas de calcul d'audience." });
+    }
+
+    const hotel = await prisma.hotel.findUniqueOrThrow({ where: { id: hotelId } });
+
+    const sessionProvider = new PersistentProfileSessionProvider({
+      userDataDir: options.env.EXPERIENCE_PROFILE_DIR,
+      headless: options.env.PLAYWRIGHT_HEADLESS
+    });
+
+    try {
+      const result = await executeAudienceCompute({
+        hotelId,
+        hotelName: hotel.experienceLabel,
+        playbookId: recommendation.signalResult.playbookId,
+        audienceDefinitionId: recommendation.audienceDefinitionId,
+        period: recommendation.signalResult.scanHotel.scan.period as unknown as ScanPeriod,
+        sessionProvider,
+        credentials: {
+          email: options.env.EXPERIENCE_SERVICE_ACCOUNT_EMAIL,
+          password: options.env.EXPERIENCE_SERVICE_ACCOUNT_PASSWORD
+        }
+      });
+      return result;
+    } catch (error) {
+      request.log.error(error);
+      return reply.code(502).send({
+        error: error instanceof Error ? error.message : "Le calcul de l'audience a échoué dans Expérience."
       });
     }
   });

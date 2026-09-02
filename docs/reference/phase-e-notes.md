@@ -65,12 +65,83 @@ au moins un des 4 signaux P01/P05/P08/P12 (P01 et P05 sont les plus
 probables sur les hôtels déjà scannés — captation/dépendance OTA proches
 des seuils observés).
 
+## E2 — signaux à option unique (P02, P03, P04, P06, P07, P09) (2026-09-02)
+
+Porte le cycle "Audience Builder" d'Expérience (blocs 4/8 et 5/8 du moteur
+existant) : création d'une liste **temporaire** dans Expérience → filtres
+spécifiques à la définition (`AUDIENCE_DEFINITIONS`) → recalcul → mode NAVI
+(exclusion réservations futures/clients présents) → sauvegarde → réouverture
+(pour une lecture fiable du volume) → lecture du nombre de destinataires →
+**suppression** de la liste temporaire. Ne crée jamais de liste
+persistante dans Expérience — un filet de sécurité supprime la liste même
+en cas d'erreur en cours de cycle.
+
+Construit :
+- `backend/experience/audience-builder/` (nouveau dossier, brief §5) :
+  `definitions.ts` (les 4 `AudienceDefinitionConfig` — RISK_INACTIVITY,
+  OTA_CONVERTIBLE, SECOND_BOOKING, HIGH_VALUE_ONE_TIMER — et le mapping
+  playbook → définition), `calendar.ts` (calendrier "flèche année
+  précédente" de l'Audience Builder — **différent** du vue-datepicker du
+  sélecteur de période Reporting, cf. `docs/reference/phase-d-notes.md`),
+  `filters.ts` (un filtre = un builder Playwright : nombre de séjours,
+  canal dernière réservation, date de départ ≥/entre, e-mail non ouvert
+  depuis, montant de réservation), `mailing-lists.ts` (ouverture, liste
+  temporaire, lecture du volume, suppression), `average-spend.ts` (P09 :
+  dépense moyenne par réservation, seuil dynamique du filtre montant),
+  `compute-audience.ts` (`computeAudiencePreview()` — orchestrateur du
+  cycle complet, porté depuis `previewAudience()`).
+- `backend/scans/run-audience-compute.ts` — `executeAudienceCompute()` :
+  ouvre sa propre session Playwright (jamais partagée, même contrainte que
+  les scans), sélectionne l'hôtel, résout la valeur dynamique P09 si
+  nécessaire, exécute le cycle, persiste un `AudienceResult`
+  (`hotelId`, `audienceDefinitionId`, `recipients`).
+- `backend/scans/run-hotel-scan.ts` — `persistSignalsAndRecommendations()`
+  étendu : pour un signal `audienceMode: SINGLE`, matérialise désormais
+  aussi une `Recommendation` (texte + `audienceDefinitionId` résolu via le
+  mapping playbook → définition), en plus des signaux `NONE` déjà couverts
+  par E1. `recipients` reste inconnu tant que l'utilisateur n'a pas cliqué
+  "Calculer l'audience" — la recommandation existe et son texte est
+  affichable dès le scan, l'audience mesurée vient ensuite.
+- `POST /api/hotels/:hotelId/recommendations/:recommendationId/compute-audience`
+  — synchrone dans la requête HTTP, comme le scan mono-hôtel (§C) : un seul
+  hôtel, un seul calcul, pas de besoin de fan-out via la file BullMQ
+  (réservée aux scans de portefeuille, D1). `GET /api/hotels/:hotelId/health`
+  expose, par signal, `recommendationId`/`audienceDefinitionId` et la
+  dernière mesure connue (`audienceResult: { recipients, measuredAt } | null`
+  — `distinct` + `orderBy` sur `AudienceResult`, même mécanique que "dernier
+  scan par hôtel").
+- Frontend (`RealHotelOverview.tsx`) — sous le texte de recommandation,
+  bouton "Calculer l'audience" tant qu'aucune mesure n'existe, remplacé par
+  le nombre de destinataires (avec date de mesure) une fois calculé. Un
+  seul calcul à la fois (contrainte serveur), les autres boutons se
+  désactivent pendant qu'un calcul est en cours ; erreur affichée sous le
+  bouton concerné uniquement.
+
+### Fidélité au moteur existant
+
+Port volontairement très proche du script d'origine (sélecteurs, temps
+d'attente, ordre des étapes identiques) — seul le nom de
+`getNaviRecipientsCount()` a changé (`readAudienceRecipientCount()`, pour
+suivre le vocabulaire générique du brief §5). Le paramètre `channels` de
+`addLastStayChannelFilter` (présent dans `AUDIENCE_DEFINITIONS.OTA_CONVERTIBLE`)
+n'est en réalité pas utilisé par le script d'origine — Expérience est
+interrogée directement pour découvrir les libellés Booking/Expedia
+réellement disponibles pour l'hôtel (ils varient d'un hôtel à l'autre) —
+comportement conservé tel quel, pas un oubli.
+
+### Non testé en conditions réelles
+
+Comme pour la période personnalisée (Phase D), ce cycle est un port fidèle
+du moteur existant mais n'a pas encore été exécuté contre une vraie session
+Expérience dans ce projet — à valider sur un hôtel réel dont le scan a
+déclenché un signal P02/P03/P04/P06/P07/P09 (P04, dépendant uniquement de
+l'activabilité, est probablement le plus simple à déclencher en premier vu
+les scores déjà observés). En cas d'échec, même méthode que d'habitude :
+`ScanError`/message d'erreur exact → inspection du vrai DOM si nécessaire
+→ correction du sélecteur en cause.
+
 ## À venir
 
-- **E2** — signaux à option unique (P02, P03, P04, P06, P07, P09) : bouton
-  "Calculer l'audience" sur la recommandation, déclenche le cycle
-  créer/mesurer/supprimer d'audience (bloc 5 du moteur existant), stocke
-  un `AudienceResult` unique et le lie à la `Recommendation`.
 - **E3** — P11 ("Comparer les opportunités") puis P10 ("Comparer les
   audiences" — mesure des campagnes du mois avant le choix utilisateur,
   la règle ⭐ conservée).

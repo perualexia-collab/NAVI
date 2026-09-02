@@ -8,6 +8,7 @@ import { collectHotelKpis as defaultCollectHotelKpis, type CollectHotelKpisResul
 import { handleExperienceError } from "../experience/errors.js";
 import type { ScanPeriod } from "../experience/core/config.js";
 import { mapKpiResults } from "./map-kpi-results.js";
+import { AUDIENCE_DEFINITION_ID_BY_PLAYBOOK } from "../experience/audience-builder/definitions.js";
 
 export const STEP_NAMES: ScanStepName[] = ["BASE", "CAPTURE", "OTA", "RETURNING", "MARKETING"];
 
@@ -307,13 +308,21 @@ async function computeAndPersistScoreAndSignals(scanHotelId: string, result: Col
 /**
  * Phase E1 — playbooks sans audience (P01, P05, P08, P12) : leur
  * recommendedAction est un texte autonome, qui ne dépend d'aucun calcul
- * d'audience (§07/E2/E3, pas encore construit). On matérialise donc une
- * Recommendation dès le scan pour ces signaux-là — c'est déjà la
- * recommandation finale montrée à l'utilisateur, pas une étape
- * intermédiaire. Les signaux SINGLE/MULTIPLE (P02…P04, P06, P07, P09…P11)
- * restent de simples SignalResult tant que E2/E3 n'existent pas : leur
- * texte seul, sans audience mesurée, ne serait pas une recommandation
- * exploitable.
+ * d'audience. On matérialise donc une Recommendation dès le scan pour ces
+ * signaux-là — c'est déjà la recommandation finale montrée à
+ * l'utilisateur, pas une étape intermédiaire.
+ *
+ * Phase E2 — playbooks à option unique (P02, P03, P04, P06, P07, P09) :
+ * une Recommendation est également créée, avec `audienceDefinitionId`
+ * renseigné (AUDIENCE_DEFINITION_ID_BY_PLAYBOOK) — mais `recipients` n'est
+ * connu qu'après que l'utilisateur clique "Calculer l'audience"
+ * (backend/scans/run-audience-compute.ts). Le texte seul, sans audience
+ * mesurée, reste affichable (c'est la recommandation), simplement
+ * incomplet tant que l'audience n'a pas été calculée.
+ *
+ * Les signaux MULTIPLE (P10, P11) restent de simples SignalResult tant
+ * que E3 n'existe pas — leur flux "Comparer les audiences" n'est pas une
+ * Recommendation à option unique.
  */
 async function persistSignalsAndRecommendations(scanHotelId: string, signals: { playbookId: string; trigger: string }[]): Promise<void> {
   const definitions = await prisma.signalDefinition.findMany({
@@ -331,10 +340,21 @@ async function persistSignalsAndRecommendations(scanHotelId: string, signals: { 
     )
   );
 
-  const recommendationsToCreate = createdSignalResults.flatMap((result) => {
+  const recommendationsToCreate = createdSignalResults.flatMap((result): { scanHotelId: string; signalResultId: string; text: string; audienceDefinitionId: string | null }[] => {
     const definition = definitionByPlaybookId.get(result.playbookId);
-    if (!definition || definition.audienceMode !== "NONE") return [];
-    return [{ scanHotelId, signalResultId: result.id, text: definition.recommendedAction }];
+    if (!definition) return [];
+
+    if (definition.audienceMode === "NONE") {
+      return [{ scanHotelId, signalResultId: result.id, text: definition.recommendedAction, audienceDefinitionId: null }];
+    }
+
+    if (definition.audienceMode === "SINGLE") {
+      const audienceDefinitionId = AUDIENCE_DEFINITION_ID_BY_PLAYBOOK[result.playbookId];
+      if (!audienceDefinitionId) return [];
+      return [{ scanHotelId, signalResultId: result.id, text: definition.recommendedAction, audienceDefinitionId }];
+    }
+
+    return [];
   });
 
   if (recommendationsToCreate.length > 0) {

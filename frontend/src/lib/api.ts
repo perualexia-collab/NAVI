@@ -40,6 +40,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ period })
     }),
+  computeAudience: (hotelId: string, recommendationId: string) =>
+    request<{ audienceResultId: string; audienceDefinitionId: string; recipients: number; measuredAt: string }>(
+      `/hotels/${hotelId}/recommendations/${recommendationId}/compute-audience`,
+      { method: "POST" }
+    ),
 
   listPortfolios: () => request<RealPortfolio[]>("/portfolios"),
   createPortfolio: (name: string, hotelIds: string[]) =>

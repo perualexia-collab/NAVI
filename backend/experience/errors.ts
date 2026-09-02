@@ -22,7 +22,7 @@ export interface ClassifiedExperienceError {
   technicalMessage: string;
 }
 
-function classifyErrorType(error: unknown): ScanErrorType {
+export function classifyErrorType(error: unknown): ScanErrorType {
   const message = error instanceof Error ? error.message : String(error);
 
   if (/Timeout \d+ms exceeded/i.test(message) || /waitFor/i.test(message)) return "TIMEOUT";

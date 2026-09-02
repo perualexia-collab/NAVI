@@ -79,6 +79,11 @@ export interface RealSignalResult {
   audienceMode: AudienceMode;
   /** Rempli uniquement pour les signaux sans audience (P01, P05, P08, P12) — voir Phase E1. */
   recommendationText: string | null;
+  /** Phase E2 — id à passer à api.computeAudience() pour P02/P03/P04/P06/P07/P09. null pour les autres signaux. */
+  recommendationId: string | null;
+  audienceDefinitionId: string | null;
+  /** Dernière mesure connue — null tant que "Calculer l'audience" n'a pas été cliqué. */
+  audienceResult: { recipients: number; measuredAt: string } | null;
 }
 
 export interface RealScanSummary {

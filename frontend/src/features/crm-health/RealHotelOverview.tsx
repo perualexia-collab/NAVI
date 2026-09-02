@@ -149,14 +149,33 @@ export function RealHotelOverview({ hotel }: { hotel: RealHotel }) {
       )}
 
       {healthQuery.data?.latestScan && (
-        <ScanResult scan={healthQuery.data.latestScan} />
+        <ScanResult scan={healthQuery.data.latestScan} hotelId={hotel.id} />
       )}
     </div>
   );
 }
 
-function ScanResult({ scan }: { scan: RealScanSummary }) {
+function ScanResult({ scan, hotelId }: { scan: RealScanSummary; hotelId: string }) {
   const tone = scoreTone(scan.healthScore);
+  const queryClient = useQueryClient();
+
+  // Phase E2 — "Calculer l'audience" : un seul calcul à la fois (même
+  // session Expérience partagée que le scan), on suit donc quelle
+  // recommandation est en cours plutôt qu'un simple isPending global.
+  const [computingRecommendationId, setComputingRecommendationId] = useState<string | null>(null);
+  const [audienceError, setAudienceError] = useState<{ recommendationId: string; message: string } | null>(null);
+  const computeAudienceMutation = useMutation({
+    mutationFn: (recommendationId: string) => api.computeAudience(hotelId, recommendationId),
+    onMutate: (recommendationId: string) => {
+      setComputingRecommendationId(recommendationId);
+      setAudienceError(null);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["hotel-health", hotelId] }),
+    onError: (error: unknown, recommendationId: string) => {
+      setAudienceError({ recommendationId, message: error instanceof ApiError ? error.message : "Le calcul de l'audience a échoué." });
+    },
+    onSettled: () => setComputingRecommendationId(null)
+  });
 
   return (
     <div className="flex flex-col gap-4">
@@ -241,8 +260,34 @@ function ScanResult({ scan }: { scan: RealScanSummary }) {
                 <div className="text-xs text-graphite-faint">{signal.trigger}</div>
                 {signal.recommendationText && (
                   <div className="mt-2 rounded-md bg-linen-deep p-2 text-xs text-graphite-soft">
-                    <span className="font-medium text-graphite">Recommandation — </span>
-                    {signal.recommendationText}
+                    <div>
+                      <span className="font-medium text-graphite">Recommandation — </span>
+                      {signal.recommendationText}
+                    </div>
+
+                    {signal.recommendationId && signal.audienceDefinitionId && (
+                      <div className="mt-2">
+                        {signal.audienceResult ? (
+                          <span className="font-medium text-graphite">
+                            👥 {formatNumber(signal.audienceResult.recipients)} destinataire(s) potentiel(s) — mesuré le{" "}
+                            {formatDateTime(signal.audienceResult.measuredAt)}
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => computeAudienceMutation.mutate(signal.recommendationId!)}
+                            disabled={computingRecommendationId !== null}
+                            className="rounded-md bg-terracotta px-2.5 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+                          >
+                            {computingRecommendationId === signal.recommendationId ? "Calcul en cours — Expérience…" : "Calculer l'audience"}
+                          </button>
+                        )}
+
+                        {audienceError?.recommendationId === signal.recommendationId && (
+                          <div className="mt-1 text-alert">{audienceError.message}</div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
