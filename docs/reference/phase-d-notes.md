@@ -105,3 +105,27 @@ filet de sécurité générique marquerait toutes les étapes en erreur,
 écrasant les étapes déjà réussies. Scénario étroit (pas rencontré en
 conditions réelles), non traité pour rester proportionné — à revisiter
 si constaté.
+
+## D2 — expérience utilisateur (2026-09-02)
+
+- `GET /api/scans/:scanId/events` (SSE) — poll base toutes les 1,5 s côté
+  serveur (pas d'abonnement aux évènements BullMQ, plus simple/robuste
+  pour cette itération), fermeture automatique dès que tous les
+  `ScanHotel` sont dans un état terminal.
+- ETA = moyenne des durées de scan déjà observées (tous hôtels
+  confondus, `ScanHotel.durationMs`) × nombre d'hôtels restants ; `null`
+  s'il n'existe aucun historique — jamais affiché comme une fausse
+  précision, conformément à la consigne explicite.
+- Frontend (`Portfolios.tsx`) : bandeau de progression en direct
+  (X/Y terminés, ETA si disponible, statut individuel par hôtel en
+  pastilles colorées), remplace le message statique "actualise la
+  page..." de D1. Le tableau des hôtels ne se recharge qu'une fois le
+  scan terminé (évènement `done`).
+- Bouton "Lancer un scan portefeuille" désactivé tant qu'un scan est en
+  cours pour CE portefeuille précisément (pas les autres).
+
+**Critère de fin de Phase D** (défini par l'utilisateur) atteint : un
+portefeuille multi-hôtels se lance, chaque hôtel est traité
+indépendamment, un échec n'en bloque pas d'autres, la progression et les
+statuts sont visibles en direct, et CRM Health présente les résultats
+consolidés disponibles une fois terminé.

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card } from "../components/ui/Card.js";
 import { ScoreRing } from "../components/ui/ScoreRing.js";
@@ -10,11 +10,40 @@ import { HotelsTable } from "../components/HotelsTable.js";
 import { hotelsByPortfolio, portfolios as mockPortfolios } from "../mock/data.js";
 import type { MockHotel, MockPortfolio } from "../mock/types.js";
 import { api, ApiError } from "../lib/api.js";
-import type { RealHotel, RealPortfolio, RealPortfolioHotel, ScanPeriodValue } from "../lib/real-hotel-types.js";
+import type {
+  RealHotel,
+  RealPortfolio,
+  RealPortfolioHotel,
+  ScanHotelStatus,
+  ScanPeriodValue,
+  ScanProgressEvent
+} from "../lib/real-hotel-types.js";
 
 const STATUS_FILTERS = ["Tous les statuts", "Excellent", "Sain", "À surveiller", "Critique", "Aucun scan"] as const;
 
 type FormModalState = { mode: "create" } | { mode: "edit"; portfolio: RealPortfolio } | null;
+
+// Progression temps réel d'un scan portefeuille (Phase D2).
+const SCAN_PROGRESS_LABEL: Record<ScanHotelStatus, string> = {
+  PENDING: "En attente",
+  RUNNING: "En cours…",
+  SUCCESS: "Réussi",
+  PARTIAL_SUCCESS: "Partiel",
+  FAILED: "Échoué"
+};
+const SCAN_PROGRESS_STYLE: Record<ScanHotelStatus, string> = {
+  PENDING: "bg-linen-deep text-graphite-faint",
+  RUNNING: "bg-horizon-soft text-horizon-ink",
+  SUCCESS: "bg-sage-soft text-sage-ink",
+  PARTIAL_SUCCESS: "bg-warn-soft text-warn-ink",
+  FAILED: "bg-alert-soft text-alert-ink"
+};
+
+function formatEta(ms: number): string {
+  const totalSeconds = Math.round(ms / 1000);
+  if (totalSeconds < 60) return `${totalSeconds} s`;
+  return `${Math.round(totalSeconds / 60)} min`;
+}
 
 // Le niveau réel (Critique/Fragile/Correct/Bon/Excellent, moteur de
 // scoring backend) est reregroupé sur le vocabulaire StatusPill existant
@@ -82,6 +111,11 @@ export function Portfolios() {
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]>("Tous les statuts");
   const [formModal, setFormModal] = useState<FormModalState>(null);
   const [scanPeriod, setScanPeriod] = useState<ScanPeriodValue>("last12Months");
+  const [scanProgress, setScanProgress] = useState<ScanProgressEvent | null>(null);
+  const [scanningPortfolioId, setScanningPortfolioId] = useState<string | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
+
+  useEffect(() => () => eventSourceRef.current?.close(), []);
 
   const selected = cards.find((p) => p.id === selectedId) ?? cards[0]!;
   const selectedRealPortfolio = realPortfolios.find((rp) => rp.id === selected.id);
@@ -134,11 +168,36 @@ export function Portfolios() {
 
   const scanPortfolioMutation = useMutation({
     mutationFn: (portfolioId: string) => api.launchPortfolioScan(portfolioId, scanPeriod),
-    onSuccess: () => {
-      // Phase D1 : pas de suivi temps réel (Phase D2) — les scans tournent
-      // en arrière-plan, un rechargement des données du portefeuille fait
-      // apparaître les statuts au fur et à mesure qu'ils se terminent.
-      queryClient.invalidateQueries({ queryKey: ["portfolios"] });
+    onSuccess: (result, portfolioId) => {
+      // Suivi temps réel (Phase D2) — un flux SSE par scan, fermé dès que
+      // tous les hôtels ont atteint un statut terminal ; les données du
+      // portefeuille ne sont rechargées qu'à ce moment-là (pas de
+      // rafraîchissement manuel nécessaire).
+      eventSourceRef.current?.close();
+      setScanProgress(null);
+      setScanningPortfolioId(portfolioId);
+
+      const source = new EventSource(`/api/scans/${result.scanId}/events`, { withCredentials: true });
+      eventSourceRef.current = source;
+
+      source.onmessage = (event) => {
+        const data = JSON.parse(event.data) as ScanProgressEvent;
+        setScanProgress(data);
+        if (data.done) {
+          source.close();
+          eventSourceRef.current = null;
+          setScanningPortfolioId(null);
+          queryClient.invalidateQueries({ queryKey: ["portfolios"] });
+        }
+      };
+      source.onerror = () => {
+        // Flux interrompu (ex. redémarrage serveur) — pas d'erreur
+        // bloquante : le prochain chargement de /api/portfolios reflète
+        // l'état réel quoi qu'il arrive.
+        source.close();
+        eventSourceRef.current = null;
+        setScanningPortfolioId(null);
+      };
     }
   });
 
@@ -239,10 +298,19 @@ export function Portfolios() {
               </select>
               <button
                 onClick={() => scanPortfolioMutation.mutate(selectedRealPortfolio.id)}
-                disabled={scanPortfolioMutation.isPending || selectedRealPortfolio.hotels.length === 0}
+                disabled={
+                  scanPortfolioMutation.isPending ||
+                  selectedRealPortfolio.hotels.length === 0 ||
+                  scanningPortfolioId === selectedRealPortfolio.id
+                }
                 className="flex items-center gap-1.5 rounded-lg bg-sage px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
               >
-                <Icon.Play width={14} height={14} /> {scanPortfolioMutation.isPending ? "Lancement…" : "Lancer un scan portefeuille"}
+                <Icon.Play width={14} height={14} />{" "}
+                {scanPortfolioMutation.isPending
+                  ? "Lancement…"
+                  : scanningPortfolioId === selectedRealPortfolio.id
+                    ? "Analyse en cours…"
+                    : "Lancer un scan portefeuille"}
               </button>
             </>
           ) : (
@@ -264,11 +332,23 @@ export function Portfolios() {
           )}
         </div>
 
-        {selectedRealPortfolio && scanPortfolioMutation.isSuccess && (
-          <p className="mb-4 rounded-lg bg-horizon-soft px-3 py-2 text-sm text-horizon-ink">
-            Scan lancé pour {scanPortfolioMutation.data.scanHotelIds.length} hôtel{scanPortfolioMutation.data.scanHotelIds.length > 1 ? "s" : ""} — traitement en
-            arrière-plan, actualise la page pour voir les statuts se mettre à jour.
-          </p>
+        {selectedRealPortfolio && scanningPortfolioId === selectedRealPortfolio.id && scanProgress && (
+          <div className="mb-4 rounded-lg bg-horizon-soft px-3 py-3 text-sm text-horizon-ink">
+            <div className="flex items-center justify-between">
+              <span className="font-medium">
+                {scanProgress.done ? "Scan terminé" : "Analyse en cours"} — {scanProgress.completed}/{scanProgress.total} hôtel
+                {scanProgress.total > 1 ? "s" : ""} terminé{scanProgress.completed > 1 ? "s" : ""}
+              </span>
+              {!scanProgress.done && scanProgress.etaMs !== null && <span className="text-xs">≈ {formatEta(scanProgress.etaMs)} restantes</span>}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {scanProgress.hotels.map((h) => (
+                <span key={h.scanHotelId} className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${SCAN_PROGRESS_STYLE[h.status]}`}>
+                  {h.hotelName} — {SCAN_PROGRESS_LABEL[h.status]}
+                </span>
+              ))}
+            </div>
+          </div>
         )}
         {selectedRealPortfolio && scanPortfolioMutation.isError && (
           <p className="mb-4 rounded-lg bg-alert-soft px-3 py-2 text-sm text-alert-ink">

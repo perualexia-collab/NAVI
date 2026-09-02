@@ -99,3 +99,13 @@ export interface RealHotelHealth {
   averageScanDurationMs: number | null;
   latestScan: RealScanSummary | null;
 }
+
+/** Évènement SSE de progression d'un scan — GET /api/scans/:scanId/events (Phase D2). */
+export interface ScanProgressEvent {
+  scanId: string;
+  total: number;
+  completed: number;
+  done: boolean;
+  etaMs: number | null;
+  hotels: { scanHotelId: string; hotelId: string; hotelName: string; status: ScanHotelStatus }[];
+}
