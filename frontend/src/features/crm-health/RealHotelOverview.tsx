@@ -7,7 +7,7 @@ import { periodLabel, RealPeriodSelector } from "../../components/ui/RealPeriodS
 import { Icon } from "../../components/ui/icons.js";
 import { formatDateTime, formatNumber, formatCurrency } from "../../lib/format.js";
 import { api, ApiError } from "../../lib/api.js";
-import type { RealHotel, RealKpiResult, RealScanPeriod, RealScanSummary, RealAutomationStatus } from "../../lib/real-hotel-types.js";
+import type { RealHotel, RealKpiResult, RealScanPeriod, RealScanSummary, RealAutomationStatus, RecommendationStatus } from "../../lib/real-hotel-types.js";
 
 /** P10 — le statut des automations bloque ou non la recherche de campagne ponctuelle (backend/experience/audience-builder/p10-automation-status.ts). */
 function automationStatusMessage(status: RealAutomationStatus): string {
@@ -36,6 +36,21 @@ const SEVERITY_STYLE: Record<string, string> = {
   ALERT: "bg-alert-soft text-alert-ink",
   VIGILANCE: "bg-warn-soft text-warn-ink",
   OPPORTUNITY: "bg-sage-soft text-sage-ink"
+};
+
+// Phase F2 — suivi d'action sur les recommandations sans audience (P01,
+// P05, P08, P12). DISMISSED est un état à part, pas une étape du cycle.
+const RECOMMENDATION_STATUS_OPTIONS: { value: RecommendationStatus; label: string }[] = [
+  { value: "OPEN", label: "À traiter" },
+  { value: "IN_PROGRESS", label: "En cours" },
+  { value: "DONE", label: "Traité" },
+  { value: "DISMISSED", label: "Ignoré" }
+];
+const RECOMMENDATION_STATUS_STYLE: Record<RecommendationStatus, string> = {
+  OPEN: "bg-linen-deep text-graphite-soft",
+  IN_PROGRESS: "bg-warn-soft text-warn-ink",
+  DONE: "bg-sage-soft text-sage-ink",
+  DISMISSED: "bg-graphite/10 text-graphite-faint"
 };
 
 const HEALTH_LABEL_STYLE: Record<"sage" | "warn" | "alert" | "muted", string> = {
@@ -270,6 +285,18 @@ function ScanResult({ scan, hotelId }: { scan: RealScanSummary; hotelId: string 
     onSettled: () => setChoosingResultId(null)
   });
 
+  // Phase F2 — suivi d'action sur les recommandations sans audience,
+  // écriture simple indépendante de audienceActionRunning (même
+  // raisonnement que chooseMutation ci-dessus).
+  const [updatingStatusRecommendationId, setUpdatingStatusRecommendationId] = useState<string | null>(null);
+  const updateStatusMutation = useMutation({
+    mutationFn: ({ recommendationId, status }: { recommendationId: string; status: RecommendationStatus }) =>
+      api.updateRecommendationStatus(hotelId, recommendationId, status),
+    onMutate: ({ recommendationId }: { recommendationId: string; status: RecommendationStatus }) => setUpdatingStatusRecommendationId(recommendationId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["hotel-health", hotelId] }),
+    onSettled: () => setUpdatingStatusRecommendationId(null)
+  });
+
   // Phase F1 — bouton "Créer la liste dans Expérience" (ou confirmation +
   // "Recréer" si déjà fait), factorisé car appelé depuis 3 zones du JSX
   // (SINGLE, comparaison P11, comparaison P10).
@@ -395,6 +422,27 @@ function ScanResult({ scan, hotelId }: { scan: RealScanSummary; hotelId: string 
                       <span className="font-medium text-graphite">Recommandation — </span>
                       {signal.recommendationText}
                     </div>
+
+                    {/* Phase F2 — suivi d'action, uniquement pour les signaux sans audience (P01, P05, P08, P12). */}
+                    {signal.audienceMode === "NONE" && signal.recommendationId && (
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                        {RECOMMENDATION_STATUS_OPTIONS.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => updateStatusMutation.mutate({ recommendationId: signal.recommendationId!, status: option.value })}
+                            disabled={updatingStatusRecommendationId === signal.recommendationId}
+                            className={`rounded-full px-2.5 py-1 text-xs font-medium disabled:opacity-50 ${
+                              signal.recommendationStatus === option.value
+                                ? RECOMMENDATION_STATUS_STYLE[option.value]
+                                : "bg-transparent text-graphite-faint hover:bg-linen-deep"
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
 
                     {signal.recommendationId && signal.audienceDefinitionId && (
                       <div className="mt-2">

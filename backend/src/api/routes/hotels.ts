@@ -249,7 +249,10 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
             // Phase F1 — null tant que "Créer la liste dans Expérience"
             // n'a pas été utilisé sur cette recommandation.
             exportedListName: recommendation?.exportedListName ?? null,
-            exportedAt: recommendation?.exportedAt ?? null
+            exportedAt: recommendation?.exportedAt ?? null,
+            // Phase F2 — suivi d'action, affiché côté frontend uniquement
+            // pour les signaux sans audience (P01, P05, P08, P12).
+            recommendationStatus: recommendation?.status ?? null
           };
         })
       }
@@ -449,8 +452,8 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
   });
 
   // Phase E3 — enregistre le choix de l'utilisateur parmi les options
-  // comparées (P11 pour l'instant). N'agit sur rien d'autre : la
-  // suite du flux (brief §22) reste hors scope, prévue en Phase F.
+  // comparées. N'agit sur rien d'autre — voir /create-list (Phase F1)
+  // pour la suite du flux une fois un résultat choisi.
   app.post("/api/hotels/:hotelId/audience-comparisons/:comparisonId/choose", async (request, reply) => {
     const user = await requireUser(request, reply);
     if (!user) return;
@@ -569,5 +572,32 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
         error: error instanceof Error ? error.message : "La création de la liste a échoué dans Expérience."
       });
     }
+  });
+
+  // Phase F2 — suivi d'action sur les recommandations sans audience (P01,
+  // P05, P08, P12) : écriture simple, pas de session Expérience impliquée.
+  app.patch("/api/hotels/:hotelId/recommendations/:recommendationId/status", async (request, reply) => {
+    const user = await requireUser(request, reply);
+    if (!user) return;
+
+    const { hotelId, recommendationId } = request.params as { hotelId: string; recommendationId: string };
+    const body = z.object({ status: z.enum(["OPEN", "IN_PROGRESS", "DONE", "DISMISSED"]) }).safeParse(request.body);
+    if (!body.success) return reply.code(400).send({ error: "Statut invalide." });
+
+    const recommendation = await prisma.recommendation.findUnique({
+      where: { id: recommendationId },
+      include: { signalResult: { include: { scanHotel: true } } }
+    });
+
+    if (!recommendation || recommendation.signalResult.scanHotel.hotelId !== hotelId) {
+      return reply.code(404).send({ error: "Recommandation introuvable." });
+    }
+
+    const updated = await prisma.recommendation.update({
+      where: { id: recommendationId },
+      data: { status: body.data.status }
+    });
+
+    return { recommendationId: updated.id, status: updated.status };
   });
 }

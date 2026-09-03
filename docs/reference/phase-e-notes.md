@@ -442,3 +442,42 @@ suppression finale) validée. `saveTemporaryAudience`/
 "définitif" — aucune correction nécessaire.
 
 **Phase F1 déclarée terminée et validée en conditions réelles.**
+
+## Phase F2 — suivi d'action sur les recommandations sans audience (2026-09-03, à tester)
+
+Deuxième clarification de scope demandée à l'utilisateur pour la suite de
+la Phase F (toujours faute du texte complet du brief §22) : option
+retenue explicitement — **"suivi d'action"**, et uniquement pour les
+recommandations sans audience (P01, P05, P08, P12), pas pour celles qui
+ont déjà tout le cycle E2/E3/F1 (calcul/comparaison → choix → export).
+
+Concrètement : ces 4 signaux n'affichaient jusqu'ici qu'un texte statique
+(`recommendedAction`), sans aucune trace de ce que l'équipe en a fait.
+Ajout d'un statut de suivi sur la `Recommendation` elle-même :
+
+- `RecommendationStatus` (nouvel enum Prisma) : `OPEN` (défaut) →
+  `IN_PROGRESS` → `DONE`, avec `DISMISSED` comme état à part (pas une
+  étape du cycle). Champ `Recommendation.status`, migration
+  `20260903120000_add_recommendation_status`. Le champ existe sur toutes
+  les `Recommendation` (modèle partagé avec E2/E3/F1) mais n'est affiché
+  côté frontend que pour `audienceMode === "NONE"`.
+- `PATCH /api/hotels/:hotelId/recommendations/:recommendationId/status` —
+  écriture simple (`{ status }`), même raisonnement que `/choose` (E3) :
+  pas de session Expérience impliquée, donc indépendant de
+  `audienceActionRunning`.
+- `GET /api/hotels/:hotelId/health` expose `recommendationStatus` par
+  signal (même mapping que `recommendationText`/`exportedListName`).
+- Frontend : 4 pills cliquables ("À traiter" / "En cours" / "Traité" /
+  "Ignoré") sous le texte de recommandation, uniquement quand
+  `signal.audienceMode === "NONE"` — le bloc conteneur
+  (`signal.recommendationText && (...)`) est en réalité partagé par les
+  3 modes (`recommendation.text` est toujours rempli, quel que soit le
+  mode), donc le nouveau bloc est gardé explicitement par
+  `audienceMode === "NONE"`, pas par la seule présence du texte.
+
+Typecheck + build backend et frontend passent tous les deux. **Non testé
+contre Expérience réel** — mais contrairement à F1, cette fonctionnalité
+ne touche à aucune session Playwright (écriture DB pure), donc le risque
+principal est une migration mal appliquée ou un bug d'affichage, pas un
+sélecteur DOM cassé. À tester en conditions réelles avant de considérer
+F2 terminée.

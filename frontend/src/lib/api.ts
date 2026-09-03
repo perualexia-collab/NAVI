@@ -1,5 +1,5 @@
 import type { User } from "@navi/shared";
-import type { RealHotel, RealHotelHealth, RealPortfolio, RealScanPeriod, RealUser, RealAutomationStatus } from "./real-hotel-types.js";
+import type { RealHotel, RealHotelHealth, RealPortfolio, RealScanPeriod, RealUser, RealAutomationStatus, RecommendationStatus } from "./real-hotel-types.js";
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -61,6 +61,11 @@ export const api = {
     request<{ listName: string; recipients: number; audienceResultId: string; measuredAt: string }>(
       `/hotels/${hotelId}/recommendations/${recommendationId}/create-list`,
       { method: "POST" }
+    ),
+  updateRecommendationStatus: (hotelId: string, recommendationId: string, status: RecommendationStatus) =>
+    request<{ recommendationId: string; status: RecommendationStatus }>(
+      `/hotels/${hotelId}/recommendations/${recommendationId}/status`,
+      { method: "PATCH", body: JSON.stringify({ status }) }
     ),
 
   listPortfolios: () => request<RealPortfolio[]>("/portfolios"),

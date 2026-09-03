@@ -283,6 +283,16 @@ enum AudienceMode {
   MULTIPLE
 }
 
+// Phase F2 — suivi d'action sur les recommandations sans audience
+// (P01, P05, P08, P12) : DISMISSED est un état à part, pas une étape
+// du cycle OPEN → IN_PROGRESS → DONE.
+enum RecommendationStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  DISMISSED
+}
+
 model SignalDefinition {
   playbookId           String       @id // P01…P12 — interne, jamais affiché à l'utilisateur
   name                 String
@@ -318,6 +328,11 @@ model Recommendation {
   // tant que "Créer la liste dans Expérience" n'a pas été utilisé.
   exportedListName      String?
   exportedAt            DateTime?
+  // Phase F2 — suivi d'action, affiché uniquement pour les recommandations
+  // sans audience (P01, P05, P08, P12) côté frontend ; le champ existe sur
+  // toutes les Recommendation (même modèle partagé) mais n'est pas exposé
+  // ailleurs.
+  status                RecommendationStatus @default(OPEN)
 
   signalResult        SignalResult        @relation(fields: [signalResultId], references: [id], onDelete: Cascade)
   audienceDefinition  AudienceDefinition? @relation(fields: [audienceDefinitionId], references: [id])

@@ -11,6 +11,8 @@ export type StepStatus = "PENDING" | "RUNNING" | "OK" | "ERROR" | "SKIPPED";
 export type ScanStepName = "BASE" | "CAPTURE" | "OTA" | "RETURNING" | "MARKETING";
 export type SignalSeverity = "ALERT" | "VIGILANCE" | "OPPORTUNITY";
 export type AudienceMode = "NONE" | "SINGLE" | "MULTIPLE";
+/** Phase F2 — suivi d'action, affiché uniquement pour les signaux sans audience (P01, P05, P08, P12). */
+export type RecommendationStatus = "OPEN" | "IN_PROGRESS" | "DONE" | "DISMISSED";
 export type PeriodPresetValue = "last12Months" | "thisYear" | "thisMonth" | "lastMonth";
 // Dates au format ISO "YYYY-MM-DD".
 export type RealScanPeriod = { mode: "preset"; value: PeriodPresetValue } | { mode: "custom"; startDate: string; endDate: string };
@@ -89,6 +91,8 @@ export interface RealSignalResult {
   /** Phase F1 — null tant que "Créer la liste dans Expérience" n'a pas été utilisé sur cette recommandation. */
   exportedListName: string | null;
   exportedAt: string | null;
+  /** Phase F2 — uniquement pertinent pour les signaux sans audience (audienceMode "NONE"). */
+  recommendationStatus: RecommendationStatus | null;
 }
 
 export interface RealAudienceComparisonResult {
