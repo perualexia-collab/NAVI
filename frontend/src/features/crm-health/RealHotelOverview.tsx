@@ -785,7 +785,7 @@ function BusinessMetricBlock({
         </div>
       )}
       <div className="mt-3 flex flex-col gap-2.5">
-        <GaugeRow label="Automation" value={automationValue} total={total} color="bg-terracotta" formatValue={formatValue} />
+        <GaugeRow label="Automation" value={automationValue} total={total} color="bg-sage" formatValue={formatValue} />
         <GaugeRow label="Campagnes ponctuelles" value={campaignValue} total={total} color="bg-horizon" formatValue={formatValue} />
       </div>
     </div>

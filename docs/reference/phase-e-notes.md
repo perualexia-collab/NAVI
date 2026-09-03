@@ -813,3 +813,27 @@ horizontales) plutôt que des cards toutes identiques.
 
 Frontend typecheck/build passent. Non testé visuellement contre un
 scan réel avec toutes les données marketing présentes.
+
+### Retours immédiats : couleurs de charte + ordre de la grille (2026-09-03)
+
+- Couleurs des jauges `PerformanceBusinessCard` alignées sur la charte
+  (`frontend/tailwind.config.ts`) plutôt que choisies au hasard :
+  `terracotta` est documenté comme "accent primaire — CTA, alertes"
+  (déjà très utilisé pour les vrais boutons d'action de la page —
+  "Nouveau portefeuille", onglets actifs, etc.), pas une bonne couleur
+  de remplissage passif pour une jauge. Jauge "Automation" repassée en
+  `bg-sage` ("accent secondaire — positif, réutilisable" — cohérent avec
+  une action déjà automatisée qui tourne). "Campagnes ponctuelles" reste
+  en `bg-horizon` ("accent tertiaire — info").
+- Grille "Indicateurs clés" (3 colonnes) : Returning Guests n'apparaissait
+  qu'en toute fin de grille, isolé sur sa propre ligne. Réordonné dans
+  `backend/scans/map-kpi-results.ts` pour apparaître juste après
+  "Taux de captation e-mail" (donc en 2e ligne, à droite), ce qui décale
+  d'un cran les 6 KPI OTA qui suivent. Pure question d'ordre d'affichage
+  (l'ordre suit l'ordre de création des lignes `KPIResult`, trié par id
+  côté API) — aucune valeur/calcul changé. **Ne s'applique qu'aux
+  prochains scans** : l'ordre des scans déjà en base ne change pas
+  rétroactivement.
+
+Backend et frontend typecheck/build passent. Non testé visuellement
+contre un scan réel.

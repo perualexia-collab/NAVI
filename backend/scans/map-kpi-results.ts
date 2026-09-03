@@ -41,6 +41,18 @@ export function mapKpiResults(result: CollectHotelKpisResult): KpiResultRow[] {
   const capture = result.capture.data;
   rows.push({ kpiDefinitionId: "emailCaptureRate", value: capture?.displayedRate ?? null, available: result.capture.status === "OK" });
 
+  // Ordre d'affichage de la grille "Indicateurs clés" (3 colonnes) — retour
+  // réel 2026-09-03 : Returning Guests doit apparaître en 2e ligne plutôt
+  // qu'isolé en fin de grille, d'où sa place ici plutôt qu'après le bloc OTA.
+  const returning = result.returning.data;
+  rows.push({
+    kpiDefinitionId: "returningGuestsRate",
+    value: returning?.N ?? null,
+    available: result.returning.status === "OK",
+    previousValue: returning?.N1 ?? null,
+    evolutionPoints: returning?.evolution ?? null
+  });
+
   const ota = result.ota.data;
   rows.push(
     {
@@ -86,15 +98,6 @@ export function mapKpiResults(result: CollectHotelKpisResult): KpiResultRow[] {
       evolutionPoints: ota?.nonOta.revenueEvolution ?? null
     }
   );
-
-  const returning = result.returning.data;
-  rows.push({
-    kpiDefinitionId: "returningGuestsRate",
-    value: returning?.N ?? null,
-    available: result.returning.status === "OK",
-    previousValue: returning?.N1 ?? null,
-    evolutionPoints: returning?.evolution ?? null
-  });
 
   const marketing = result.marketing.data;
   rows.push(
