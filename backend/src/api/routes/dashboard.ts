@@ -5,11 +5,6 @@ import { getLatestScanByHotelId } from "../../services/scans/latest-scan-by-hote
 
 const RECENTLY_SCANNED_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
-// Seuls P06, P09, P11 sont de sévérité OPPORTUNITY (cf.
-// backend/prisma/seed-data/signal-definitions.ts) — P10 est une ALERT
-// malgré son mécanisme de comparaison similaire à P11.
-const OPPORTUNITY_PLAYBOOK_IDS = ["P06", "P09", "P11"];
-
 /**
  * Phase F5 — tableau de bord (Accueil) branché sur les vraies données,
  * remplace `homeStats`/`recentScans` mockés de frontend/src/mock/data.ts.
@@ -59,13 +54,34 @@ export async function dashboardRoutes(app: FastifyInstance) {
     const averageHealthScore = healthScores.length > 0 ? Math.round(healthScores.reduce((sum, v) => sum + v, 0) / healthScores.length) : null;
 
     const scanHotelIds = [...latestScanByHotelId.values()].map((s) => s.scanHotelId);
-    const opportunitySignals =
+    const allSignals =
       scanHotelIds.length === 0
         ? []
         : await prisma.signalResult.findMany({
-            where: { scanHotelId: { in: scanHotelIds }, playbookId: { in: OPPORTUNITY_PLAYBOOK_IDS } },
+            where: { scanHotelId: { in: scanHotelIds } },
             include: { signal: true, scanHotel: { select: { hotelId: true } }, recommendations: true }
           });
+    const opportunitySignals = allSignals.filter((result) => result.signal.severity === "OPPORTUNITY");
+
+    // "Voir les alertes"/"Voir les vigilances" (pop-up dashboard, même
+    // esprit que "Voir toutes" pour les opportunités) — pas besoin du
+    // même niveau de détail que les opportunités (pas de comparaison à
+    // dérouler) : le texte de recommandation suffit, déjà rempli pour
+    // tous les modes d'audience (NONE/SINGLE/MULTIPLE).
+    function buildSignalItems(severity: "ALERT" | "VIGILANCE") {
+      return allSignals
+        .filter((result) => result.signal.severity === severity)
+        .map((result) => ({
+          hotelId: result.scanHotel.hotelId,
+          hotelName: hotelNameById.get(result.scanHotel.hotelId) ?? "",
+          playbookId: result.playbookId,
+          name: result.signal.name,
+          trigger: result.trigger,
+          detailLabel: result.recommendations[0]?.text ?? null
+        }));
+    }
+    const alertSignals = buildSignalItems("ALERT");
+    const vigilanceSignals = buildSignalItems("VIGILANCE");
 
     const opportunities: {
       hotelId: string;
@@ -130,7 +146,9 @@ export async function dashboardRoutes(app: FastifyInstance) {
       opportunityCount,
       potentialClients,
       recentScans: recentScans.slice(0, 5),
-      opportunities
+      opportunities,
+      alertItems: alertSignals,
+      vigilanceItems: vigilanceSignals
     };
   });
 }

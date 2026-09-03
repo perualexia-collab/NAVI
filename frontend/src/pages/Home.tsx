@@ -8,7 +8,7 @@ import { Modal } from "../components/ui/Modal.js";
 import { Icon } from "../components/ui/icons.js";
 import { formatDateTime, formatNumber } from "../lib/format.js";
 import { api } from "../lib/api.js";
-import type { RealDashboardOpportunity } from "../lib/real-hotel-types.js";
+import type { RealDashboardOpportunity, RealDashboardSignalItem } from "../lib/real-hotel-types.js";
 
 const OPPORTUNITY_PLAYBOOK_LABEL: Record<string, string> = {
   P06: "Fidélisation à activer",
@@ -20,6 +20,7 @@ export function Home() {
   const { user } = useAuth();
   const firstName = user?.name.split(" ")[0] ?? "";
   const [opportunitiesOpen, setOpportunitiesOpen] = useState(false);
+  const [signalModal, setSignalModal] = useState<"alerts" | "vigilances" | "both" | null>(null);
 
   const dashboardQuery = useQuery({ queryKey: ["dashboard"], queryFn: api.getDashboard });
   const portfoliosQuery = useQuery({ queryKey: ["portfolios"], queryFn: api.listPortfolios });
@@ -62,17 +63,29 @@ export function Home() {
 
           <div className="mt-4 grid grid-cols-2 gap-4">
             <Card>
-              <CardHeader icon={<Icon.AlertTriangle className="text-warn" />} title="À surveiller" action={<Link to="/crm-health" className="text-xs text-terracotta hover:underline">Voir tout</Link>} />
+              <CardHeader
+                icon={<Icon.AlertTriangle className="text-warn" />}
+                title="À surveiller"
+                action={
+                  <button type="button" onClick={() => setSignalModal("both")} className="text-xs text-terracotta hover:underline">
+                    Voir tout
+                  </button>
+                }
+              />
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-lg bg-alert-soft p-3">
                   <div className="font-display text-xl font-semibold text-alert-ink">{dashboard.criticalAlerts}</div>
                   <div className="text-xs text-graphite-soft">Alertes critiques<br />nécessitent votre attention</div>
-                  <Link to="/crm-health" className="mt-2 inline-block text-xs font-medium text-alert hover:underline">Voir les alertes →</Link>
+                  <button type="button" onClick={() => setSignalModal("alerts")} className="mt-2 inline-block text-xs font-medium text-alert hover:underline">
+                    Voir les alertes →
+                  </button>
                 </div>
                 <div className="rounded-lg bg-warn-soft p-3">
                   <div className="font-display text-xl font-semibold text-warn-ink">{dashboard.vigilances}</div>
                   <div className="text-xs text-graphite-soft">Vigilances<br />à surveiller</div>
-                  <Link to="/crm-health" className="mt-2 inline-block text-xs font-medium text-warn hover:underline">Voir les vigilances →</Link>
+                  <button type="button" onClick={() => setSignalModal("vigilances")} className="mt-2 inline-block text-xs font-medium text-warn hover:underline">
+                    Voir les vigilances →
+                  </button>
                 </div>
               </div>
             </Card>
@@ -149,6 +162,23 @@ export function Home() {
       )}
 
       {opportunitiesOpen && dashboard && <OpportunitiesModal opportunities={dashboard.opportunities} onClose={() => setOpportunitiesOpen(false)} />}
+
+      {signalModal && dashboard && (
+        <SignalListModal
+          title={signalModal === "alerts" ? "Alertes critiques" : signalModal === "vigilances" ? "Vigilances" : "À surveiller"}
+          items={
+            signalModal === "alerts"
+              ? dashboard.alertItems.map((item) => ({ ...item, kind: "alert" as const }))
+              : signalModal === "vigilances"
+                ? dashboard.vigilanceItems.map((item) => ({ ...item, kind: "vigilance" as const }))
+                : [
+                    ...dashboard.alertItems.map((item) => ({ ...item, kind: "alert" as const })),
+                    ...dashboard.vigilanceItems.map((item) => ({ ...item, kind: "vigilance" as const }))
+                  ]
+          }
+          onClose={() => setSignalModal(null)}
+        />
+      )}
     </div>
   );
 }
@@ -182,6 +212,49 @@ function OpportunitiesModal({ opportunities, onClose }: { opportunities: RealDas
               {opportunity.priority === "high" && (
                 <span className="whitespace-nowrap rounded-full bg-terracotta-soft px-2 py-0.5 text-xs font-medium text-terracotta-ink">Prioritaire</span>
               )}
+            </Link>
+          ))}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+const SIGNAL_KIND_STYLE = { alert: "bg-alert-soft text-alert-ink", vigilance: "bg-warn-soft text-warn-ink" } as const;
+const SIGNAL_KIND_LABEL = { alert: "Alerte", vigilance: "Vigilance" } as const;
+
+function SignalListModal({
+  title,
+  items,
+  onClose
+}: {
+  title: string;
+  items: (RealDashboardSignalItem & { kind: "alert" | "vigilance" })[];
+  onClose: () => void;
+}) {
+  return (
+    <Modal title={title} onClose={onClose} wide>
+      {items.length === 0 ? (
+        <p className="text-sm text-graphite-faint">Rien à signaler sur les derniers scans.</p>
+      ) : (
+        <div className="flex flex-col divide-y divide-graphite/10">
+          {items.map((item, index) => (
+            <Link
+              key={`${item.hotelId}-${item.playbookId}-${index}`}
+              to={`/crm-health/${item.hotelId}`}
+              onClick={onClose}
+              className="flex items-start justify-between gap-3 py-2.5 first:pt-0 last:pb-0 hover:opacity-80"
+            >
+              <div>
+                <div className="text-sm font-medium">
+                  {item.hotelName} <span className="font-normal text-graphite-faint">— {item.name}</span>
+                </div>
+                <div className="text-xs text-graphite-faint">{item.trigger}</div>
+                {item.detailLabel && <div className="mt-0.5 text-xs text-graphite-soft">{item.detailLabel}</div>}
+              </div>
+              <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${SIGNAL_KIND_STYLE[item.kind]}`}>
+                {SIGNAL_KIND_LABEL[item.kind]}
+              </span>
             </Link>
           ))}
         </div>

@@ -687,3 +687,27 @@ base.
   `DateRangeControl`, hôtels via `hotelsByPortfolio()`) supprimée plutôt
   que laissée mais inatteignable — état vide explicite ("Aucun
   portefeuille pour l'instant...") si `cards` est vide.
+- **Filtre de date du dashboard retiré** — décoratif, ne filtrait jamais
+  rien (le dashboard agrège toujours le dernier scan connu de chaque
+  hôtel).
+
+## Phase F8 — pop-up alertes/vigilances sur le dashboard (2026-09-03)
+
+Même demande que pour les opportunités (déjà en pop-up) : "Voir tout"
+("À surveiller"), "Voir les alertes", "Voir les vigilances" ouvraient
+une redirection vers CRM Health plutôt qu'une pop-up avec le détail.
+
+- `GET /api/dashboard` : la requête `signalResult` qui ne servait qu'aux
+  opportunités (filtrée sur 3 playbookId codés en dur) récupère
+  maintenant TOUS les signaux des derniers scans en un seul aller, puis
+  filtre en mémoire par `signal.severity` — sert aux 3 listes
+  (opportunités, alertes, vigilances) sans requête dupliquée ni liste de
+  playbookId à maintenir à la main. `alertItems`/`vigilanceItems`
+  (nouveaux) : detail plus simple que les opportunités (pas de
+  comparaison à dérouler) — juste `trigger` (le "pourquoi") et le texte
+  de recommandation, déjà rempli pour tous les modes d'audience.
+- Frontend : `SignalListModal`, réutilisé pour les 3 boutons ("À
+  surveiller" → alertes + vigilances combinées avec un badge par ligne,
+  "Voir les alertes"/"Voir les vigilances" → une seule pop-up filtrée).
+
+Backend et frontend typecheck/build passent.

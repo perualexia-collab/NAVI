@@ -187,6 +187,16 @@ export interface RealDashboardOpportunity {
   detailLabel: string | null;
 }
 
+/** Phase F8 — ligne pour la pop-up "Voir les alertes"/"Voir les vigilances". */
+export interface RealDashboardSignalItem {
+  hotelId: string;
+  hotelName: string;
+  playbookId: string;
+  name: string;
+  trigger: string;
+  detailLabel: string | null;
+}
+
 export interface RealDashboard {
   hotelCount: number;
   portfolioCount: number;
@@ -198,6 +208,8 @@ export interface RealDashboard {
   potentialClients: number;
   recentScans: { hotelId: string; hotelName: string; scannedAt: string; healthScore: number | null }[];
   opportunities: RealDashboardOpportunity[];
+  alertItems: RealDashboardSignalItem[];
+  vigilanceItems: RealDashboardSignalItem[];
 }
 
 /** Évènement SSE de progression d'un scan — GET /api/scans/:scanId/events (Phase D2). */
