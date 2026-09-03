@@ -10,14 +10,14 @@ import type { RealUser, UserStatus } from "../lib/real-hotel-types.js";
 const EXPERIENCE_STATUS_LABEL = {
   ACTIVE: "Actif",
   TO_VERIFY: "À vérifier",
-  NOT_FOUND: "Non trouvé",
+  NOT_FOUND: "Échec de connexion",
   ERROR: "Erreur"
 } as const;
 
 const EXPERIENCE_STATUS_STYLE = {
   ACTIVE: "bg-sage-soft text-sage-ink",
   TO_VERIFY: "bg-warn-soft text-warn-ink",
-  NOT_FOUND: "bg-linen-deep text-graphite-faint",
+  NOT_FOUND: "bg-alert-soft text-alert-ink",
   ERROR: "bg-alert-soft text-alert-ink"
 } as const;
 
@@ -138,8 +138,12 @@ function HotelsAdmin() {
       {hotelsQuery.isLoading && <p className="text-sm text-graphite-faint">Chargement…</p>}
       {hotelsQuery.isError && <p className="text-sm text-alert">Impossible de charger la liste des hôtels.</p>}
       {testResult && (
-        <p className={`mb-3 text-sm ${testResult.status === "ACTIVE" ? "text-sage-ink" : "text-alert"}`}>
-          {testResult.hotelName} — {testResult.message}
+        <p
+          className={`mb-3 rounded-lg px-3 py-2 text-sm ${
+            testResult.status === "ACTIVE" ? "bg-sage-soft text-sage-ink" : "bg-alert-soft text-alert-ink"
+          }`}
+        >
+          {testResult.status === "ACTIVE" ? "✓" : "✕"} {testResult.hotelName} — {testResult.message}
         </p>
       )}
 
