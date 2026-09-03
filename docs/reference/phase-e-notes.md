@@ -711,3 +711,18 @@ une redirection vers CRM Health plutôt qu'une pop-up avec le détail.
   "Voir les alertes"/"Voir les vigilances" → une seule pop-up filtrée).
 
 Backend et frontend typecheck/build passent.
+
+### Retour immédiat : masquer les recommandations traitées/ignorées
+
+"Traité" (et "Ignoré" par cohérence — même logique d'état résolu, pas
+demandé explicitement mais laisser l'un et pas l'autre aurait été
+incohérent) ne doit plus compter ni apparaître dans le dashboard.
+N'affecte que les 4 signaux sans audience (P01/P05/P08/P12, seuls à
+avoir un statut pour l'instant) — les compteurs recalculés directement
+depuis `allSignals` (qui inclut déjà `recommendations`) plutôt que
+depuis les compteurs bruts de `getLatestScanByHotelId()`, volontairement
+laissé inchangé (partagé avec CRM Health/Portefeuilles, où ce filtrage
+n'a pas été demandé — la fiche hôtel elle-même doit continuer à montrer
+tout, traité ou non, pour rester consultable/modifiable).
+
+Backend typecheck/build passent (aucun changement frontend nécessaire).

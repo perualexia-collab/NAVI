@@ -33,18 +33,12 @@ export async function dashboardRoutes(app: FastifyInstance) {
 
     const now = Date.now();
     let recentlyScannedCount = 0;
-    let criticalAlerts = 0;
-    let vigilances = 0;
-    let opportunityCount = 0;
     const healthScores: number[] = [];
     const recentScans: { hotelId: string; hotelName: string; scannedAt: string; healthScore: number | null }[] = [];
 
     for (const [hotelId, scan] of latestScanByHotelId) {
       if (scan.startedAt && now - scan.startedAt.getTime() <= RECENTLY_SCANNED_WINDOW_MS) recentlyScannedCount++;
       if (scan.healthScore !== null) healthScores.push(scan.healthScore);
-      criticalAlerts += scan.alerts;
-      vigilances += scan.vigilances;
-      opportunityCount += scan.opportunities;
       if (scan.startedAt) {
         recentScans.push({ hotelId, hotelName: hotelNameById.get(hotelId) ?? "", scannedAt: scan.startedAt.toISOString(), healthScore: scan.healthScore });
       }
@@ -61,7 +55,23 @@ export async function dashboardRoutes(app: FastifyInstance) {
             where: { scanHotelId: { in: scanHotelIds } },
             include: { signal: true, scanHotel: { select: { hotelId: true } }, recommendations: true }
           });
-    const opportunitySignals = allSignals.filter((result) => result.signal.severity === "OPPORTUNITY");
+
+    // Retours réels 2026-09-03 : une recommandation marquée "Traité" ou
+    // "Ignoré" (suivi d'action, Phase F2 — pour l'instant uniquement les
+    // signaux sans audience) ne doit plus compter ni apparaître dans le
+    // dashboard, contrairement à la fiche hôtel elle-même (où l'historique
+    // du statut reste consultable/modifiable). Ne touche pas
+    // getLatestScanByHotelId() (partagé avec CRM Health/Portefeuilles, où
+    // ce filtrage n'a pas été demandé) : recompté ici directement depuis
+    // allSignals plutôt que depuis les compteurs bruts du dernier scan.
+    const activeSignals = allSignals.filter((result) => {
+      const status = result.recommendations[0]?.status;
+      return status !== "DONE" && status !== "DISMISSED";
+    });
+    const criticalAlerts = activeSignals.filter((result) => result.signal.severity === "ALERT").length;
+    const vigilances = activeSignals.filter((result) => result.signal.severity === "VIGILANCE").length;
+    const opportunitySignals = activeSignals.filter((result) => result.signal.severity === "OPPORTUNITY");
+    const opportunityCount = opportunitySignals.length;
 
     // "Voir les alertes"/"Voir les vigilances" (pop-up dashboard, même
     // esprit que "Voir toutes" pour les opportunités) — pas besoin du
@@ -69,7 +79,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
     // dérouler) : le texte de recommandation suffit, déjà rempli pour
     // tous les modes d'audience (NONE/SINGLE/MULTIPLE).
     function buildSignalItems(severity: "ALERT" | "VIGILANCE") {
-      return allSignals
+      return activeSignals
         .filter((result) => result.signal.severity === severity)
         .map((result) => ({
           hotelId: result.scanHotel.hotelId,
