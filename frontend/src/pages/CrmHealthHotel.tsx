@@ -112,19 +112,11 @@ function RealHotelDetail({ hotel }: { hotel: import("../lib/real-hotel-types.js"
     <div>
       <Breadcrumb name={hotel.name} />
 
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-linen-deep text-graphite-soft">
-            <Icon.Building width={20} height={20} />
-          </div>
-          <div>
-            <h1 className="text-xl">{hotel.name}</h1>
-            <p className="text-sm text-graphite-faint">
-              Hôtel pilote du premier vertical slice réel — données issues d'un vrai scan Playwright, pas d'un mock.
-            </p>
-          </div>
+      <div className="flex items-center gap-3">
+        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-linen-deep text-graphite-soft">
+          <Icon.Building width={20} height={20} />
         </div>
-        <span className="rounded-full bg-horizon-soft px-3 py-1 text-xs font-medium text-horizon-ink">Donnée réelle</span>
+        <h1 className="text-xl">{hotel.name}</h1>
       </div>
 
       <div className="mt-6">
