@@ -292,8 +292,17 @@ export async function selectListValue(page: Page, value: string): Promise<void> 
   throw new Error(`Impossible de sélectionner "${value}".`);
 }
 
-/** Sélectionne l'opérateur d'un filtre à liste (In/NotIn) — cherche le premier <select> visible qui accepte cette valeur d'option. */
-export async function selectListOperator(page: Page, operatorValue: "In" | "NotIn"): Promise<void> {
+/**
+ * Sélectionne l'opérateur d'un filtre à liste — cherche le premier
+ * <select> visible qui accepte cette valeur d'option. Confirmé contre le
+ * vrai DOM (Opéra Opal, 2026-09-03, champ "Raison de la visite") :
+ * `NotIn` n'existe pas, les valeurs réelles sont `In`/`Contains`/
+ * `DoesNotContain`/`StartWith`/`Defined`/`NotDefined` — `DoesNotContain`
+ * est l'équivalent le plus proche d'un "NOT IN [valeurs]" (mêmes valeurs
+ * sélectionnées qu'avec `In`, cf. addLeisureAudienceFilter/addCouplesLeisureFilter
+ * dans p10-filters.ts).
+ */
+export async function selectListOperator(page: Page, operatorValue: "In" | "DoesNotContain"): Promise<void> {
   const combos = page.getByRole("combobox");
   const count = await combos.count();
 

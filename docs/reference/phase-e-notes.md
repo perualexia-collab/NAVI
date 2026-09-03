@@ -336,3 +336,27 @@ inspection du vrai DOM si nécessaire → correction du sélecteur en cause.
 À tester sur un hôtel dont le scan a déclenché P10 (activation CRM
 < 8 ‰, ET activabilité < 50 % — sinon c'est P11 qui se déclenche à la
 place, cf. `detect-signals.ts`).
+
+### Premier test réel (Hôtel Opéra Opal) et correction de l'opérateur "NotIn"
+
+Bon signe dès le premier essai : la détection des automations a
+fonctionné du premier coup (statut `ACTIVE`), et la 1ère campagne du mois
+("Les vacances après les vacances", Couples) a été mesurée avec succès —
+310 destinataires. Les points 1 et 2 ci-dessus (géométrie DOM, libellés
+de navigation) sont donc validés.
+
+Échec sur la 2e campagne ("Loisirs") : `Opérateur NotIn introuvable.`
+dans `addLeisureAudienceFilter`, sur le champ "Raison de la visite".
+DOM réel fourni par l'utilisateur : ce champ n'a **pas** d'opérateur
+`NotIn` — les valeurs réelles du `<select>` sont `In` / `Contains` /
+`DoesNotContain` / `StartWith` / `Defined` / `NotDefined`. Le script
+d'origine supposait `NotIn` (jamais vérifié contre ce champ précis en
+conditions réelles). `DoesNotContain` est l'équivalent le plus proche
+d'un "n'est pas parmi ces valeurs" — mêmes valeurs sélectionnées que
+pour `In` (`selectListValue()` reste inchangé). `selectListOperator()`
+et les deux filtres concernés (`addLeisureAudienceFilter`,
+`addCouplesLeisureFilter`) corrigés en conséquence.
+
+Poussé, en attente de re-test — à confirmer que `DoesNotContain` produit
+bien le résultat attendu (exclusion, pas une autre sémantique comme un
+`OR` implicite entre les deux valeurs exclues).

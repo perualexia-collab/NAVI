@@ -40,7 +40,7 @@ export async function addLeisureAudienceFilter(page: Page): Promise<void> {
   await page.getByRole("link", { name: /Raison de la visite/i }).click();
   await sleep(350);
 
-  await selectListOperator(page, "NotIn");
+  await selectListOperator(page, "DoesNotContain");
   await selectListValue(page, "Pour un salon ou un séminaire");
   await selectListValue(page, "Voyage d'affaires");
 
@@ -147,7 +147,7 @@ export async function addCouplesLeisureFilter(page: Page): Promise<void> {
   await page.getByRole("link", { name: /Raison de la visite/i }).click();
   await sleep(350);
 
-  await selectListOperator(page, "NotIn");
+  await selectListOperator(page, "DoesNotContain");
   await selectListValue(page, "Pour un salon ou un séminaire");
   await selectListValue(page, "Voyage d'affaires");
 
