@@ -73,6 +73,7 @@ function HotelsAdmin() {
   const [modalOpen, setModalOpen] = useState(false);
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [deleteMessage, setDeleteMessage] = useState<string | null>(null);
 
   const createMutation = useMutation({
     mutationFn: (hotelName: string) => api.createHotel(hotelName),
@@ -84,6 +85,34 @@ function HotelsAdmin() {
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : "Impossible d'ajouter cet hôtel.")
   });
+
+  const [deletingHotelId, setDeletingHotelId] = useState<string | null>(null);
+  const deleteMutation = useMutation({
+    mutationFn: (hotelId: string) => api.deleteHotel(hotelId),
+    onMutate: (hotelId: string) => {
+      setDeletingHotelId(hotelId);
+      setDeleteMessage(null);
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["hotels"] });
+      setDeleteMessage(
+        result.deleted
+          ? "Hôtel supprimé."
+          : "Cet hôtel a des scans/audiences enregistrés — suppression définitive impossible, il a été désactivé à la place (réversible)."
+      );
+    },
+    onSettled: () => setDeletingHotelId(null)
+  });
+  const reactivateMutation = useMutation({
+    mutationFn: (hotelId: string) => api.reactivateHotel(hotelId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["hotels"] })
+  });
+
+  function handleDelete(hotelId: string, hotelName: string) {
+    if (window.confirm(`Supprimer l'hôtel "${hotelName}" ? Si des scans existent déjà, l'hôtel sera désactivé plutôt que supprimé.`)) {
+      deleteMutation.mutate(hotelId);
+    }
+  }
 
   return (
     <Card>
@@ -101,6 +130,7 @@ function HotelsAdmin() {
 
       {hotelsQuery.isLoading && <p className="text-sm text-graphite-faint">Chargement…</p>}
       {hotelsQuery.isError && <p className="text-sm text-alert">Impossible de charger la liste des hôtels.</p>}
+      {deleteMessage && <p className="mb-3 text-sm text-graphite-soft">{deleteMessage}</p>}
 
       {hotelsQuery.data && (
         <table className="w-full text-sm">
@@ -114,18 +144,43 @@ function HotelsAdmin() {
           </thead>
           <tbody>
             {hotelsQuery.data.map((hotel) => (
-              <tr key={hotel.id} className="border-b border-graphite/5 last:border-0">
+              <tr key={hotel.id} className={`border-b border-graphite/5 last:border-0 ${hotel.disabled ? "opacity-60" : ""}`}>
                 <td className="py-2.5 font-medium">{hotel.name}</td>
                 <td className="text-graphite-soft">{hotel.experienceLabel}</td>
                 <td>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${EXPERIENCE_STATUS_STYLE[hotel.experienceStatus]}`}>
-                    {EXPERIENCE_STATUS_LABEL[hotel.experienceStatus]}
-                  </span>
+                  {hotel.disabled ? (
+                    <span className="rounded-full bg-linen-deep px-2 py-0.5 text-xs font-medium text-graphite-faint">Désactivé</span>
+                  ) : (
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${EXPERIENCE_STATUS_STYLE[hotel.experienceStatus]}`}>
+                      {EXPERIENCE_STATUS_LABEL[hotel.experienceStatus]}
+                    </span>
+                  )}
                 </td>
                 <td className="text-right">
-                  <button className="rounded-lg border border-graphite/15 px-3 py-1 text-xs text-graphite-soft hover:border-terracotta hover:text-terracotta">
-                    Tester la connexion
-                  </button>
+                  <div className="flex justify-end gap-2">
+                    {!hotel.disabled && (
+                      <button className="rounded-lg border border-graphite/15 px-3 py-1 text-xs text-graphite-soft hover:border-terracotta hover:text-terracotta">
+                        Tester la connexion
+                      </button>
+                    )}
+                    {hotel.disabled ? (
+                      <button
+                        onClick={() => reactivateMutation.mutate(hotel.id)}
+                        disabled={reactivateMutation.isPending}
+                        className="rounded-lg border border-graphite/15 px-3 py-1 text-xs text-graphite-soft hover:border-sage hover:text-sage-ink disabled:opacity-50"
+                      >
+                        Réactiver
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleDelete(hotel.id, hotel.name)}
+                        disabled={deletingHotelId === hotel.id}
+                        className="rounded-lg border border-graphite/15 px-3 py-1 text-xs text-alert hover:border-alert disabled:opacity-50"
+                      >
+                        {deletingHotelId === hotel.id ? "…" : "Supprimer"}
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}

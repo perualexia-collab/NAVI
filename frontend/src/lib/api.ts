@@ -1,5 +1,15 @@
 import type { User } from "@navi/shared";
-import type { RealHotel, RealHotelHealth, RealPortfolio, RealScanPeriod, RealUser, RealAutomationStatus, RecommendationStatus } from "./real-hotel-types.js";
+import type {
+  RealHotel,
+  RealHotelHealth,
+  RealPortfolio,
+  RealScanPeriod,
+  RealUser,
+  RealAutomationStatus,
+  RecommendationStatus,
+  RealScanHistoryEntry,
+  RealScanSummary
+} from "./real-hotel-types.js";
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -34,7 +44,11 @@ export const api = {
 
   listRealHotels: () => request<RealHotel[]>("/hotels"),
   createHotel: (name: string) => request<RealHotel>("/hotels", { method: "POST", body: JSON.stringify({ name }) }),
+  deleteHotel: (hotelId: string) => request<{ deleted: boolean; disabled: boolean }>(`/hotels/${hotelId}`, { method: "DELETE" }),
+  reactivateHotel: (hotelId: string) => request<RealHotel>(`/hotels/${hotelId}/reactivate`, { method: "POST" }),
   getHotelHealth: (hotelId: string) => request<RealHotelHealth>(`/hotels/${hotelId}/health`),
+  listHotelScans: (hotelId: string) => request<RealScanHistoryEntry[]>(`/hotels/${hotelId}/scans`),
+  getHotelScan: (hotelId: string, scanHotelId: string) => request<RealScanSummary>(`/hotels/${hotelId}/scans/${scanHotelId}`),
   launchScan: (hotelId: string, period: RealScanPeriod) =>
     request<{ scanId: string; scanHotelId: string; status: string }>(`/hotels/${hotelId}/scans`, {
       method: "POST",

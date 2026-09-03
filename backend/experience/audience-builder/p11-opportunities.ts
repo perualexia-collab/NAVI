@@ -26,7 +26,7 @@ export const P11_OPPORTUNITIES: P11Opportunity[] = [
   {
     id: "P11_ONETIMER",
     name: "One-timers à réactiver",
-    description: "Clients venus une seule fois et non revenus depuis 12 à 36 mois.",
+    description: "1 séjour + dernier séjour entre 12 et 36 mois",
     potentialScore: 15,
     actionabilityScore: 15,
     filters: [
@@ -37,7 +37,7 @@ export const P11_OPPORTUNITIES: P11Opportunity[] = [
   {
     id: "P11_REPEATER",
     name: "Repeaters dormants",
-    description: "Clients ayant déjà séjourné au moins deux fois mais absents depuis 18 à 36 mois.",
+    description: "≥2 séjours + dernier séjour entre 18 et 36 mois",
     potentialScore: 30,
     actionabilityScore: 20,
     filters: [
@@ -48,7 +48,7 @@ export const P11_OPPORTUNITIES: P11Opportunity[] = [
   {
     id: "P11_OTA",
     name: "OTA convertibles",
-    description: "Repeaters dont le dernier séjour provient de Booking ou Expedia.",
+    description: "≥2 séjours + dernier séjour Booking/Expedia + dernier séjour ≤36 mois",
     potentialScore: 25,
     actionabilityScore: 20,
     filters: [

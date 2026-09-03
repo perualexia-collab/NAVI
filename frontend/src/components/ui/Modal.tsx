@@ -4,11 +4,14 @@ import { Icon } from "./icons.js";
 export function Modal({
   title,
   onClose,
-  children
+  children,
+  wide
 }: {
   title: string;
   onClose: () => void;
   children: React.ReactNode;
+  /** Contenu plus dense (ex. détail d'un scan) — largeur et hauteur max augmentées, scroll interne. */
+  wide?: boolean;
 }) {
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -21,7 +24,9 @@ export function Modal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-graphite/40 px-4" onClick={onClose}>
       <div
-        className="w-full max-w-md rounded-card border border-graphite/10 bg-linen p-5 shadow-lg"
+        className={`flex w-full flex-col rounded-card border border-graphite/10 bg-linen p-5 shadow-lg ${
+          wide ? "max-h-[85vh] max-w-2xl" : "max-w-md"
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
@@ -30,7 +35,7 @@ export function Modal({
             <Icon.X width={18} height={18} />
           </button>
         </div>
-        {children}
+        <div className={wide ? "overflow-y-auto" : undefined}>{children}</div>
       </div>
     </div>
   );

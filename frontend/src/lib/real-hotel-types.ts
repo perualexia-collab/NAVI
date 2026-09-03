@@ -104,6 +104,8 @@ export interface RealAudienceComparisonResult {
   /** P11 uniquement — score relatif /100. null pour P10 (pas de score numérique, seule la règle ⭐ s'applique). */
   totalScore: number | null;
   level: string | null;
+  /** P11 uniquement — définition compacte du segment, affichée entre parenthèses à côté du nom. null pour P10. */
+  description?: string | null;
   /** P10 uniquement — angle/pourquoi-maintenant de la campagne du mois. null pour P11. */
   angle?: string | null;
   whyNow?: string | null;
@@ -148,6 +150,18 @@ export interface RealHotelHealth {
   scanCount: number;
   averageScanDurationMs: number | null;
   latestScan: RealScanSummary | null;
+}
+
+/** Phase F3 — ligne d'historique (liste, pas le détail complet). */
+export interface RealScanHistoryEntry {
+  scanHotelId: string;
+  period: RealScanPeriod;
+  status: ScanHotelStatus;
+  startedAt: string;
+  finishedAt: string | null;
+  durationMs: number | null;
+  healthScore: number | null;
+  healthLevel: string | null;
 }
 
 /** Évènement SSE de progression d'un scan — GET /api/scans/:scanId/events (Phase D2). */

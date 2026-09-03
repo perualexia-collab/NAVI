@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma.js";
 import { requireUser } from "../require-auth.js";
 import { runHotelScan } from "../../../scans/run-hotel-scan.js";
@@ -68,6 +69,41 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
       data: { name: body.data.name, experienceLabel: body.data.name, experienceStatus: "TO_VERIFY" }
     });
     return reply.code(201).send(hotel);
+  });
+
+  // Suppression d'hôtel (Settings). Suppression définitive tentée d'abord
+  // (cas courant : hôtel ajouté par erreur, jamais scanné) ; si des scans
+  // ou audiences y référencent déjà (contrainte FK), désactivation à la
+  // place — réversible via /reactivate, pas de perte d'historique.
+  app.delete("/api/hotels/:hotelId", async (request, reply) => {
+    const user = await requireUser(request, reply);
+    if (!user) return;
+
+    const { hotelId } = request.params as { hotelId: string };
+    const hotel = await prisma.hotel.findUnique({ where: { id: hotelId } });
+    if (!hotel) return reply.code(404).send({ error: "Hôtel introuvable." });
+
+    try {
+      await prisma.hotel.delete({ where: { id: hotelId } });
+      return { deleted: true, disabled: false };
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === "P2003" || error.code === "P2014")) {
+        await prisma.hotel.update({ where: { id: hotelId }, data: { disabled: true } });
+        return { deleted: false, disabled: true };
+      }
+      throw error;
+    }
+  });
+
+  app.post("/api/hotels/:hotelId/reactivate", async (request, reply) => {
+    const user = await requireUser(request, reply);
+    if (!user) return;
+
+    const { hotelId } = request.params as { hotelId: string };
+    const hotel = await prisma.hotel.findUnique({ where: { id: hotelId } });
+    if (!hotel) return reply.code(404).send({ error: "Hôtel introuvable." });
+
+    return prisma.hotel.update({ where: { id: hotelId }, data: { disabled: false } });
   });
 
   app.get("/api/hotels/:hotelId", async (request, reply) => {
@@ -140,6 +176,7 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
           id: result.id,
           audienceDefinitionId: result.audienceDefinitionId,
           name: result.audienceDefinition.name,
+          description: opportunity?.description ?? null,
           recipients: result.recipients,
           highlighted: result.highlighted,
           totalScore: scoring?.totalScore ?? null,
@@ -256,6 +293,114 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
           };
         })
       }
+    };
+  });
+
+  // Historique des scans (Phase F3) — les 5 derniers, cliquables pour
+  // consulter le détail d'un scan passé. Volontairement en lecture seule
+  // (pas de recommendationId/audienceResult/comparison) : l'état des
+  // audiences est toujours "au présent" pour l'hôtel, pas rattaché à un
+  // scan précis dans le temps — seuls KPI/signaux sont vraiment figés par
+  // scan.
+  app.get("/api/hotels/:hotelId/scans", async (request, reply) => {
+    const user = await requireUser(request, reply);
+    if (!user) return;
+
+    const { hotelId } = request.params as { hotelId: string };
+    const hotel = await prisma.hotel.findUnique({ where: { id: hotelId } });
+    if (!hotel) return reply.code(404).send({ error: "Hôtel introuvable." });
+
+    const scans = await prisma.scanHotel.findMany({
+      where: { hotelId, status: { in: ["SUCCESS", "PARTIAL_SUCCESS", "FAILED"] } },
+      include: { scan: { select: { period: true } } },
+      orderBy: { startedAt: "desc" },
+      take: 5
+    });
+
+    return scans.map((scanHotel) => ({
+      scanHotelId: scanHotel.id,
+      period: scanHotel.scan.period,
+      status: scanHotel.status,
+      startedAt: scanHotel.startedAt,
+      finishedAt: scanHotel.finishedAt,
+      durationMs: scanHotel.durationMs,
+      healthScore: scanHotel.healthScore,
+      healthLevel: scanHotel.healthLevel
+    }));
+  });
+
+  app.get("/api/hotels/:hotelId/scans/:scanHotelId", async (request, reply) => {
+    const user = await requireUser(request, reply);
+    if (!user) return;
+
+    const { hotelId, scanHotelId } = request.params as { hotelId: string; scanHotelId: string };
+    const scanHotel = await prisma.scanHotel.findUnique({
+      where: { id: scanHotelId },
+      include: {
+        scan: { select: { period: true } },
+        steps: true,
+        errors: true,
+        kpiResults: { include: { kpiDefinition: true }, orderBy: { id: "asc" } },
+        signalResults: { include: { signal: true, recommendations: true } }
+      }
+    });
+
+    if (!scanHotel || scanHotel.hotelId !== hotelId) {
+      return reply.code(404).send({ error: "Scan introuvable." });
+    }
+
+    return {
+      scanHotelId: scanHotel.id,
+      period: scanHotel.scan.period,
+      status: scanHotel.status,
+      startedAt: scanHotel.startedAt,
+      finishedAt: scanHotel.finishedAt,
+      durationMs: scanHotel.durationMs,
+      healthScore: scanHotel.healthScore,
+      healthLevel: scanHotel.healthLevel,
+      scoreBreakdown: {
+        base: scanHotel.baseScore,
+        capture: scanHotel.captureScore,
+        ota: scanHotel.otaScore,
+        loyalty: scanHotel.loyaltyScore,
+        activation: scanHotel.activationScore
+      },
+      activationRate: scanHotel.activationRate,
+      steps: scanHotel.steps.map((step) => ({ name: step.name, status: step.status })),
+      errors: scanHotel.errors.map((error) => ({
+        stepName: error.stepName,
+        errorType: error.errorType,
+        userMessage: error.userMessage,
+        occurredAt: error.occurredAt
+      })),
+      kpiResults: scanHotel.kpiResults.map((result) => ({
+        kpiDefinitionId: result.kpiDefinitionId,
+        label: result.kpiDefinition.label,
+        dateFilterable: result.kpiDefinition.dateFilterable,
+        value: result.value,
+        available: result.available,
+        previousValue: result.previousValue,
+        evolutionPoints: result.evolutionPoints
+      })),
+      signalResults: scanHotel.signalResults.map((result) => {
+        const recommendation = result.recommendations[0] ?? null;
+        return {
+          playbookId: result.playbookId,
+          name: result.signal.name,
+          severity: result.signal.severity,
+          trigger: result.trigger,
+          recommendedAction: result.signal.recommendedAction,
+          audienceMode: result.signal.audienceMode,
+          recommendationText: recommendation?.text ?? null,
+          recommendationId: null,
+          audienceDefinitionId: null,
+          audienceResult: null,
+          comparison: null,
+          exportedListName: null,
+          exportedAt: null,
+          recommendationStatus: null
+        };
+      })
     };
   });
 

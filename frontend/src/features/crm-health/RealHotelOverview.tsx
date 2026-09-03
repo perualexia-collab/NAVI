@@ -4,6 +4,7 @@ import { Card, CardHeader } from "../../components/ui/Card.js";
 import { ScoreRing } from "../../components/ui/ScoreRing.js";
 import { scoreTone } from "../../components/ui/score-color.js";
 import { periodLabel, RealPeriodSelector } from "../../components/ui/RealPeriodSelector.js";
+import { Modal } from "../../components/ui/Modal.js";
 import { Icon } from "../../components/ui/icons.js";
 import { formatDateTime, formatNumber, formatCurrency } from "../../lib/format.js";
 import { api, ApiError } from "../../lib/api.js";
@@ -50,7 +51,7 @@ const RECOMMENDATION_STATUS_STYLE: Record<RecommendationStatus, string> = {
   OPEN: "bg-linen-deep text-graphite-soft",
   IN_PROGRESS: "bg-warn-soft text-warn-ink",
   DONE: "bg-sage-soft text-sage-ink",
-  DISMISSED: "bg-graphite/10 text-graphite-faint"
+  DISMISSED: "bg-alert-soft text-alert-ink"
 };
 
 const HEALTH_LABEL_STYLE: Record<"sage" | "warn" | "alert" | "muted", string> = {
@@ -135,6 +136,8 @@ export function RealHotelOverview({ hotel }: { hotel: RealHotel }) {
     return () => clearInterval(interval);
   }, [scanMutation.isPending]);
 
+  const [historyOpen, setHistoryOpen] = useState(false);
+
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
@@ -148,7 +151,12 @@ export function RealHotelOverview({ hotel }: { hotel: RealHotel }) {
             <Icon.Play width={14} height={14} /> {scanMutation.isPending ? "Scan en cours — Expérience…" : "Lancer un nouveau scan"}
           </button>
         </div>
+        <button type="button" onClick={() => setHistoryOpen(true)} className="text-xs font-medium text-terracotta hover:underline">
+          Voir l'historique des scans de cet hôtel
+        </button>
       </div>
+
+      {historyOpen && <ScanHistoryModal hotelId={hotel.id} onClose={() => setHistoryOpen(false)} />}
 
       {scanMutation.isPending && (
         <div className="mb-4 rounded-lg bg-horizon-soft px-3 py-2 text-sm text-horizon-ink">
@@ -485,6 +493,7 @@ function ScanResult({ scan, hotelId }: { scan: RealScanSummary; hotelId: string 
                                   <span className="font-medium text-graphite">
                                     {result.highlighted ? "⭐ " : ""}
                                     {result.name}
+                                    {result.description && <span className="font-normal text-graphite-faint"> ({result.description})</span>}
                                   </span>
                                   <span className="ml-2 text-graphite-faint">
                                     👥 {formatNumber(result.recipients)} — {result.level ?? "—"} ({result.totalScore ?? "—"}/100)
@@ -638,6 +647,65 @@ function KpiCard({ kpi }: { kpi: RealKpiResult }) {
         !kpi.dateFilterable && <div className="mt-1 text-[10px] text-graphite-faint">Comparaison N-1 indisponible</div>
       )}
     </div>
+  );
+}
+
+// Phase F3 — historique des 5 derniers scans, cliquables pour consulter
+// le détail. Réutilise ScanResult telle quelle pour le détail : les
+// champs liés aux audiences (recommendationId, comparison, ...) sont
+// volontairement null côté API pour un scan passé (lecture seule), donc
+// aucun bouton d'action Playwright ne s'affiche.
+function ScanHistoryModal({ hotelId, onClose }: { hotelId: string; onClose: () => void }) {
+  const [selectedScanHotelId, setSelectedScanHotelId] = useState<string | null>(null);
+  const historyQuery = useQuery({ queryKey: ["hotel-scans", hotelId], queryFn: () => api.listHotelScans(hotelId) });
+  const detailQuery = useQuery({
+    queryKey: ["hotel-scan-detail", hotelId, selectedScanHotelId],
+    queryFn: () => api.getHotelScan(hotelId, selectedScanHotelId!),
+    enabled: selectedScanHotelId !== null
+  });
+
+  return (
+    <Modal title={selectedScanHotelId ? "Détail du scan" : "Historique des scans"} onClose={onClose} wide>
+      {selectedScanHotelId ? (
+        <div>
+          <button type="button" onClick={() => setSelectedScanHotelId(null)} className="mb-3 text-xs font-medium text-terracotta hover:underline">
+            ← Retour à la liste
+          </button>
+          {detailQuery.isLoading && <p className="text-sm text-graphite-faint">Chargement…</p>}
+          {detailQuery.isError && <p className="text-sm text-alert">Impossible de charger ce scan.</p>}
+          {detailQuery.data && <ScanResult scan={detailQuery.data} hotelId={hotelId} />}
+        </div>
+      ) : (
+        <div>
+          {historyQuery.isLoading && <p className="text-sm text-graphite-faint">Chargement…</p>}
+          {historyQuery.isError && <p className="text-sm text-alert">Impossible de charger l'historique des scans.</p>}
+          {historyQuery.data?.length === 0 && <p className="text-sm text-graphite-faint">Aucun scan terminé pour cet hôtel.</p>}
+          {historyQuery.data && historyQuery.data.length > 0 && (
+            <div className="flex flex-col divide-y divide-graphite/10">
+              {historyQuery.data.map((entry) => (
+                <button
+                  key={entry.scanHotelId}
+                  type="button"
+                  onClick={() => setSelectedScanHotelId(entry.scanHotelId)}
+                  className="flex items-center justify-between py-2.5 text-left first:pt-0 last:pb-0 hover:opacity-80"
+                >
+                  <div>
+                    <div className="text-sm font-medium">{formatDateTime(entry.startedAt)}</div>
+                    <div className="mt-0.5 flex items-center gap-2 text-xs text-graphite-faint">
+                      {periodLabel(entry.period)} <ScanStatusPill status={entry.status} />
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    {entry.healthScore !== null && <div className="text-sm font-semibold tabular-nums">{entry.healthScore}/100</div>}
+                    {entry.durationMs !== null && <div className="text-xs text-graphite-faint tabular-nums">{Math.round(entry.durationMs / 1000)}s</div>}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </Modal>
   );
 }
 
