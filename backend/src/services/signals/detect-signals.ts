@@ -31,6 +31,14 @@ function round2(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+// Affichage FR de l'activation CRM (résa. CRM / 1 000 profils activables) —
+// pas un pourcentage, donc pas de "%" ; virgule décimale plutôt que point,
+// et "résa. / 1 000 profils" plutôt que le symbole "‰" (retours réels,
+// 2026-09-03 : le "‰" se lisait comme un "%" mal formaté).
+function formatActivationRate(value: number): string {
+  return round2(value).toString().replace(".", ",");
+}
+
 export function detectSignals(input: DetectSignalsInput): { signals: DetectedSignal[]; automationShare: number } {
   const {
     activabilityRate,
@@ -104,7 +112,7 @@ export function detectSignals(input: DetectSignalsInput): { signals: DetectedSig
   if (returningRate < 7 && activabilityRate >= 50 && activationRate >= 18) {
     signals.push({
       playbookId: "P09",
-      trigger: `Returning Guests ${round2(returningRate)} % < 7 %, activabilité ${round2(activabilityRate)} % ≥ 50 % et activation ${round2(activationRate)} ‰ ≥ 18`
+      trigger: `Returning Guests ${round2(returningRate)} % < 7 %, activabilité ${round2(activabilityRate)} % ≥ 50 % et activation CRM ${formatActivationRate(activationRate)} résa. / 1 000 profils ≥ 18`
     });
   }
 
@@ -113,10 +121,10 @@ export function detectSignals(input: DetectSignalsInput): { signals: DetectedSig
   if (p11) {
     signals.push({
       playbookId: "P11",
-      trigger: `Activabilité ${round2(activabilityRate)} % ≥ 50 % mais activation CRM ${round2(activationRate)} ‰ < 8`
+      trigger: `Activabilité ${round2(activabilityRate)} % ≥ 50 % mais activation CRM ${formatActivationRate(activationRate)} résa. / 1 000 profils < 8`
     });
   } else if (activationRate < 8) {
-    signals.push({ playbookId: "P10", trigger: `Activation CRM ${round2(activationRate)} ‰ < 8` });
+    signals.push({ playbookId: "P10", trigger: `Activation CRM : ${formatActivationRate(activationRate)} résa. / 1 000 profils < 8` });
   }
 
   // P12 — Concentration automations.
