@@ -81,7 +81,19 @@ const CURRENCY_KPI_IDS = new Set(["crmRevenue", "automationRevenue", "campaignRe
 // Retiré de l'affichage sur demande (2026-09-02) — remplacé par
 // "Taux d'activabilité" dans la grille ; toujours scrapé/persisté
 // (audit/futur usage), juste pas montré ici.
-const HIDDEN_KPI_IDS = new Set(["unsubscribedShare"]);
+// Les 6 KPI business (2026-09-03) sortent de la grille "Indicateurs
+// clés" : affichés à part dans PerformanceBusinessCard (CA/réservations
+// généré = automation + campagne ponctuelle, avec jauges), toujours
+// scrapés/persistés pareil.
+const HIDDEN_KPI_IDS = new Set([
+  "unsubscribedShare",
+  "crmRevenue",
+  "crmBookings",
+  "automationRevenue",
+  "automationBookings",
+  "campaignRevenue",
+  "campaignBookings"
+]);
 
 function formatKpiValue(kpiDefinitionId: string, value: number): string {
   if (PERCENT_KPI_IDS.has(kpiDefinitionId)) return `${formatNumber(value)}%`;
@@ -438,20 +450,26 @@ function ScanResult({
         )}
       </Card>
 
-      <Card>
-        <CardHeader icon={<Icon.Info className="text-graphite-faint" width={15} height={15} />} title="Indicateurs récupérés" />
-        {scan.kpiResults.filter((k) => k.available && !HIDDEN_KPI_IDS.has(k.kpiDefinitionId)).length === 0 ? (
-          <p className="text-sm text-graphite-faint">Aucun indicateur récupéré sur ce scan.</p>
-        ) : (
-          <div className="grid grid-cols-4 gap-3">
-            {scan.kpiResults
-              .filter((k) => k.available && !HIDDEN_KPI_IDS.has(k.kpiDefinitionId))
-              .map((kpi) => (
-                <KpiCard key={kpi.kpiDefinitionId} kpi={kpi} />
-              ))}
-          </div>
-        )}
-      </Card>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+        <Card className="lg:col-span-3">
+          <CardHeader icon={<Icon.Info className="text-graphite-faint" width={15} height={15} />} title="Indicateurs clés" />
+          {scan.kpiResults.filter((k) => k.available && !HIDDEN_KPI_IDS.has(k.kpiDefinitionId)).length === 0 ? (
+            <p className="text-sm text-graphite-faint">Aucun indicateur récupéré sur ce scan.</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {scan.kpiResults
+                .filter((k) => k.available && !HIDDEN_KPI_IDS.has(k.kpiDefinitionId))
+                .map((kpi) => (
+                  <KpiCard key={kpi.kpiDefinitionId} kpi={kpi} />
+                ))}
+            </div>
+          )}
+        </Card>
+
+        <div className="lg:col-span-2">
+          <PerformanceBusinessCard kpiResults={scan.kpiResults} />
+        </div>
+      </div>
 
       <Card>
         <CardHeader icon={<Icon.AlertTriangle className="text-graphite-faint" width={15} height={15} />} title="Signaux détectés" />
@@ -701,6 +719,122 @@ function KpiCard({ kpi }: { kpi: RealKpiResult }) {
         !kpi.dateFilterable && <div className="mt-1 text-[10px] text-graphite-faint">Comparaison N-1 indisponible</div>
       )}
     </div>
+  );
+}
+
+function findKpiValue(kpiResults: RealKpiResult[], kpiDefinitionId: string): number | null {
+  const kpi = kpiResults.find((k) => k.kpiDefinitionId === kpiDefinitionId);
+  return kpi?.available ? kpi.value : null;
+}
+
+function GaugeRow({
+  label,
+  value,
+  total,
+  color,
+  formatValue
+}: {
+  label: string;
+  value: number;
+  total: number;
+  color: string;
+  formatValue: (value: number) => string;
+}) {
+  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+  return (
+    <div>
+      <div className="flex items-center justify-between text-xs text-graphite-soft">
+        <span>{label}</span>
+        <span className="font-medium tabular-nums">{formatValue(value)}</span>
+      </div>
+      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-linen-deep">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+// Phase F10 — total = automation + campagne ponctuelle (formule demandée
+// explicitement), PAS la valeur crmRevenue/crmBookings scrapée réutilisée
+// telle quelle : les deux devraient coïncider, donc un écart est affiché
+// plutôt que masqué en silence (ne jamais recalculer/corriger la donnée
+// scrapée sans le signaler).
+function BusinessMetricBlock({
+  title,
+  automationValue,
+  campaignValue,
+  scrapedTotal,
+  formatValue
+}: {
+  title: string;
+  automationValue: number;
+  campaignValue: number;
+  scrapedTotal: number | null;
+  formatValue: (value: number) => string;
+}) {
+  const total = automationValue + campaignValue;
+  const mismatch = scrapedTotal !== null && Math.abs(scrapedTotal - total) > 0.5;
+
+  return (
+    <div>
+      <div className="text-xs font-medium uppercase tracking-wide text-graphite-faint">{title}</div>
+      <div className="mt-1 font-display text-2xl font-semibold tabular-nums">{formatValue(total)}</div>
+      {mismatch && (
+        <div className="mt-1 text-[11px] font-medium text-alert">
+          ⚠ Écart avec la valeur scrapée dans Expérience ({formatValue(scrapedTotal!)}) — à vérifier.
+        </div>
+      )}
+      <div className="mt-3 flex flex-col gap-2.5">
+        <GaugeRow label="Automation" value={automationValue} total={total} color="bg-terracotta" formatValue={formatValue} />
+        <GaugeRow label="Campagnes ponctuelles" value={campaignValue} total={total} color="bg-horizon" formatValue={formatValue} />
+      </div>
+    </div>
+  );
+}
+
+// Phase F10 — retours réels 2026-09-03 : distinguer les 6 KPI business
+// (CA/réservations CRM, automation, campagne ponctuelle) de la grille
+// générique "Indicateurs clés", avec une hiérarchie visuelle (total mis
+// en avant, détail automation/campagne en jauges) plutôt que des cards
+// uniformes. Aucune nouvelle donnée : mêmes 6 valeurs déjà scrapées et
+// exposées par scan.kpiResults (map-kpi-results.ts). Ces KPI sont tous
+// dateFilterable et n'ont jamais de previousValue/evolutionPoints calculé
+// côté backend — pas de comparaison N-1 inventée ici.
+function PerformanceBusinessCard({ kpiResults }: { kpiResults: RealKpiResult[] }) {
+  const crmRevenue = findKpiValue(kpiResults, "crmRevenue");
+  const automationRevenue = findKpiValue(kpiResults, "automationRevenue");
+  const campaignRevenue = findKpiValue(kpiResults, "campaignRevenue");
+  const crmBookings = findKpiValue(kpiResults, "crmBookings");
+  const automationBookings = findKpiValue(kpiResults, "automationBookings");
+  const campaignBookings = findKpiValue(kpiResults, "campaignBookings");
+
+  const available = automationRevenue !== null && campaignRevenue !== null && automationBookings !== null && campaignBookings !== null;
+
+  return (
+    <Card className="h-full">
+      <CardHeader icon={<Icon.Wallet className="text-graphite-faint" width={15} height={15} />} title="Performance business" />
+      {!available ? (
+        <p className="text-sm text-graphite-faint">Statistiques marketing non récupérées sur ce scan.</p>
+      ) : (
+        <div className="flex flex-col gap-5">
+          <BusinessMetricBlock
+            title="CA généré"
+            automationValue={automationRevenue}
+            campaignValue={campaignRevenue}
+            scrapedTotal={crmRevenue}
+            formatValue={formatCurrency}
+          />
+          <div className="border-t border-graphite/10" />
+          <BusinessMetricBlock
+            title="Réservations"
+            automationValue={automationBookings}
+            campaignValue={campaignBookings}
+            scrapedTotal={crmBookings}
+            formatValue={formatNumber}
+          />
+        </div>
+      )}
+    </Card>
   );
 }
 

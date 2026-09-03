@@ -781,3 +781,35 @@ silence, sans qu'on sache combien de temps ça devait prendre.
 Backend typecheck/build passent (aucun changement frontend nécessaire
 au-delà du retour en arrière sur le style). Non testé contre
 Expérience réel.
+
+## Phase F10 — bloc "Performance business" (2026-09-03)
+
+Refonte de "Indicateurs récupérés" (fiche hôtel, CRM Health) demandée
+avec mockup de référence : distinguer les KPI CRM génériques ("Indicateurs
+clés") des 6 KPI business (CA/réservations CRM, automation, campagne
+ponctuelle), regroupés dans un nouveau bloc "Performance business" avec
+hiérarchie (total en avant, détail automation/campagne en jauges
+horizontales) plutôt que des cards toutes identiques.
+
+- `HIDDEN_KPI_IDS` étendu aux 6 KPI business — même mécanisme déjà en
+  place pour `unsubscribedShare` (retiré de l'affichage, toujours
+  scrapé/persisté).
+- `PerformanceBusinessCard`/`BusinessMetricBlock`/`GaugeRow` (nouveaux)
+  — aucune nouvelle donnée : mêmes 6 valeurs déjà dans
+  `scan.kpiResults`. **Vérification explicitement demandée** : le total
+  affiché est `automation + campagne` (pas la valeur `crmRevenue`/
+  `crmBookings` scrapée réutilisée telle quelle) ; si elle diverge de
+  plus de 0.5 de la valeur scrapée, un écart est affiché en rouge
+  plutôt que masqué en silence — jamais rencontré en pratique jusqu'ici
+  mais pas supposé impossible sans preuve.
+- Pas de comparaison "vs période précédente" sur ce bloc (contrairement
+  au mockup fourni) : ces 6 KPI sont `dateFilterable` et n'ont jamais de
+  `previousValue`/`evolutionPoints` calculé côté backend
+  (`map-kpi-results.ts` vérifié) — pas de donnée inventée.
+- Layout : `grid-cols-1 lg:grid-cols-5` (Indicateurs clés 3/5, Performance
+  business 2/5), empilé en dessous de `lg`. Grille "Indicateurs clés"
+  passée de 4 à 2/3 colonnes (`grid-cols-2 sm:grid-cols-3`) — plus
+  étroite qu'avant (3/5 de la largeur au lieu de la pleine largeur).
+
+Frontend typecheck/build passent. Non testé visuellement contre un
+scan réel avec toutes les données marketing présentes.
