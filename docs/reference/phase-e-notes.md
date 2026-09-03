@@ -606,7 +606,30 @@ Quatre points signalés après un premier test de F6 en conditions réelles :
   `collect-hotel-kpis.ts` : `runStep()` rejoue maintenant l'étape en
   entier (navigation + période + lecture, pas juste la lecture) une
   seconde fois après 3s si la première tentative échoue, pour chacune
-  des 5 étapes. Non testé contre Expérience réel — à confirmer que ça
-  couvre bien le cas rencontré.
+  des 5 étapes.
 
-Backend et frontend typecheck/build passent.
+  **Toujours en échec après ce correctif** — retour utilisateur précis
+  cette fois (observation visuelle directe dans Expérience) : au
+  changement de période, les valeurs affichent d'abord "N/A", puis la
+  vraie donnée apparaît 2-3s après (chargement asynchrone dans
+  Expérience). Le retry en entier reproduisait la même course
+  (`applyPeriodWithToggle` relance le chargement, donc "N/A" réapparaît
+  et le souci se represente à l'identique) plutôt que de la corriger.
+
+  Cause racine identifiée : `readTableRow()` (`scrapers/base.ts`,
+  utilisée pour les 4 lignes du tableau "E-mails renseignés") attendait
+  seulement que le **libellé** (statique, présent dès le chargement de
+  la page) soit visible, puis lisait le texte de la ligne immédiatement
+  — aucune attente sur la **valeur** (chargée en asynchrone). Contraste
+  avec `readBaseSummary()` juste au-dessus, qui avait déjà ce garde-fou
+  (boucle jusqu'à 20s, revérifiée toutes les 300ms, tant que le texte ne
+  matche pas un vrai nombre) suite à un retour similaire du 2026-09-02.
+  `readTableRow()` fait maintenant la même chose : reboucle (jusqu'à
+  20s, 300ms d'intervalle) tant que le texte de la ligne contient encore
+  "N/A"/"NA". Le retry au niveau de l'étape (ci-dessus) est conservé en
+  filet de sécurité pour d'autres flakiness, mais n'est plus censé être
+  nécessaire pour ce cas précis — la vraie correction est cette attente
+  ciblée sur la valeur elle-même.
+
+Backend et frontend typecheck/build passent. Toujours à confirmer par
+un nouveau test réel sur "East Paris Suite", période personnalisée.

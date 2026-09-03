@@ -44,11 +44,27 @@ async function readBaseSummary(page: Page): Promise<{ emailsProvided: number; to
   };
 }
 
+/**
+ * Retours réels 2026-09-03 ("East Paris Suite", période personnalisée) :
+ * Expérience affiche d'abord "N/A" dans ces lignes le temps que la vraie
+ * valeur arrive en asynchrone (observé visuellement — NA puis la donnée
+ * réelle 2-3s après), même mécanisme que readBaseSummary() ci-dessus,
+ * jamais couvert ici jusqu'à présent : le libellé est statique (présent
+ * dès le chargement de la page), donc attendre sa seule visibilité ne dit
+ * rien sur l'état de la valeur associée.
+ */
 async function readTableRow(page: Page, labelText: string): Promise<string> {
   const label = page.getByRole("cell", { name: labelText, exact: false }).first();
   await label.waitFor({ state: "visible", timeout: 20000 });
   const row = label.locator("xpath=ancestor::tr[1]");
-  return row.innerText();
+
+  const deadline = Date.now() + 20000;
+  let text = await row.innerText();
+  while (/\bN\/?A\b/i.test(text) && Date.now() < deadline) {
+    await page.waitForTimeout(300);
+    text = await row.innerText();
+  }
+  return text;
 }
 
 export async function scrapeGeneralKPIs(page: Page): Promise<BaseKpis> {
