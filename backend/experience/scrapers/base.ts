@@ -52,13 +52,21 @@ async function readBaseSummary(page: Page): Promise<{ emailsProvided: number; to
  * jamais couvert ici jusqu'à présent : le libellé est statique (présent
  * dès le chargement de la page), donc attendre sa seule visibilité ne dit
  * rien sur l'état de la valeur associée.
+ *
+ * Délai volontairement court (5s, pas les 20s de readBaseSummary) :
+ * observé à l'usage (retour réel, même jour) qu'un délai large ici
+ * ralentissait TOUS les scans de plusieurs secondes — probablement une
+ * ligne dont une cellule affiche "N/A" de façon permanente (pas un état
+ * de chargement, ex. une colonne d'évolution sans historique), sur
+ * laquelle la boucle attendait inutilement jusqu'au bout à chaque scan.
+ * 5s couvre largement les 2-3s observés tout en bornant ce coût.
  */
 async function readTableRow(page: Page, labelText: string): Promise<string> {
   const label = page.getByRole("cell", { name: labelText, exact: false }).first();
   await label.waitFor({ state: "visible", timeout: 20000 });
   const row = label.locator("xpath=ancestor::tr[1]");
 
-  const deadline = Date.now() + 20000;
+  const deadline = Date.now() + 5000;
   let text = await row.innerText();
   while (/\bN\/?A\b/i.test(text) && Date.now() < deadline) {
     await page.waitForTimeout(300);

@@ -633,3 +633,17 @@ Quatre points signalés après un premier test de F6 en conditions réelles :
 
 Backend et frontend typecheck/build passent. Toujours à confirmer par
 un nouveau test réel sur "East Paris Suite", période personnalisée.
+
+### Retour immédiat : scans ralentis de ~15s (2026-09-03)
+
+Correctif ci-dessus déployé, mais tous les scans (pas juste ceux en
+période personnalisée) sont devenus plus lents (~45s → ~1min). Cause
+probable : le délai de 20s dans `readTableRow()` était le même que
+`readBaseSummary()`, pensé pour un vrai état de chargement transitoire —
+mais si l'une des 4 lignes affiche "N/A" de façon **permanente** dans
+une cellule sans rapport avec le chargement (ex. une colonne
+d'évolution sans historique pour cet hôtel), la boucle attendait
+inutilement jusqu'au bout des 20s à *chaque* scan, sans jamais lever
+d'erreur (elle rend la main normalement au bout du délai). Délai réduit
+à 5s (largement suffisant pour les 2-3s observés), bornant ce coût sans
+perdre la correction. Non re-testé.
