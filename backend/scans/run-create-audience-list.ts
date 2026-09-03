@@ -79,7 +79,7 @@ export async function executeCreateAudienceList(options: ExecuteCreateAudienceLi
     });
 
     const audienceResult = await prisma.audienceResult.create({
-      data: { hotelId: options.hotelId, audienceDefinitionId: options.audienceDefinitionId, recipients: preview.recipients }
+      data: { hotelId: options.hotelId, audienceDefinitionId: options.audienceDefinitionId, recipients: preview.recipients, durationMs: preview.durationMs }
     });
 
     return {

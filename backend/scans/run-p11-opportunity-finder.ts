@@ -47,7 +47,7 @@ export async function executeP11OpportunityFinder(options: ExecuteP11Opportunity
         buildFilters: (page) => buildAudienceDefinition(page, opportunity, {})
       });
       const scoring = calculateOpportunityScore(opportunity, preview.recipients);
-      measurements.push({ opportunity, recipients: preview.recipients, scoring });
+      measurements.push({ opportunity, recipients: preview.recipients, scoring, durationMs: preview.durationMs });
     }
 
     const ranked = [...measurements].sort((a, b) => {
@@ -66,7 +66,8 @@ export async function executeP11OpportunityFinder(options: ExecuteP11Opportunity
             hotelId: options.hotelId,
             audienceDefinitionId: measurement.opportunity.id,
             recipients: measurement.recipients,
-            highlighted: measurement.opportunity.id === recommendedId
+            highlighted: measurement.opportunity.id === recommendedId,
+            durationMs: measurement.durationMs
           }))
         }
       }

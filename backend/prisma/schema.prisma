@@ -360,6 +360,10 @@ model AudienceResult {
   recipients            Int
   highlighted           Boolean  @default(false) // marquage ⭐ (ex. règle P10)
   measuredAt            DateTime @default(now())
+  // Phase F4 — durée du cycle Audience Builder (créer/mesurer/[supprimer
+  // ou conserver]) pour CETTE mesure — base de l'estimation affichée
+  // pendant un calcul en cours (même principe que ScanHotel.durationMs).
+  durationMs            Int?
 
   hotel               Hotel                @relation(fields: [hotelId], references: [id])
   audienceDefinition  AudienceDefinition   @relation(fields: [audienceDefinitionId], references: [id])

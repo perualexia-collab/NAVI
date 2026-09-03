@@ -30,6 +30,8 @@ export interface AudiencePreviewResult {
   recipients: number;
   /** Rempli uniquement quand `persistAs` était fourni — nom réel de la liste conservée dans Expérience. */
   listName: string | null;
+  /** Phase F4 — durée du cycle complet (créer/mesurer/[supprimer]), base de l'estimation affichée pendant un calcul en cours. */
+  durationMs: number;
 }
 
 /**
@@ -50,6 +52,7 @@ export interface AudiencePreviewResult {
 export async function computeAudiencePreview(page: Page, input: AudiencePreviewInput): Promise<AudiencePreviewResult> {
   const { hotelName, playbookId, audienceId, audienceName, buildFilters, persistAs } = input;
   let tempName: string | null = null;
+  const startedAt = Date.now();
 
   try {
     await openMailingLists(page);
@@ -71,7 +74,7 @@ export async function computeAudiencePreview(page: Page, input: AudiencePreviewI
     }
     tempName = null;
 
-    return { definitionId: audienceId, name: audienceName, recipients, listName: persistAs ? savedName : null };
+    return { definitionId: audienceId, name: audienceName, recipients, listName: persistAs ? savedName : null, durationMs: Date.now() - startedAt };
   } catch (error) {
     if (tempName && !persistAs) {
       try {

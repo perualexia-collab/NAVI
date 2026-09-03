@@ -89,11 +89,15 @@ function formatKpiValue(kpiDefinitionId: string, value: number): string {
   return formatNumber(value);
 }
 
-function formatScanProgress(elapsedMs: number, averageMs: number | null): string {
+function formatEstimatedProgress(elapsedMs: number, averageMs: number | null, basisLabel: string): string {
   if (!averageMs) return "Cela peut prendre quelques minutes.";
   const remainingMs = averageMs - elapsedMs;
   if (remainingMs <= 1000) return "Ça ne devrait plus tarder…";
-  return `Encore environ ${Math.round(remainingMs / 1000)}s (estimation basée sur les scans précédents).`;
+  return `Encore environ ${Math.round(remainingMs / 1000)}s (estimation basée sur ${basisLabel}).`;
+}
+
+function formatScanProgress(elapsedMs: number, averageMs: number | null): string {
+  return formatEstimatedProgress(elapsedMs, averageMs, "les scans précédents");
 }
 
 /**
@@ -186,13 +190,26 @@ export function RealHotelOverview({ hotel }: { hotel: RealHotel }) {
       )}
 
       {healthQuery.data?.latestScan && (
-        <ScanResult scan={healthQuery.data.latestScan} hotelId={hotel.id} />
+        <ScanResult
+          scan={healthQuery.data.latestScan}
+          hotelId={hotel.id}
+          averageAudienceMeasurementDurationMs={healthQuery.data.averageAudienceMeasurementDurationMs}
+        />
       )}
     </div>
   );
 }
 
-function ScanResult({ scan, hotelId }: { scan: RealScanSummary; hotelId: string }) {
+function ScanResult({
+  scan,
+  hotelId,
+  averageAudienceMeasurementDurationMs = null
+}: {
+  scan: RealScanSummary;
+  hotelId: string;
+  /** null pour un scan passé (ScanHistoryModal) — aucune action audience n'y est de toute façon possible. */
+  averageAudienceMeasurementDurationMs?: number | null;
+}) {
   const tone = scoreTone(scan.healthScore);
   const queryClient = useQueryClient();
 
@@ -206,6 +223,8 @@ function ScanResult({ scan, hotelId }: { scan: RealScanSummary; hotelId: string 
     onMutate: (recommendationId: string) => {
       setComputingRecommendationId(recommendationId);
       setAudienceError(null);
+      audienceStartRef.current = Date.now();
+      setAudienceElapsedMs(0);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["hotel-health", hotelId] }),
     onError: (error: unknown, recommendationId: string) => {
@@ -225,6 +244,8 @@ function ScanResult({ scan, hotelId }: { scan: RealScanSummary; hotelId: string 
     onMutate: (recommendationId: string) => {
       setComparingRecommendationId(recommendationId);
       setComparisonError(null);
+      audienceStartRef.current = Date.now();
+      setAudienceElapsedMs(0);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["hotel-health", hotelId] }),
     onError: (error: unknown, recommendationId: string) => {
@@ -245,6 +266,8 @@ function ScanResult({ scan, hotelId }: { scan: RealScanSummary; hotelId: string 
       setComparingAudiencesRecommendationId(recommendationId);
       setAudienceComparisonError(null);
       setAutomationBlockedMessage(null);
+      audienceStartRef.current = Date.now();
+      setAudienceElapsedMs(0);
     },
     onSuccess: (result: Awaited<ReturnType<typeof api.compareAudiences>>, recommendationId: string) => {
       if (result.blocked) {
@@ -269,6 +292,8 @@ function ScanResult({ scan, hotelId }: { scan: RealScanSummary; hotelId: string 
     onMutate: (recommendationId: string) => {
       setCreatingListRecommendationId(recommendationId);
       setCreateListError(null);
+      audienceStartRef.current = Date.now();
+      setAudienceElapsedMs(0);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["hotel-health", hotelId] }),
     onError: (error: unknown, recommendationId: string) => {
@@ -282,6 +307,23 @@ function ScanResult({ scan, hotelId }: { scan: RealScanSummary; hotelId: string 
     comparingRecommendationId !== null ||
     comparingAudiencesRecommendationId !== null ||
     creatingListRecommendationId !== null;
+
+  // Phase F4 — estimation de temps restant pendant un calcul d'audience en
+  // cours, même principe que le scan (formatEstimatedProgress). Une seule
+  // action à la fois (audienceActionRunning) : un seul chrono partagé
+  // suffit. "Comparer..." (P10/P11) mesure 3 audiences à la suite — le
+  // multiplicateur reflète ça, "Calculer"/"Créer la liste" n'en mesurent qu'une.
+  const [audienceElapsedMs, setAudienceElapsedMs] = useState(0);
+  const audienceStartRef = useRef<number | null>(null);
+  const audienceMeasurementMultiplier = comparingRecommendationId !== null || comparingAudiencesRecommendationId !== null ? 3 : 1;
+
+  useEffect(() => {
+    if (!audienceActionRunning) return;
+    const interval = setInterval(() => {
+      if (audienceStartRef.current) setAudienceElapsedMs(Date.now() - audienceStartRef.current);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [audienceActionRunning]);
 
   // Choix d'une option comparée — écriture simple, pas de session
   // Expérience impliquée, donc indépendant de audienceActionRunning.
@@ -413,6 +455,16 @@ function ScanResult({ scan, hotelId }: { scan: RealScanSummary; hotelId: string 
 
       <Card>
         <CardHeader icon={<Icon.AlertTriangle className="text-graphite-faint" width={15} height={15} />} title="Signaux détectés" />
+        {audienceActionRunning && (
+          <div className="mb-3 rounded-lg bg-horizon-soft px-3 py-2 text-sm text-horizon-ink">
+            Session Expérience en cours — ne ferme pas cette page.{" "}
+            {formatEstimatedProgress(
+              audienceElapsedMs,
+              averageAudienceMeasurementDurationMs ? averageAudienceMeasurementDurationMs * audienceMeasurementMultiplier : null,
+              "les calculs précédents"
+            )}
+          </div>
+        )}
         {scan.signalResults.length === 0 ? (
           <p className="text-sm text-graphite-faint">
             {scan.status === "SUCCESS" ? "Aucun signal détecté sur ce scan." : "Signaux non calculés — le scan n'a pas récupéré toutes les données nécessaires."}

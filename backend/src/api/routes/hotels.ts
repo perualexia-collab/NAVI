@@ -134,6 +134,16 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
       _avg: { durationMs: true }
     });
 
+    // Phase F4 — même principe pour une mesure d'audience isolée (E2, F1) :
+    // moyenne tous playbooks confondus, le temps d'un cycle Audience
+    // Builder ne dépend pas vraiment des filtres appliqués. Une comparaison
+    // (E3, P10/P11) mesure 3 audiences à la suite — l'estimation frontend
+    // multiplie donc cette moyenne par 3 pour ce cas-là.
+    const audienceDurationAgg = await prisma.audienceResult.aggregate({
+      where: { hotelId, durationMs: { not: null } },
+      _avg: { durationMs: true }
+    });
+
     const latestScanHotel = await prisma.scanHotel.findFirst({
       where: { hotelId },
       orderBy: { startedAt: "desc" },
@@ -226,6 +236,7 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
       hotel,
       scanCount,
       averageScanDurationMs: durationAgg._avg.durationMs,
+      averageAudienceMeasurementDurationMs: audienceDurationAgg._avg.durationMs,
       latestScan: latestScanHotel && {
         scanHotelId: latestScanHotel.id,
         period: latestScanHotel.scan.period,

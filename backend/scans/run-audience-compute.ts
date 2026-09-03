@@ -65,7 +65,7 @@ export async function executeAudienceCompute(options: ExecuteAudienceComputeOpti
     });
 
     const audienceResult = await prisma.audienceResult.create({
-      data: { hotelId: options.hotelId, audienceDefinitionId: definition.id, recipients: preview.recipients }
+      data: { hotelId: options.hotelId, audienceDefinitionId: definition.id, recipients: preview.recipients, durationMs: preview.durationMs }
     });
 
     return {

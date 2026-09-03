@@ -149,6 +149,8 @@ export interface RealHotelHealth {
   hotel: RealHotel;
   scanCount: number;
   averageScanDurationMs: number | null;
+  /** Phase F4 — moyenne d'UNE mesure d'audience (cycle Audience Builder). Une comparaison (E3) en mesure 3 : multiplier par 3 côté affichage. */
+  averageAudienceMeasurementDurationMs: number | null;
   latestScan: RealScanSummary | null;
 }
 

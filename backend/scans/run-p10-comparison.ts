@@ -62,7 +62,7 @@ export async function executeP10Comparison(options: ExecuteP10ComparisonOptions)
     const monthName = currentMonthNameFR();
     const recommendations = getMonthlyRecommendationsP10(monthName, starRule);
 
-    const measurements: { audienceDefinitionId: string; recipients: number; highlighted: boolean }[] = [];
+    const measurements: { audienceDefinitionId: string; recipients: number; highlighted: boolean; durationMs: number }[] = [];
     for (const campaign of recommendations) {
       const averageSpend =
         campaign.audienceDefinitionId === "P10_HIGH_VALUE" ? await scrapeAverageSpendPerBooking(session.page, options.period) : undefined;
@@ -75,7 +75,12 @@ export async function executeP10Comparison(options: ExecuteP10ComparisonOptions)
         buildFilters: (page) => buildP10AudienceFilter(page, campaign.audience, averageSpend)
       });
 
-      measurements.push({ audienceDefinitionId: campaign.audienceDefinitionId, recipients: preview.recipients, highlighted: campaign.starred });
+      measurements.push({
+        audienceDefinitionId: campaign.audienceDefinitionId,
+        recipients: preview.recipients,
+        highlighted: campaign.starred,
+        durationMs: preview.durationMs
+      });
     }
 
     const comparison = await prisma.audienceComparison.create({
@@ -87,7 +92,8 @@ export async function executeP10Comparison(options: ExecuteP10ComparisonOptions)
             hotelId: options.hotelId,
             audienceDefinitionId: measurement.audienceDefinitionId,
             recipients: measurement.recipients,
-            highlighted: measurement.highlighted
+            highlighted: measurement.highlighted,
+            durationMs: measurement.durationMs
           }))
         }
       }
