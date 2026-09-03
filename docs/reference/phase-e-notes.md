@@ -431,11 +431,14 @@ moment de l'export continue d'être dérivé à la volée du mois courant
 comparaison elle-même — cohérent avec le fait que rien dans le schéma
 existant ne fige le mois d'une comparaison passée.
 
-Typecheck + build backend et frontend passent tous les deux. **Non testé
-contre Expérience réel** — c'est un chemin de code entièrement nouveau
-(la liste n'est jamais supprimée), jamais exercé avant cette phase, y
-compris le nommage réel de la liste (`buildRealListName`) et le
-comportement de `saveTemporaryAudience`/`reopenTemporaryAudience` avec un
-nom "définitif" plutôt que temporaire. À tester en conditions réelles
-avant de considérer F1 terminée, avec la même méthode habituelle
-(message d'erreur exact / DOM réel → correction) en cas d'échec.
+Typecheck + build backend et frontend passent tous les deux.
+
+### Confirmé par l'utilisateur le 2026-09-03
+
+Test en conditions réelles réussi du premier coup : création d'une liste
+définitive dans Expérience (nom via `buildRealListName`, pas de
+suppression finale) validée. `saveTemporaryAudience`/
+`reopenTemporaryAudience` fonctionnent identiquement avec un nom
+"définitif" — aucune correction nécessaire.
+
+**Phase F1 déclarée terminée et validée en conditions réelles.**
