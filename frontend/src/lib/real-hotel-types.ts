@@ -100,6 +100,8 @@ export interface RealAudienceComparisonResult {
   /** P10 uniquement — angle/pourquoi-maintenant de la campagne du mois. null pour P11. */
   angle?: string | null;
   whyNow?: string | null;
+  /** P10 uniquement — tag d'audience de la campagne (ex. "Loisirs", "Business"), affiché entre parenthèses à côté du nom. */
+  audience?: string | null;
 }
 
 export interface RealAudienceComparison {

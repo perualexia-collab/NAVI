@@ -168,6 +168,7 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
           id: result.id,
           audienceDefinitionId: result.audienceDefinitionId,
           name: campaign?.name ?? result.audienceDefinition.name,
+          audience: campaign?.audience ?? result.audienceDefinition.name,
           angle: campaign?.angle ?? null,
           whyNow: campaign?.whyNow ?? null,
           recipients: result.recipients,

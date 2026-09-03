@@ -434,6 +434,7 @@ function ScanResult({ scan, hotelId }: { scan: RealScanSummary; hotelId: string 
                                   <span className="font-medium text-graphite">
                                     {result.highlighted ? "⭐ " : ""}
                                     {result.name}
+                                    {result.audience && <span className="font-normal text-graphite-faint"> ({result.audience})</span>}
                                   </span>
                                   <span className="ml-2 text-graphite-faint">
                                     {result.angle ? `${result.angle} — ` : ""}👥 {formatNumber(result.recipients)}
