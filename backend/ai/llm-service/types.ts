@@ -13,6 +13,12 @@ export interface LlmCompletionRequest {
   messages: LlmMessage[];
   temperature?: number;
   maxTokens?: number;
+  // Certains modèles "thinking" (Qwen3.x, DeepSeek-R1...) renvoient leur
+  // raisonnement brut avant la réponse finale. "hidden" ne renvoie que la
+  // réponse finale — à demander explicitement par l'appelant qui sait
+  // qu'il parle à ce type de modèle (le champ est ignoré sans effet par
+  // un provider/modèle qui ne le supporte pas).
+  reasoningFormat?: "hidden" | "parsed" | "raw";
 }
 
 export interface LlmUsage {

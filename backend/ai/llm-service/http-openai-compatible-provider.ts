@@ -39,7 +39,11 @@ export class HttpOpenAiCompatibleProvider implements LlmService {
           model: this.options.model,
           messages: request.messages,
           temperature: request.temperature ?? 0.3,
-          max_tokens: request.maxTokens ?? 512
+          max_tokens: request.maxTokens ?? 512,
+          // Extension non-standard (Groq) au-delà du contrat OpenAI —
+          // absente du corps si l'appelant ne la demande pas explicitement,
+          // donc sans effet sur un provider qui ne la reconnaît pas.
+          ...(request.reasoningFormat ? { reasoning_format: request.reasoningFormat } : {})
         })
       });
     } catch (error) {

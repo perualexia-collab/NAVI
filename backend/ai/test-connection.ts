@@ -22,7 +22,11 @@ async function main() {
       { role: "system", content: "Tu es un assistant de test. Réponds en une seule courte phrase, en français." },
       { role: "user", content: "Confirme que tu me reçois bien et dis-moi quel modèle tu es." }
     ],
-    maxTokens: 100
+    maxTokens: 400,
+    // Qwen3.x est un modèle "thinking" — sans ce paramètre, la réponse
+    // contient le raisonnement brut (balises <think>) avant la réponse
+    // finale, voire rien du tout si le raisonnement dépasse maxTokens.
+    reasoningFormat: "hidden"
   });
 
   console.log("\n✅ Réponse reçue :");

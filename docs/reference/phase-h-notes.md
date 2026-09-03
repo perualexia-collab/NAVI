@@ -106,3 +106,29 @@ Backend typecheck/build passent. Test réel du script
 renseignée dans son Codespace — non exécutable depuis cet environnement
 (pas d'accès à sa clé, et égress réseau vers `api.groq.com` non
 disponible dans cet environnement de développement).
+
+### Retour immédiat : réponse tronquée / raisonnement brut (2026-09-03)
+
+Premier test réel utilisateur : connectivité OK (`✅ Réponse reçue`),
+mais le texte renvoyé était le raisonnement interne brut de Qwen3.6
+(balises `<think>...`), coupé avant la réponse finale — `qwen/qwen3.6-27b`
+est un modèle "thinking" qui produit un raisonnement avant sa réponse,
+et `maxTokens: 100` (trop bas) coupait la génération en plein
+raisonnement.
+
+- `LlmCompletionRequest` : nouveau champ optionnel `reasoningFormat`
+  (`"hidden" | "parsed" | "raw"`) — extension Groq non-standard côté
+  OpenAI, ajoutée au corps de la requête uniquement si l'appelant la
+  demande explicitement (sans effet sur un provider/modèle qui ne la
+  reconnaît pas, donc ne recouple pas l'adaptateur générique à Groq).
+- `test-connection.ts` : passe désormais `reasoningFormat: "hidden"`
+  (ne renvoie que la réponse finale, jamais le raisonnement) et
+  `maxTokens: 400` (marge confortable).
+- **Retour de sécurité** : la clé Groq de l'utilisateur est apparue en
+  clair dans la conversation (terminal collé après un `cat >> .env`).
+  Elle n'a jamais été committée, mais l'utilisateur a été invité à la
+  régénérer sur console.groq.com/keys par prudence, et à éditer
+  `backend/.env` directement (VS Code) plutôt que via une commande
+  affichée à l'écran pour la suite.
+
+Backend typecheck/build passent après cette correction.
