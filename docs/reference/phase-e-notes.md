@@ -481,3 +481,102 @@ ne touche à aucune session Playwright (écriture DB pure), donc le risque
 principal est une migration mal appliquée ou un bug d'affichage, pas un
 sélecteur DOM cassé. À tester en conditions réelles avant de considérer
 F2 terminée.
+
+### Confirmé par l'utilisateur le 2026-09-03
+
+Testé — les 4 pills fonctionnent, statut persisté correctement.
+**Phase F2 déclarée terminée et validée.**
+
+## F3/F4/F5 — historique des scans, estimation audience, dashboard réel (2026-09-03)
+
+Trois ajouts groupés suite à une série de retours utilisateur (pas des
+demandes du brief §22, des améliorations UX signalées après usage réel) :
+
+- **F3 — historique des scans** : `GET /api/hotels/:hotelId/scans` (5
+  derniers, résumé) et `GET /api/hotels/:hotelId/scans/:scanHotelId`
+  (détail complet, en lecture seule — `recommendationId`/`comparison`/etc.
+  toujours `null`, l'état des audiences n'a de sens qu'"au présent", pas
+  rattaché à un scan précis). Frontend : modale (`Modal` gagne un mode
+  `wide`), réutilise `ScanResult` tel quel pour le détail — aucun bouton
+  d'action ne s'affiche puisque les champs audience sont `null`.
+- **F4 — estimation de temps pour les calculs d'audience** : même
+  principe que l'estimation de scan (moyenne des durées passées).
+  `AudienceResult.durationMs` (migration `20260903150000_...`), capturé
+  dans `computeAudiencePreview()` et persisté aux 4 points d'appel.
+  `averageAudienceMeasurementDurationMs` exposé par `GET /health` ;
+  multiplié par 3 côté frontend pour une comparaison (P10/P11 mesurent 3
+  audiences), par 1 pour un calcul simple (E2/F1).
+- **F5 — dashboard (Accueil) réel** : `GET /api/dashboard` (nouveau),
+  remplace les mocks `homeStats`/`recentScans`. Réutilise
+  `getLatestScanByHotelId()` (déjà utilisé par `/api/portfolios`).
+  "Voir toutes" (opportunités) ouvre une pop-up ; priorité "⭐" = seul
+  vrai signal de priorité du domaine (règle P11, score ≥ 40) — pas de
+  score inventé pour P06/P09.
+
+Reformulation au passage : l'affichage de l'activation CRM
+("7.42 ‰ < 8", lu comme un "%" mal formaté) devient "7,42 résa. /
+1 000 profils < 8" — texte uniquement, calcul inchangé, n'affecte que
+les prochains scans (le texte déjà persisté ne change pas
+rétroactivement).
+
+**Tout confirmé fonctionnel par l'utilisateur.**
+
+## Phase F6 — suppression réelle (hôtels, utilisateurs) + CRM Health réel (2026-09-03)
+
+Nouvelle série de retours après usage réel, dont un changement de
+comportement explicite sur la Phase F1 (suppression d'hôtel) :
+
+- **Suppression d'hôtel = disparition réelle, pas désactivation.**
+  Revirement assumé par rapport au choix initial (essayer une suppression
+  définitive, retomber sur `disabled: true` en cas de contrainte FK) :
+  l'utilisateur veut que l'hôtel supprimé disparaisse **partout, y
+  compris CRM Health**, historique de scans/audiences compris. Migration
+  `20260903180000_hotel_delete_cascade` : passe `ON DELETE RESTRICT` →
+  `ON DELETE CASCADE` sur les 3 FK directes vers `Hotel`
+  (`ScanHotel.hotelId`, `AudienceResult.hotelId`,
+  `AudienceComparison.hotelId` — leurs propres enfants cascadaient déjà).
+  `DELETE /api/hotels/:hotelId` simplifié en suppression inconditionnelle
+  ; `/reactivate` et l'état "Désactivé" ajoutés en Phase F1 sont retirés
+  (plus jamais atteints).
+- **`getLatestScanByHotelId()` extrait** dans
+  `backend/src/services/scans/latest-scan-by-hotel.ts` (avant : défini
+  dans `portfolios.ts`, importé par `dashboard.ts`) — nécessaire pour que
+  `hotels.ts` puisse aussi s'en servir sans créer un import circulaire
+  `hotels.ts` ↔ `portfolios.ts` (`portfolios.ts` importe déjà
+  `periodSchema` depuis `hotels.ts`).
+- **`GET /api/hotels/overview`** (nouveau) — même info que
+  `RealPortfolioHotel` mais tous hôtels confondus (avec ou sans
+  portefeuille), plus `portfolioNames` (peut appartenir à plusieurs
+  portefeuilles) et `scanStatus` (statut brut du `ScanHotel`, pas
+  seulement `healthLevel` — nécessaire pour honorer le filtre "Erreur").
+- **CRM Health** (`CrmHealth.tsx`) réécrit : les hôtels réels
+  apparaissent désormais dans le **même tableau** que les hôtels mockés
+  (`HotelsTable`), avec les mêmes filtres (Tous/À surveiller/Non
+  scannés/**Erreur** — ce dernier était un stub qui renvoyait toujours
+  `false`, maintenant câblé sur `scanStatus === "FAILED"`), recherche et
+  période. L'ancien bloc séparé "Hôtels branchés sur des données
+  réelles" est retiré.
+- **Suppression d'utilisateur** (admin) — `DELETE /api/users/:id`,
+  même filet de sécurité que l'ancien comportement des hôtels (suppression
+  définitive tentée d'abord ; repli sur `status: DISABLED` si le compte a
+  déjà créé un portefeuille ou lancé un scan — contrainte FK sur
+  `Portfolio.owner`/`Scan.requestedBy`, non cascadées, volontairement :
+  contrairement aux hôtels, on ne veut pas perdre l'historique
+  "qui a fait quoi" en supprimant un compte). Bouton "Supprimer" ajouté à
+  côté de Désactiver/Réactiver/Copier le lien dans Settings, sauf pour son
+  propre compte (même garde-fou que `/disable`).
+- **P11 — deux corrections de contenu** : le nom `P11_OTA` avait
+  "(P11)" codé en dur dans le référentiel (`audience-definitions.ts`,
+  incohérent avec `P11_ONETIMER`/`P11_REPEATER`) — retiré, nécessite un
+  `pnpm prisma:seed` pour se répercuter en base. Et
+  `calculateOpportunityScore()` : à 0 destinataire, le barème d'origine
+  (poids fixes potentialScore/actionabilityScore) donnait quand même un
+  score type 45/100 — écart volontaire (décision produit, pas un bug de
+  seuil) : 0 destinataire → toujours `{ totalScore: 0, level:
+  "Opportunité absente" }`.
+
+Backend et frontend typecheck/build passent. **Non testé contre
+Expérience réel ni contre une vraie base** — la cascade de suppression
+en particulier mérite un test réel (créer un hôtel, le scanner au moins
+une fois, le supprimer, vérifier qu'il disparaît bien de Paramètres ET
+CRM Health, et qu'aucune ligne orpheline ne reste en base).

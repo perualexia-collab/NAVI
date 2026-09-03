@@ -198,7 +198,9 @@ model ScanHotel {
   rawResult     Json? // payload brut du scan (issu du moteur) — pour audit/debug
 
   scan          Scan            @relation(fields: [scanId], references: [id], onDelete: Cascade)
-  hotel         Hotel           @relation(fields: [hotelId], references: [id])
+  // Phase F6 — suppression réelle d'un hôtel (pas de désactivation) :
+  // cascade sur tout son historique de scans.
+  hotel         Hotel           @relation(fields: [hotelId], references: [id], onDelete: Cascade)
   steps         ScanStep[]
   errors        ScanError[]
   kpiResults    KPIResult[]
@@ -365,7 +367,9 @@ model AudienceResult {
   // pendant un calcul en cours (même principe que ScanHotel.durationMs).
   durationMs            Int?
 
-  hotel               Hotel                @relation(fields: [hotelId], references: [id])
+  // Phase F6 — suppression réelle d'un hôtel : cascade sur ses mesures
+  // d'audience.
+  hotel               Hotel                @relation(fields: [hotelId], references: [id], onDelete: Cascade)
   audienceDefinition  AudienceDefinition   @relation(fields: [audienceDefinitionId], references: [id])
   comparison          AudienceComparison?  @relation(fields: [comparisonId], references: [id])
 }
@@ -376,6 +380,7 @@ model AudienceComparison {
   playbookId     String // P10 ou P11 à l'origine de la comparaison
   chosenResultId String?
 
-  hotel   Hotel            @relation(fields: [hotelId], references: [id])
+  // Phase F6 — suppression réelle d'un hôtel : cascade sur ses comparaisons.
+  hotel   Hotel            @relation(fields: [hotelId], references: [id], onDelete: Cascade)
   results AudienceResult[]
 }

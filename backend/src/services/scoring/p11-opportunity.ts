@@ -32,6 +32,15 @@ export interface OpportunityScore {
 }
 
 export function calculateOpportunityScore(opportunity: { potentialScore: number; actionabilityScore: number }, recipients: number): OpportunityScore {
+  // Écart volontaire au barème d'origine (décision produit du 2026-09-03,
+  // pas une correction de seuil) : à 0 destinataire, potentialScore et
+  // actionabilityScore (poids fixes du référentiel) donnaient quand même
+  // un score type 45/100 ("Opportunité secondaire"), alors qu'il n'y a
+  // littéralement personne à cibler.
+  if (recipients === 0) {
+    return { volumeScore: 0, potentialScore: 0, actionabilityScore: 0, totalScore: 0, level: "Opportunité absente" };
+  }
+
   const volumeScore = getVolumeScore(recipients);
   const totalScore = volumeScore + opportunity.potentialScore + opportunity.actionabilityScore;
 

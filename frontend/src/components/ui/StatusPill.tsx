@@ -1,11 +1,12 @@
-type Status = "Excellent" | "Sain" | "À surveiller" | "Critique" | "Aucun scan";
+type Status = "Excellent" | "Sain" | "À surveiller" | "Critique" | "Aucun scan" | "Erreur";
 
 const STYLES: Record<Status, string> = {
   Excellent: "bg-sage-soft text-sage-ink",
   Sain: "bg-sage-soft text-sage-ink",
   "À surveiller": "bg-warn-soft text-warn",
   Critique: "bg-alert-soft text-alert",
-  "Aucun scan": "bg-linen-deep text-graphite-faint"
+  "Aucun scan": "bg-linen-deep text-graphite-faint",
+  Erreur: "bg-alert-soft text-alert"
 };
 
 export function StatusPill({ status }: { status: Status }) {

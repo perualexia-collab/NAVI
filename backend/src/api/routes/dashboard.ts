@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../../db/prisma.js";
 import { requireUser } from "../require-auth.js";
-import { getLatestScanByHotelId } from "./portfolios.js";
+import { getLatestScanByHotelId } from "../../services/scans/latest-scan-by-hotel.js";
 
 const RECENTLY_SCANNED_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 

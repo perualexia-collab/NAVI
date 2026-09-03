@@ -73,7 +73,6 @@ function HotelsAdmin() {
   const [modalOpen, setModalOpen] = useState(false);
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [deleteMessage, setDeleteMessage] = useState<string | null>(null);
 
   const createMutation = useMutation({
     mutationFn: (hotelName: string) => api.createHotel(hotelName),
@@ -86,30 +85,19 @@ function HotelsAdmin() {
     onError: (err) => setError(err instanceof ApiError ? err.message : "Impossible d'ajouter cet hôtel.")
   });
 
+  // Suppression réelle (Phase F6) : l'hôtel disparaît complètement, y
+  // compris de CRM Health — son historique de scans/audiences part avec
+  // lui (cascade en base), pas de désactivation de secours.
   const [deletingHotelId, setDeletingHotelId] = useState<string | null>(null);
   const deleteMutation = useMutation({
     mutationFn: (hotelId: string) => api.deleteHotel(hotelId),
-    onMutate: (hotelId: string) => {
-      setDeletingHotelId(hotelId);
-      setDeleteMessage(null);
-    },
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["hotels"] });
-      setDeleteMessage(
-        result.deleted
-          ? "Hôtel supprimé."
-          : "Cet hôtel a des scans/audiences enregistrés — suppression définitive impossible, il a été désactivé à la place (réversible)."
-      );
-    },
+    onMutate: (hotelId: string) => setDeletingHotelId(hotelId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["hotels"] }),
     onSettled: () => setDeletingHotelId(null)
-  });
-  const reactivateMutation = useMutation({
-    mutationFn: (hotelId: string) => api.reactivateHotel(hotelId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["hotels"] })
   });
 
   function handleDelete(hotelId: string, hotelName: string) {
-    if (window.confirm(`Supprimer l'hôtel "${hotelName}" ? Si des scans existent déjà, l'hôtel sera désactivé plutôt que supprimé.`)) {
+    if (window.confirm(`Supprimer définitivement l'hôtel "${hotelName}" ? Son historique de scans et d'audiences sera supprimé avec lui, sans retour en arrière possible.`)) {
       deleteMutation.mutate(hotelId);
     }
   }
@@ -130,7 +118,6 @@ function HotelsAdmin() {
 
       {hotelsQuery.isLoading && <p className="text-sm text-graphite-faint">Chargement…</p>}
       {hotelsQuery.isError && <p className="text-sm text-alert">Impossible de charger la liste des hôtels.</p>}
-      {deleteMessage && <p className="mb-3 text-sm text-graphite-soft">{deleteMessage}</p>}
 
       {hotelsQuery.data && (
         <table className="w-full text-sm">
@@ -144,42 +131,26 @@ function HotelsAdmin() {
           </thead>
           <tbody>
             {hotelsQuery.data.map((hotel) => (
-              <tr key={hotel.id} className={`border-b border-graphite/5 last:border-0 ${hotel.disabled ? "opacity-60" : ""}`}>
+              <tr key={hotel.id} className="border-b border-graphite/5 last:border-0">
                 <td className="py-2.5 font-medium">{hotel.name}</td>
                 <td className="text-graphite-soft">{hotel.experienceLabel}</td>
                 <td>
-                  {hotel.disabled ? (
-                    <span className="rounded-full bg-linen-deep px-2 py-0.5 text-xs font-medium text-graphite-faint">Désactivé</span>
-                  ) : (
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${EXPERIENCE_STATUS_STYLE[hotel.experienceStatus]}`}>
-                      {EXPERIENCE_STATUS_LABEL[hotel.experienceStatus]}
-                    </span>
-                  )}
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${EXPERIENCE_STATUS_STYLE[hotel.experienceStatus]}`}>
+                    {EXPERIENCE_STATUS_LABEL[hotel.experienceStatus]}
+                  </span>
                 </td>
                 <td className="text-right">
                   <div className="flex justify-end gap-2">
-                    {!hotel.disabled && (
-                      <button className="rounded-lg border border-graphite/15 px-3 py-1 text-xs text-graphite-soft hover:border-terracotta hover:text-terracotta">
-                        Tester la connexion
-                      </button>
-                    )}
-                    {hotel.disabled ? (
-                      <button
-                        onClick={() => reactivateMutation.mutate(hotel.id)}
-                        disabled={reactivateMutation.isPending}
-                        className="rounded-lg border border-graphite/15 px-3 py-1 text-xs text-graphite-soft hover:border-sage hover:text-sage-ink disabled:opacity-50"
-                      >
-                        Réactiver
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleDelete(hotel.id, hotel.name)}
-                        disabled={deletingHotelId === hotel.id}
-                        className="rounded-lg border border-graphite/15 px-3 py-1 text-xs text-alert hover:border-alert disabled:opacity-50"
-                      >
-                        {deletingHotelId === hotel.id ? "…" : "Supprimer"}
-                      </button>
-                    )}
+                    <button className="rounded-lg border border-graphite/15 px-3 py-1 text-xs text-graphite-soft hover:border-terracotta hover:text-terracotta">
+                      Tester la connexion
+                    </button>
+                    <button
+                      onClick={() => handleDelete(hotel.id, hotel.name)}
+                      disabled={deletingHotelId === hotel.id}
+                      className="rounded-lg border border-graphite/15 px-3 py-1 text-xs text-alert hover:border-alert disabled:opacity-50"
+                    >
+                      {deletingHotelId === hotel.id ? "…" : "Supprimer"}
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -290,12 +261,31 @@ function UsersAdmin() {
     onSuccess: ({ activationToken }) => setActivationLink(buildLink(activationToken))
   });
 
+  // Suppression définitive tentée d'abord (compte jamais utilisé) ; si des
+  // portefeuilles/scans y sont déjà rattachés, désactivé à la place plutôt
+  // que de perdre cet historique (même filet de sécurité que côté backend).
+  const [deleteMessage, setDeleteMessage] = useState<string | null>(null);
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.deleteUser(id),
+    onMutate: () => setDeleteMessage(null),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      setDeleteMessage(result.deleted ? "Utilisateur supprimé." : "Ce compte a déjà créé des portefeuilles ou lancé des scans — suppression définitive impossible, il a été désactivé à la place.");
+    }
+  });
+
   function handleCopyLink(id: string) {
     // Régénérer invalide le lien précédent (usage unique) — confirmer pour
     // éviter qu'un admin ne rende invalide, sans s'en rendre compte, un
     // lien déjà transmis en cliquant une seconde fois.
     if (window.confirm("Générer un nouveau lien invalidera le précédent s'il existe déjà. Continuer ?")) {
       resendMutation.mutate(id);
+    }
+  }
+
+  function handleDelete(id: string, name: string) {
+    if (window.confirm(`Supprimer l'utilisateur "${name}" ? S'il a déjà créé des portefeuilles ou lancé des scans, il sera désactivé plutôt que supprimé.`)) {
+      deleteMutation.mutate(id);
     }
   }
 
@@ -313,6 +303,7 @@ function UsersAdmin() {
 
       {usersQuery.isLoading && <p className="text-sm text-graphite-faint">Chargement…</p>}
       {usersQuery.isError && <p className="text-sm text-alert">Impossible de charger la liste des utilisateurs.</p>}
+      {deleteMessage && <p className="mb-3 text-sm text-graphite-soft">{deleteMessage}</p>}
 
       {usersQuery.data && (
         <table className="w-full text-sm">
@@ -345,7 +336,8 @@ function UsersAdmin() {
                     onDisable={() => disableMutation.mutate(u.id)}
                     onReactivate={() => reactivateMutation.mutate(u.id)}
                     onCopyLink={() => handleCopyLink(u.id)}
-                    pending={disableMutation.isPending || reactivateMutation.isPending || resendMutation.isPending}
+                    onDelete={() => handleDelete(u.id, u.name)}
+                    pending={disableMutation.isPending || reactivateMutation.isPending || resendMutation.isPending || deleteMutation.isPending}
                   />
                 </td>
               </tr>
@@ -451,6 +443,7 @@ function UserRowAction({
   onDisable,
   onReactivate,
   onCopyLink,
+  onDelete,
   pending
 }: {
   user: RealUser;
@@ -458,29 +451,47 @@ function UserRowAction({
   onDisable: () => void;
   onReactivate: () => void;
   onCopyLink: () => void;
+  onDelete: () => void;
   pending: boolean;
 }) {
   const baseClass = "rounded-lg border border-graphite/15 px-3 py-1 text-xs text-graphite-soft hover:border-terracotta hover:text-terracotta disabled:opacity-50";
+  const deleteClass = "rounded-lg border border-graphite/15 px-3 py-1 text-xs text-alert hover:border-alert disabled:opacity-50";
+
+  if (isSelf) return <span className="text-xs text-graphite-faint">Compte actuel</span>;
+
+  const deleteButton = (
+    <button onClick={onDelete} disabled={pending} className={deleteClass}>
+      Supprimer
+    </button>
+  );
 
   if (user.status === "PENDING") {
     return (
-      <button onClick={onCopyLink} disabled={pending} className={baseClass}>
-        Copier le lien
-      </button>
+      <div className="flex justify-end gap-2">
+        <button onClick={onCopyLink} disabled={pending} className={baseClass}>
+          Copier le lien
+        </button>
+        {deleteButton}
+      </div>
     );
   }
   if (user.status === "ACTIVE") {
-    if (isSelf) return <span className="text-xs text-graphite-faint">Compte actuel</span>;
     return (
-      <button onClick={onDisable} disabled={pending} className={baseClass}>
-        Désactiver
-      </button>
+      <div className="flex justify-end gap-2">
+        <button onClick={onDisable} disabled={pending} className={baseClass}>
+          Désactiver
+        </button>
+        {deleteButton}
+      </div>
     );
   }
   return (
-    <button onClick={onReactivate} disabled={pending} className={baseClass}>
-      Réactiver
-    </button>
+    <div className="flex justify-end gap-2">
+      <button onClick={onReactivate} disabled={pending} className={baseClass}>
+        Réactiver
+      </button>
+      {deleteButton}
+    </div>
   );
 }
 

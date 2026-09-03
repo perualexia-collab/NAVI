@@ -46,7 +46,7 @@ export const audienceDefinitions: AudienceDefinitionSeed[] = [
   },
   {
     id: "P11_OTA",
-    name: "OTA convertibles (P11)",
+    name: "OTA convertibles",
     description: "≥ 2 séjours, dernier séjour via Booking/Expedia, dernier séjour il y a moins de 36 mois. (P11)"
   },
   // P10 — les 9 tags d'audience de la bibliothèque de 36 campagnes

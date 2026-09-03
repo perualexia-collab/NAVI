@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma.js";
 import { requireAdmin } from "../require-auth.js";
 import { generateInviteToken } from "../../lib/invite-tokens.js";
@@ -99,6 +100,35 @@ export async function usersRoutes(app: FastifyInstance) {
 
     const updated = await prisma.user.update({ where: { id }, data: { status: "ACTIVE" } });
     return sanitizeUser(updated);
+  });
+
+  // Suppression d'utilisateur (Phase F6). Suppression définitive tentée
+  // d'abord (cas courant : compte créé par erreur, jamais utilisé) ; si des
+  // portefeuilles/scans y sont déjà rattachés (contrainte FK), désactivation
+  // à la place — la désactivation existait déjà, on ne perd pas
+  // l'historique d'un compte qui a réellement servi.
+  app.delete("/api/users/:id", async (request, reply) => {
+    const admin = await requireAdmin(request, reply);
+    if (!admin) return;
+
+    const { id } = request.params as { id: string };
+    if (id === admin.id) {
+      return reply.code(400).send({ error: "Vous ne pouvez pas supprimer votre propre compte." });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user) return reply.code(404).send({ error: "Utilisateur introuvable." });
+
+    try {
+      await prisma.user.delete({ where: { id } });
+      return { deleted: true, disabled: false };
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === "P2003" || error.code === "P2014")) {
+        const updated = await prisma.user.update({ where: { id }, data: { status: "DISABLED" } });
+        return { deleted: false, disabled: true, user: sanitizeUser(updated) };
+      }
+      throw error;
+    }
   });
 
   app.post("/api/users/:id/resend-invite", async (request, reply) => {

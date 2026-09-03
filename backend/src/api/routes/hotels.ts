@@ -1,6 +1,5 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma.js";
 import { requireUser } from "../require-auth.js";
 import { runHotelScan } from "../../../scans/run-hotel-scan.js";
@@ -14,6 +13,7 @@ import type { ScanPeriod } from "../../../experience/core/config.js";
 import { P11_OPPORTUNITIES } from "../../../experience/audience-builder/p11-opportunities.js";
 import { calculateOpportunityScore } from "../../services/scoring/p11-opportunity.js";
 import { P10_LIBRARY, AUDIENCE_TAG_TO_DEFINITION_ID, currentMonthNameFR } from "../../../experience/audience-builder/p10-campaigns.js";
+import { getLatestScanByHotelId } from "../../services/scans/latest-scan-by-hotel.js";
 
 const presetPeriodSchema = z.object({
   mode: z.literal("preset"),
@@ -71,10 +71,10 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
     return reply.code(201).send(hotel);
   });
 
-  // Suppression d'hôtel (Settings). Suppression définitive tentée d'abord
-  // (cas courant : hôtel ajouté par erreur, jamais scanné) ; si des scans
-  // ou audiences y référencent déjà (contrainte FK), désactivation à la
-  // place — réversible via /reactivate, pas de perte d'historique.
+  // Suppression d'hôtel (Settings) — retours réels 2026-09-03 : doit
+  // disparaître réellement (CRM Health compris), pas être désactivé.
+  // Cascade en base sur tout son historique (migration
+  // 20260903180000_hotel_delete_cascade).
   app.delete("/api/hotels/:hotelId", async (request, reply) => {
     const user = await requireUser(request, reply);
     if (!user) return;
@@ -83,27 +83,44 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
     const hotel = await prisma.hotel.findUnique({ where: { id: hotelId } });
     if (!hotel) return reply.code(404).send({ error: "Hôtel introuvable." });
 
-    try {
-      await prisma.hotel.delete({ where: { id: hotelId } });
-      return { deleted: true, disabled: false };
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === "P2003" || error.code === "P2014")) {
-        await prisma.hotel.update({ where: { id: hotelId }, data: { disabled: true } });
-        return { deleted: false, disabled: true };
-      }
-      throw error;
-    }
+    await prisma.hotel.delete({ where: { id: hotelId } });
+    return { ok: true };
   });
 
-  app.post("/api/hotels/:hotelId/reactivate", async (request, reply) => {
+  // Phase F6 — liste enrichie pour l'affichage CRM Health (même format que
+  // le tableau mocké) : nom(s) de portefeuille(s), dernier scan, santé,
+  // alertes/vigilances/opportunités, statut brut du scan (pour le filtre
+  // "Erreur", jusqu'ici impossible à honorer avec des données mockées).
+  app.get("/api/hotels/overview", async (request, reply) => {
     const user = await requireUser(request, reply);
     if (!user) return;
 
-    const { hotelId } = request.params as { hotelId: string };
-    const hotel = await prisma.hotel.findUnique({ where: { id: hotelId } });
-    if (!hotel) return reply.code(404).send({ error: "Hôtel introuvable." });
+    const hotels = await prisma.hotel.findMany({
+      include: { portfolios: { include: { portfolio: { select: { name: true } } } } },
+      orderBy: { name: "asc" }
+    });
+    const latestScanByHotelId = await getLatestScanByHotelId(hotels.map((h) => h.id));
 
-    return prisma.hotel.update({ where: { id: hotelId }, data: { disabled: false } });
+    return hotels.map((hotel) => {
+      const scan = latestScanByHotelId.get(hotel.id) ?? null;
+      return {
+        id: hotel.id,
+        name: hotel.name,
+        experienceLabel: hotel.experienceLabel,
+        experienceHotelId: hotel.experienceHotelId,
+        experienceStatus: hotel.experienceStatus,
+        disabled: hotel.disabled,
+        lastConnectionCheckAt: hotel.lastConnectionCheckAt,
+        portfolioNames: hotel.portfolios.map((p) => p.portfolio.name),
+        lastScanAt: scan?.startedAt ?? null,
+        healthScore: scan?.healthScore ?? null,
+        healthLevel: scan?.healthLevel ?? null,
+        scanStatus: scan?.status ?? null,
+        alerts: scan ? scan.alerts : null,
+        vigilances: scan ? scan.vigilances : null,
+        opportunities: scan ? scan.opportunities : null
+      };
+    });
   });
 
   app.get("/api/hotels/:hotelId", async (request, reply) => {

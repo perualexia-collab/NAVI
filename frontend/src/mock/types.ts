@@ -19,7 +19,7 @@ export interface MockHotel {
   alerts: number | null;
   vigilances: number | null;
   opportunities: number | null;
-  status: "Excellent" | "Sain" | "À surveiller" | "Critique" | "Aucun scan";
+  status: "Excellent" | "Sain" | "À surveiller" | "Critique" | "Aucun scan" | "Erreur";
 }
 
 export interface MockPortfolio {

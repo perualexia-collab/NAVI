@@ -1,18 +1,19 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "../components/ui/Card.js";
 import { DateRangeControl } from "../components/ui/DateRangeControl.js";
 import { Icon } from "../components/ui/icons.js";
 import { HotelsTable } from "../components/HotelsTable.js";
 import { hotels } from "../mock/data.js";
+import type { MockHotel } from "../mock/types.js";
 import { api } from "../lib/api.js";
+import type { RealHotelListItem } from "../lib/real-hotel-types.js";
 
 /** Filtres — brief §13, intitulés indicatifs. */
 const FILTERS = ["Tous", "À surveiller", "Non scannés", "Erreur"] as const;
 type Filter = (typeof FILTERS)[number];
 
-function matchesFilter(hotel: (typeof hotels)[number], filter: Filter): boolean {
+function matchesFilter(hotel: MockHotel, filter: Filter): boolean {
   switch (filter) {
     case "Tous":
       return true;
@@ -21,49 +22,59 @@ function matchesFilter(hotel: (typeof hotels)[number], filter: Filter): boolean 
     case "Non scannés":
       return hotel.status === "Aucun scan";
     case "Erreur":
-      // Aucun statut d'erreur n'existe encore dans le mock — sera réel une fois
-      // le moteur de scan branché (Phase D, ScanHotelStatus.FAILED).
-      return false;
+      return hotel.status === "Erreur";
   }
+}
+
+// Même regroupement que Portfolios.tsx (statusFromHealthLevel), plus le
+// cas "Erreur" — possible ici seulement parce qu'on a le statut brut du
+// scan (scanStatus), pas seulement le niveau de santé calculé.
+function statusFromRealHotel(healthLevel: RealHotelListItem["healthLevel"], scanStatus: RealHotelListItem["scanStatus"]): MockHotel["status"] {
+  if (scanStatus === "FAILED") return "Erreur";
+  if (!healthLevel) return "Aucun scan";
+  if (healthLevel === "Excellent") return "Excellent";
+  if (healthLevel === "Bon" || healthLevel === "Correct") return "Sain";
+  if (healthLevel === "Fragile") return "À surveiller";
+  return "Critique";
+}
+
+function toMockHotel(hotel: RealHotelListItem): MockHotel {
+  return {
+    id: hotel.id,
+    name: hotel.name,
+    portfolioId: "",
+    portfolioName: hotel.portfolioNames.length > 0 ? hotel.portfolioNames.join(", ") : "—",
+    lastScanAt: hotel.lastScanAt,
+    healthScore: hotel.healthScore,
+    healthLevel: hotel.healthLevel,
+    alerts: hotel.alerts,
+    vigilances: hotel.vigilances,
+    opportunities: hotel.opportunities,
+    status: statusFromRealHotel(hotel.healthLevel, hotel.scanStatus)
+  };
 }
 
 export function CrmHealth() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("Tous");
 
-  const filtered = useMemo(
-    () => hotels.filter((h) => h.name.toLowerCase().includes(search.toLowerCase()) && matchesFilter(h, filter)),
-    [search, filter]
-  );
+  const realHotelsQuery = useQuery({ queryKey: ["hotels-overview"], queryFn: api.getHotelsOverview });
 
-  const realHotelsQuery = useQuery({ queryKey: ["hotels"], queryFn: api.listRealHotels });
+  // Hôtels réels (données NAVI/Playwright) et mockés (démo) affichés dans
+  // le même tableau, même format — retours réels 2026-09-03.
+  const allHotels = useMemo<MockHotel[]>(() => [...hotels, ...(realHotelsQuery.data ?? []).map(toMockHotel)], [realHotelsQuery.data]);
+
+  const filtered = useMemo(
+    () => allHotels.filter((h) => h.name.toLowerCase().includes(search.toLowerCase()) && matchesFilter(h, filter)),
+    [allHotels, search, filter]
+  );
 
   return (
     <div>
       <h1 className="text-2xl">CRM Health</h1>
       <p className="mt-1 text-sm text-graphite-soft">Diagnostic CRM de l'ensemble des hôtels auxquels vous avez accès.</p>
 
-      {realHotelsQuery.data && realHotelsQuery.data.length > 0 && (
-        <Card className="mt-6">
-          <div className="mb-3 flex items-center gap-2 text-sm font-medium">
-            Hôtels branchés sur des données réelles
-            <span className="rounded-full bg-horizon-soft px-2 py-0.5 text-xs font-medium text-horizon-ink">vertical slice Phase C</span>
-          </div>
-          <div className="flex flex-col divide-y divide-graphite/10">
-            {realHotelsQuery.data.map((hotel) => (
-              <Link key={hotel.id} to={`/crm-health/${hotel.id}`} className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0 hover:opacity-80">
-                <div className="flex items-center gap-2.5">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-linen-deep text-graphite-soft"><Icon.Building width={15} height={15} /></div>
-                  <div className="text-sm font-medium">{hotel.name}</div>
-                </div>
-                <Icon.ChevronRight width={14} height={14} className="text-graphite-faint" />
-              </Link>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      <Card className="mt-4">
+      <Card className="mt-6">
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <div className="flex flex-1 min-w-[200px] items-center gap-2 rounded-lg border border-graphite/15 px-3 py-2 text-sm">
             <Icon.Search width={15} height={15} className="text-graphite-faint" />
@@ -87,6 +98,10 @@ export function CrmHealth() {
           </div>
           <DateRangeControl />
         </div>
+
+        {realHotelsQuery.isError && (
+          <p className="mb-3 text-sm text-alert">Impossible de charger les hôtels réels — seuls les hôtels de démonstration sont affichés.</p>
+        )}
 
         <HotelsTable hotels={filtered} showPortfolio />
       </Card>

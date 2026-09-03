@@ -38,6 +38,13 @@ export interface RealPortfolioHotel extends RealHotel {
   opportunities: number | null;
 }
 
+/** Phase F6 — GET /api/hotels/overview : même info que RealPortfolioHotel, mais tous portefeuilles confondus (et sans portefeuille). */
+export interface RealHotelListItem extends RealPortfolioHotel {
+  portfolioNames: string[];
+  /** Statut brut du dernier ScanHotel — permet le filtre "Erreur" (FAILED), impossible à honorer avec seulement healthLevel. */
+  scanStatus: ScanHotelStatus | null;
+}
+
 export interface RealPortfolio {
   id: string;
   name: string;

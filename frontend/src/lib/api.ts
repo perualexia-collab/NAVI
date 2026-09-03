@@ -9,7 +9,8 @@ import type {
   RecommendationStatus,
   RealScanHistoryEntry,
   RealScanSummary,
-  RealDashboard
+  RealDashboard,
+  RealHotelListItem
 } from "./real-hotel-types.js";
 
 export class ApiError extends Error {
@@ -46,9 +47,9 @@ export const api = {
   getDashboard: () => request<RealDashboard>("/dashboard"),
 
   listRealHotels: () => request<RealHotel[]>("/hotels"),
+  getHotelsOverview: () => request<RealHotelListItem[]>("/hotels/overview"),
   createHotel: (name: string) => request<RealHotel>("/hotels", { method: "POST", body: JSON.stringify({ name }) }),
-  deleteHotel: (hotelId: string) => request<{ deleted: boolean; disabled: boolean }>(`/hotels/${hotelId}`, { method: "DELETE" }),
-  reactivateHotel: (hotelId: string) => request<RealHotel>(`/hotels/${hotelId}/reactivate`, { method: "POST" }),
+  deleteHotel: (hotelId: string) => request<{ ok: true }>(`/hotels/${hotelId}`, { method: "DELETE" }),
   getHotelHealth: (hotelId: string) => request<RealHotelHealth>(`/hotels/${hotelId}/health`),
   listHotelScans: (hotelId: string) => request<RealScanHistoryEntry[]>(`/hotels/${hotelId}/scans`),
   getHotelScan: (hotelId: string, scanHotelId: string) => request<RealScanSummary>(`/hotels/${hotelId}/scans/${scanHotelId}`),
@@ -102,6 +103,7 @@ export const api = {
     request<{ user: RealUser; activationToken: string }>("/users", { method: "POST", body: JSON.stringify(input) }),
   disableUser: (id: string) => request<RealUser>(`/users/${id}/disable`, { method: "POST" }),
   reactivateUser: (id: string) => request<RealUser>(`/users/${id}/reactivate`, { method: "POST" }),
+  deleteUser: (id: string) => request<{ deleted: boolean; disabled: boolean; user?: RealUser }>(`/users/${id}`, { method: "DELETE" }),
   resendInvite: (id: string) => request<{ activationToken: string }>(`/users/${id}/resend-invite`, { method: "POST" }),
 
   getInvite: (token: string) => request<{ email: string; name: string }>(`/invites/${token}`),
