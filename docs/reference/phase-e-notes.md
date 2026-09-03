@@ -755,3 +755,29 @@ la Phase C.5 — jamais construite jusqu'ici.
 
 Backend et frontend typecheck/build passent. Non testé contre
 Expérience réel.
+
+### Retour immédiat : bouton figé sur "Test en cours…" (2026-09-03)
+
+Cause trouvée : `connectToExperience()` attend jusqu'à **3 minutes**
+qu'un humain complète manuellement une 2FA si la session n'est pas déjà
+authentifiée — comportement voulu pour un scan (quelqu'un surveille
+généralement le navigateur noVNC), mais "Tester la connexion" n'a
+personne devant l'écran pour ça : le bouton restait donc bloqué en
+silence, sans qu'on sache combien de temps ça devait prendre.
+
+- `connectToExperience()` accepte maintenant un `manualLoginTimeoutMs`
+  optionnel (défaut 180000, comportement inchangé pour tous les autres
+  appelants — scans, actions audience, création de liste).
+- `run-test-connection.ts` : passe 15s (largement suffisant pour
+  confirmer qu'une session déjà active répond) et sépare l'échec de
+  connexion (`connectToExperience` en échec → "Aucune session
+  Expérience active — connecte-toi manuellement une première fois...")
+  de l'échec de recherche de l'hôtel (`selectHotel` en échec →
+  "Aucun hôtel nommé... trouvé"), deux causes bien distinctes qui
+  tombaient auparavant dans le même seau `classifyErrorType`.
+- Couleur/libellé "Non trouvé" repassés en gris neutre (retour
+  explicite : le problème n'était pas là, la pastille grise convient).
+
+Backend typecheck/build passent (aucun changement frontend nécessaire
+au-delà du retour en arrière sur le style). Non testé contre
+Expérience réel.

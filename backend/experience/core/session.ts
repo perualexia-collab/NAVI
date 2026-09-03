@@ -64,7 +64,11 @@ export interface ExperienceCredentials {
  * attend une connexion manuelle — la 2FA elle-même reste TOUJOURS
  * manuelle, quelles que soient les credentials fournies.
  */
-export async function connectToExperience(page: Page, credentials?: ExperienceCredentials): Promise<void> {
+export async function connectToExperience(
+  page: Page,
+  credentials?: ExperienceCredentials,
+  options?: { manualLoginTimeoutMs?: number }
+): Promise<void> {
   await page.goto(EXPERIENCE_BASE_URL, { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.waitForTimeout(1500);
 
@@ -91,11 +95,16 @@ export async function connectToExperience(page: Page, credentials?: ExperienceCr
 
   // Aucune automatisation de 2FA — un humain doit compléter la connexion
   // (et la 2FA) dans la fenêtre du navigateur pendant cette attente
-  // (jusqu'à 3 min).
+  // (jusqu'à 3 min par défaut). `manualLoginTimeoutMs` permet à un appelant
+  // qui n'attend PAS qu'un humain surveille le navigateur (ex. "Tester la
+  // connexion") d'échouer vite plutôt que de rester bloqué en silence
+  // jusqu'à 3 minutes (retour réel 2026-09-03 : bouton figé sur "Test en
+  // cours…" sans qu'on sache combien de temps ça devait prendre).
+  const manualLoginTimeoutMs = options?.manualLoginTimeoutMs ?? 180000;
   await Promise.race([
-    hotelSearch.first().waitFor({ state: "visible", timeout: 180000 }),
-    xpLink.first().waitFor({ state: "visible", timeout: 180000 }),
-    changeSpace.first().waitFor({ state: "visible", timeout: 180000 })
+    hotelSearch.first().waitFor({ state: "visible", timeout: manualLoginTimeoutMs }),
+    xpLink.first().waitFor({ state: "visible", timeout: manualLoginTimeoutMs }),
+    changeSpace.first().waitFor({ state: "visible", timeout: manualLoginTimeoutMs })
   ]);
 }
 

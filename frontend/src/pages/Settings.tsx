@@ -10,14 +10,14 @@ import type { RealUser, UserStatus } from "../lib/real-hotel-types.js";
 const EXPERIENCE_STATUS_LABEL = {
   ACTIVE: "Actif",
   TO_VERIFY: "À vérifier",
-  NOT_FOUND: "Échec de connexion",
+  NOT_FOUND: "Non trouvé",
   ERROR: "Erreur"
 } as const;
 
 const EXPERIENCE_STATUS_STYLE = {
   ACTIVE: "bg-sage-soft text-sage-ink",
   TO_VERIFY: "bg-warn-soft text-warn-ink",
-  NOT_FOUND: "bg-alert-soft text-alert-ink",
+  NOT_FOUND: "bg-linen-deep text-graphite-faint",
   ERROR: "bg-alert-soft text-alert-ink"
 } as const;
 
