@@ -360,3 +360,16 @@ et les deux filtres concernés (`addLeisureAudienceFilter`,
 Poussé, en attente de re-test — à confirmer que `DoesNotContain` produit
 bien le résultat attendu (exclusion, pas une autre sémantique comme un
 `OR` implicite entre les deux valeurs exclues).
+
+### Confirmé par l'utilisateur le 2026-09-03
+
+Re-test sur Hôtel Opéra Opal : les 3 campagnes de septembre mesurées
+correctement, y compris "Prolongez un peu l'été" (Loisirs, filtre
+`DoesNotContain`) — 3 761 destinataires. `DoesNotContain` produit bien
+le résultat attendu, exclusion confirmée. Choix enregistré avec succès
+("✓ Choisie" sur Loisirs). Polish : tag d'audience affiché entre
+parenthèses après le nombre de destinataires (`👥 310 (Couples)`),
+retour utilisateur pris en compte immédiatement.
+
+**Phase E déclarée entièrement terminée** (E1, E2, E3-P11, E3-P10),
+toutes validées en conditions réelles.
