@@ -508,9 +508,9 @@ function ScanResult({
                       <div className="mt-2">
                         {signal.audienceResult ? (
                           <span className="font-medium text-graphite">
-                            👥 {formatNumber(signal.audienceResult.recipients)}
+                            👥 {formatNumber(signal.audienceResult.recipients)} destinataire(s) potentiel(s)
                             {signal.audienceDescription && <span className="font-normal text-graphite-faint"> ({signal.audienceDescription})</span>}
-                            {" "}destinataire(s) potentiel(s) — mesuré le{" "}
+                            {" "}— mesuré le{" "}
                             {formatDateTime(signal.audienceResult.measuredAt)}
                           </span>
                         ) : (

@@ -4,11 +4,9 @@ import { Card } from "../components/ui/Card.js";
 import { ScoreRing } from "../components/ui/ScoreRing.js";
 import { Modal } from "../components/ui/Modal.js";
 import { TrendLabel } from "../components/ui/StatusPill.js";
-import { DateRangeControl } from "../components/ui/DateRangeControl.js";
 import { RealPeriodSelector } from "../components/ui/RealPeriodSelector.js";
 import { Icon } from "../components/ui/icons.js";
 import { HotelsTable } from "../components/HotelsTable.js";
-import { hotelsByPortfolio, portfolios as mockPortfolios } from "../mock/data.js";
 import type { MockHotel, MockPortfolio } from "../mock/types.js";
 import { api, ApiError } from "../lib/api.js";
 import type {
@@ -19,8 +17,6 @@ import type {
   ScanHotelStatus,
   ScanProgressEvent
 } from "../lib/real-hotel-types.js";
-
-const STATUS_FILTERS = ["Tous les statuts", "Excellent", "Sain", "À surveiller", "Critique", "Aucun scan"] as const;
 
 type FormModalState = { mode: "create" } | { mode: "edit"; portfolio: RealPortfolio } | null;
 
@@ -77,12 +73,11 @@ function toMockHotel(hotel: RealPortfolioHotel, portfolioId: string, portfolioNa
 
 /**
  * Portefeuilles NAVI — retours Phase C.5, §1 : les portefeuilles créés via
- * "Ajouter un portefeuille" sont désormais persistés en PostgreSQL (voir
- * backend/src/api/routes/portfolios.ts), plus une logique frontend
- * temporaire. Les 4 portefeuilles mockés (Paris Collection, Côte d'Azur,
- * Resorts, City Breaks) restent des données de démonstration inchangées —
- * ni modifiables ni supprimables (retours réels Phase C, 2026-09-02 :
- * édition/suppression n'existent que pour les portefeuilles réels).
+ * "Ajouter un portefeuille" sont persistés en PostgreSQL (voir
+ * backend/src/api/routes/portfolios.ts). Les 4 portefeuilles mockés
+ * (Paris Collection, Côte d'Azur, Resorts, City Breaks) ont été retirés
+ * de cet écran (retours réels 2026-09-03) — uniquement les portefeuilles
+ * réellement créés par l'utilisateur.
  */
 export function Portfolios() {
   const queryClient = useQueryClient();
@@ -91,9 +86,8 @@ export function Portfolios() {
 
   const realPortfolios = portfoliosQuery.data ?? [];
   const cards: MockPortfolio[] = useMemo(
-    () => [
-      ...mockPortfolios,
-      ...realPortfolios.map((rp) => ({
+    () =>
+      realPortfolios.map((rp) => ({
         id: rp.id,
         name: rp.name,
         hotelCount: rp.hotels.length,
@@ -102,14 +96,12 @@ export function Portfolios() {
         scannedCount: rp.health.scannedCount,
         toScanCount: rp.health.toScanCount,
         criticalCount: rp.health.criticalCount
-      }))
-    ],
+      })),
     [realPortfolios]
   );
 
-  const [selectedId, setSelectedId] = useState(mockPortfolios[0]!.id);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]>("Tous les statuts");
   const [formModal, setFormModal] = useState<FormModalState>(null);
   const [scanPeriod, setScanPeriod] = useState<RealScanPeriod>({ mode: "preset", value: "last12Months" });
   const [scanProgress, setScanProgress] = useState<ScanProgressEvent | null>(null);
@@ -118,16 +110,8 @@ export function Portfolios() {
 
   useEffect(() => () => eventSourceRef.current?.close(), []);
 
-  const selected = cards.find((p) => p.id === selectedId) ?? cards[0]!;
-  const selectedRealPortfolio = realPortfolios.find((rp) => rp.id === selected.id);
-
-  const mockHotels = useMemo(() => {
-    return hotelsByPortfolio(selected.id).filter((hotel) => {
-      const matchesSearch = hotel.name.toLowerCase().includes(search.toLowerCase());
-      const matchesStatus = statusFilter === "Tous les statuts" || hotel.status === statusFilter;
-      return matchesSearch && matchesStatus;
-    });
-  }, [selected.id, search, statusFilter]);
+  const selected = cards.find((p) => p.id === selectedId) ?? cards[0] ?? null;
+  const selectedRealPortfolio = selected ? realPortfolios.find((rp) => rp.id === selected.id) : undefined;
 
   const realHotelsInPortfolio = useMemo(() => {
     if (!selectedRealPortfolio) return [];
@@ -156,7 +140,7 @@ export function Portfolios() {
     mutationFn: (id: string) => api.deletePortfolio(id),
     onSuccess: (_, deletedId) => {
       queryClient.invalidateQueries({ queryKey: ["portfolios"] });
-      if (selectedId === deletedId) setSelectedId(mockPortfolios[0]!.id);
+      if (selectedId === deletedId) setSelectedId(null);
     }
   });
 
@@ -217,45 +201,55 @@ export function Portfolios() {
         </button>
       </div>
 
-      <div className="mt-6 grid grid-cols-4 gap-4">
-        {cards.map((portfolio) => {
-          const isSelected = portfolio.id === selected.id;
-          return (
-            <button key={portfolio.id} onClick={() => setSelectedId(portfolio.id)} className="text-left">
-              <Card className={isSelected ? "border-terracotta" : "hover:border-graphite/20"}>
-                <div className="text-sm font-medium">{portfolio.name}</div>
-                <div className="text-xs text-graphite-faint">{portfolio.hotelCount} hôtels</div>
-                <div className="mt-3 flex items-center justify-between">
-                  <div>
-                    <div className="text-[10px] uppercase tracking-wide text-graphite-faint">Santé CRM</div>
-                    {portfolio.healthScore === null ? (
-                      <div className="text-xs text-graphite-faint">Première analyse</div>
-                    ) : (
-                      <>
-                        <TrendLabel delta={portfolio.healthDelta} />
-                        <div className="text-[10px] text-graphite-faint">vs période précédente</div>
-                      </>
-                    )}
-                  </div>
-                  <ScoreRing score={portfolio.healthScore} size={68} strokeWidth={6} />
-                </div>
-                <div className="mt-3 flex items-center gap-3 text-[11px] text-graphite-soft">
-                  <LegendDot color="bg-sage" label={`${portfolio.scannedCount} scannés`} />
-                  <LegendDot color="bg-warn" label={`${portfolio.toScanCount} à scanner`} />
-                  <LegendDot color="bg-alert" label={`${portfolio.criticalCount} critique`} />
-                </div>
-              </Card>
-            </button>
-          );
-        })}
-      </div>
+      {cards.length === 0 && !portfoliosQuery.isLoading && (
+        <Card className="mt-6">
+          <p className="text-sm text-graphite-soft">
+            Aucun portefeuille pour l'instant — crée-en un avec "Nouveau portefeuille" ci-dessus.
+          </p>
+        </Card>
+      )}
 
-      <Card className="mt-4">
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            Détail du portefeuille : {selected.name}
-            <span className="rounded-full bg-linen-deep px-2 py-0.5 text-xs font-normal text-graphite-soft">{selected.hotelCount} hôtels</span>
-            {selectedRealPortfolio && (
+      {cards.length > 0 && (
+        <div className="mt-6 grid grid-cols-4 gap-4">
+          {cards.map((portfolio) => {
+            const isSelected = selected !== null && portfolio.id === selected.id;
+            return (
+              <button key={portfolio.id} onClick={() => setSelectedId(portfolio.id)} className="text-left">
+                <Card className={isSelected ? "border-terracotta" : "hover:border-graphite/20"}>
+                  <div className="text-sm font-medium">{portfolio.name}</div>
+                  <div className="text-xs text-graphite-faint">{portfolio.hotelCount} hôtels</div>
+                  <div className="mt-3 flex items-center justify-between">
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wide text-graphite-faint">Santé CRM</div>
+                      {portfolio.healthScore === null ? (
+                        <div className="text-xs text-graphite-faint">Première analyse</div>
+                      ) : (
+                        <>
+                          <TrendLabel delta={portfolio.healthDelta} />
+                          <div className="text-[10px] text-graphite-faint">vs période précédente</div>
+                        </>
+                      )}
+                    </div>
+                    <ScoreRing score={portfolio.healthScore} size={68} strokeWidth={6} />
+                  </div>
+                  <div className="mt-3 flex items-center gap-3 text-[11px] text-graphite-soft">
+                    <LegendDot color="bg-sage" label={`${portfolio.scannedCount} scannés`} />
+                    <LegendDot color="bg-warn" label={`${portfolio.toScanCount} à scanner`} />
+                    <LegendDot color="bg-alert" label={`${portfolio.criticalCount} critique`} />
+                  </div>
+                </Card>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {selected && selectedRealPortfolio && (
+        <Card className="mt-4">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              Détail du portefeuille : {selected.name}
+              <span className="rounded-full bg-linen-deep px-2 py-0.5 text-xs font-normal text-graphite-soft">{selected.hotelCount} hôtels</span>
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => setFormModal({ mode: "edit", portfolio: selectedRealPortfolio })}
@@ -272,91 +266,65 @@ export function Portfolios() {
                   <Icon.Trash width={14} height={14} />
                 </button>
               </div>
-            )}
-          </div>
-        </div>
-
-        <div className="mb-4 flex flex-wrap items-center gap-3">
-          <div className="flex flex-1 min-w-[200px] items-center gap-2 rounded-lg border border-graphite/15 px-3 py-2 text-sm">
-            <Icon.Search width={15} height={15} className="text-graphite-faint" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Rechercher un hôtel…"
-              className="w-full bg-transparent outline-none placeholder:text-graphite-faint"
-            />
-          </div>
-          {selectedRealPortfolio ? (
-            <>
-              <RealPeriodSelector value={scanPeriod} onChange={setScanPeriod} />
-              <button
-                onClick={() => scanPortfolioMutation.mutate(selectedRealPortfolio.id)}
-                disabled={
-                  scanPortfolioMutation.isPending ||
-                  selectedRealPortfolio.hotels.length === 0 ||
-                  scanningPortfolioId === selectedRealPortfolio.id
-                }
-                className="flex items-center gap-1.5 rounded-lg bg-sage px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-              >
-                <Icon.Play width={14} height={14} />{" "}
-                {scanPortfolioMutation.isPending
-                  ? "Lancement…"
-                  : scanningPortfolioId === selectedRealPortfolio.id
-                    ? "Analyse en cours…"
-                    : "Lancer un scan portefeuille"}
-              </button>
-            </>
-          ) : (
-            <>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as (typeof STATUS_FILTERS)[number])}
-                className="rounded-lg border border-graphite/15 bg-linen px-3 py-2 text-sm text-graphite-soft"
-              >
-                {STATUS_FILTERS.map((status) => (
-                  <option key={status}>{status}</option>
-                ))}
-              </select>
-              <DateRangeControl />
-              <button className="flex items-center gap-1.5 rounded-lg bg-sage px-4 py-2 text-sm font-medium text-white hover:opacity-90">
-                <Icon.Play width={14} height={14} /> Lancer un scan portefeuille
-              </button>
-            </>
-          )}
-        </div>
-
-        {selectedRealPortfolio && scanningPortfolioId === selectedRealPortfolio.id && scanProgress && (
-          <div className="mb-4 rounded-lg bg-horizon-soft px-3 py-3 text-sm text-horizon-ink">
-            <div className="flex items-center justify-between">
-              <span className="font-medium">
-                {scanProgress.done ? "Scan terminé" : "Analyse en cours"} — {scanProgress.completed}/{scanProgress.total} hôtel
-                {scanProgress.total > 1 ? "s" : ""} terminé{scanProgress.completed > 1 ? "s" : ""}
-              </span>
-              {!scanProgress.done && scanProgress.etaMs !== null && <span className="text-xs">≈ {formatEta(scanProgress.etaMs)} restantes</span>}
             </div>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {scanProgress.hotels.map((h) => (
-                <span key={h.scanHotelId} className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${SCAN_PROGRESS_STYLE[h.status]}`}>
-                  {h.hotelName} — {SCAN_PROGRESS_LABEL[h.status]}
+          </div>
+
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <div className="flex flex-1 min-w-[200px] items-center gap-2 rounded-lg border border-graphite/15 px-3 py-2 text-sm">
+              <Icon.Search width={15} height={15} className="text-graphite-faint" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Rechercher un hôtel…"
+                className="w-full bg-transparent outline-none placeholder:text-graphite-faint"
+              />
+            </div>
+            <RealPeriodSelector value={scanPeriod} onChange={setScanPeriod} />
+            <button
+              onClick={() => scanPortfolioMutation.mutate(selectedRealPortfolio.id)}
+              disabled={
+                scanPortfolioMutation.isPending ||
+                selectedRealPortfolio.hotels.length === 0 ||
+                scanningPortfolioId === selectedRealPortfolio.id
+              }
+              className="flex items-center gap-1.5 rounded-lg bg-sage px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+            >
+              <Icon.Play width={14} height={14} />{" "}
+              {scanPortfolioMutation.isPending
+                ? "Lancement…"
+                : scanningPortfolioId === selectedRealPortfolio.id
+                  ? "Analyse en cours…"
+                  : "Lancer un scan portefeuille"}
+            </button>
+          </div>
+
+          {scanningPortfolioId === selectedRealPortfolio.id && scanProgress && (
+            <div className="mb-4 rounded-lg bg-horizon-soft px-3 py-3 text-sm text-horizon-ink">
+              <div className="flex items-center justify-between">
+                <span className="font-medium">
+                  {scanProgress.done ? "Scan terminé" : "Analyse en cours"} — {scanProgress.completed}/{scanProgress.total} hôtel
+                  {scanProgress.total > 1 ? "s" : ""} terminé{scanProgress.completed > 1 ? "s" : ""}
                 </span>
-              ))}
+                {!scanProgress.done && scanProgress.etaMs !== null && <span className="text-xs">≈ {formatEta(scanProgress.etaMs)} restantes</span>}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {scanProgress.hotels.map((h) => (
+                  <span key={h.scanHotelId} className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${SCAN_PROGRESS_STYLE[h.status]}`}>
+                    {h.hotelName} — {SCAN_PROGRESS_LABEL[h.status]}
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
-        {selectedRealPortfolio && scanPortfolioMutation.isError && (
-          <p className="mb-4 rounded-lg bg-alert-soft px-3 py-2 text-sm text-alert-ink">
-            {scanPortfolioMutation.error instanceof ApiError ? scanPortfolioMutation.error.message : "Le scan du portefeuille n'a pas pu être lancé."}
-          </p>
-        )}
+          )}
+          {scanPortfolioMutation.isError && (
+            <p className="mb-4 rounded-lg bg-alert-soft px-3 py-2 text-sm text-alert-ink">
+              {scanPortfolioMutation.error instanceof ApiError ? scanPortfolioMutation.error.message : "Le scan du portefeuille n'a pas pu être lancé."}
+            </p>
+          )}
 
-        <HotelsTable
-          hotels={
-            selectedRealPortfolio
-              ? realHotelsInPortfolio.map((h) => toMockHotel(h, selectedRealPortfolio.id, selectedRealPortfolio.name))
-              : mockHotels
-          }
-        />
-      </Card>
+          <HotelsTable hotels={realHotelsInPortfolio.map((h) => toMockHotel(h, selectedRealPortfolio.id, selectedRealPortfolio.name))} />
+        </Card>
+      )}
 
       {formModal && (
         <PortfolioFormModal

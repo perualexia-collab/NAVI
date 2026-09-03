@@ -672,3 +672,18 @@ destinataires, jamais la définition de l'audience.
 
 Backend et frontend typecheck/build passent. Non testé contre une vraie
 base.
+
+### Retours immédiats (2026-09-03)
+
+- **Position de la description** : déplacée après "destinataire(s)
+  potentiel(s)" plutôt qu'entre le nombre et ce texte (retour direct sur
+  le placement, même esprit que le réglage similaire déjà fait pour P10).
+- **Portefeuilles mockés retirés** de `Portfolios.tsx` ("Mes
+  portefeuilles") — même contresens que celui déjà corrigé pour
+  `CrmHealth.tsx` (hôtels) : Paris Collection/Côte d'Azur/Resorts/City
+  Breaks apparaissaient encore à côté des portefeuilles réels
+  (test/zeze/GHP). `cards` ne vient plus que de `api.listPortfolios()` ;
+  toute la branche JSX "portefeuille mocké" (filtre de statut décoratif,
+  `DateRangeControl`, hôtels via `hotelsByPortfolio()`) supprimée plutôt
+  que laissée mais inatteignable — état vide explicite ("Aucun
+  portefeuille pour l'instant...") si `cards` est vide.
