@@ -166,6 +166,31 @@ export interface RealScanHistoryEntry {
   healthLevel: string | null;
 }
 
+/** Phase F5 — tableau de bord (Accueil), toutes données réelles. */
+export interface RealDashboardOpportunity {
+  hotelId: string;
+  hotelName: string;
+  playbookId: string;
+  name: string;
+  /** "high" uniquement pour P11 avec une opportunité ⭐ (score ≥ 40) — seul vrai signal de priorité du domaine. */
+  priority: "high" | "normal";
+  recipients: number | null;
+  detailLabel: string | null;
+}
+
+export interface RealDashboard {
+  hotelCount: number;
+  portfolioCount: number;
+  recentlyScannedCount: number;
+  averageHealthScore: number | null;
+  criticalAlerts: number;
+  vigilances: number;
+  opportunityCount: number;
+  potentialClients: number;
+  recentScans: { hotelId: string; hotelName: string; scannedAt: string; healthScore: number | null }[];
+  opportunities: RealDashboardOpportunity[];
+}
+
 /** Évènement SSE de progression d'un scan — GET /api/scans/:scanId/events (Phase D2). */
 export interface ScanProgressEvent {
   scanId: string;

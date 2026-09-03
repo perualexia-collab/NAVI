@@ -16,7 +16,8 @@ const updatePortfolioSchema = z.object({
   hotelIds: z.array(z.string().min(1)).min(1, "Sélectionne au moins un hôtel.").optional()
 });
 
-interface LatestHotelScan {
+export interface LatestHotelScan {
+  scanHotelId: string;
   status: string;
   healthScore: number | null;
   healthLevel: string | null;
@@ -77,7 +78,7 @@ function serializePortfolio(
   };
 }
 
-async function getLatestScanByHotelId(hotelIds: string[]): Promise<Map<string, LatestHotelScan>> {
+export async function getLatestScanByHotelId(hotelIds: string[]): Promise<Map<string, LatestHotelScan>> {
   if (hotelIds.length === 0) return new Map();
   const latestScans = await prisma.scanHotel.findMany({
     where: { hotelId: { in: hotelIds } },
@@ -111,6 +112,7 @@ async function getLatestScanByHotelId(hotelIds: string[]): Promise<Map<string, L
       return [
         s.hotelId,
         {
+          scanHotelId: s.id,
           status: s.status,
           healthScore: s.healthScore,
           healthLevel: s.healthLevel,

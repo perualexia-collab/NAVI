@@ -8,7 +8,8 @@ import type {
   RealAutomationStatus,
   RecommendationStatus,
   RealScanHistoryEntry,
-  RealScanSummary
+  RealScanSummary,
+  RealDashboard
 } from "./real-hotel-types.js";
 
 export class ApiError extends Error {
@@ -41,6 +42,8 @@ export const api = {
     request<User>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
   logout: () => request<{ ok: true }>("/auth/logout", { method: "POST" }),
   me: () => request<User>("/auth/me"),
+
+  getDashboard: () => request<RealDashboard>("/dashboard"),
 
   listRealHotels: () => request<RealHotel[]>("/hotels"),
   createHotel: (name: string) => request<RealHotel>("/hotels", { method: "POST", body: JSON.stringify({ name }) }),

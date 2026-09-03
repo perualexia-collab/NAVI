@@ -8,6 +8,7 @@ import { portfoliosRoutes } from "./api/routes/portfolios.js";
 import { usersRoutes } from "./api/routes/users.js";
 import { invitesRoutes } from "./api/routes/invites.js";
 import { scansRoutes } from "./api/routes/scans.js";
+import { dashboardRoutes } from "./api/routes/dashboard.js";
 
 export async function buildApp(env: Env) {
   const app = Fastify({
@@ -26,6 +27,7 @@ export async function buildApp(env: Env) {
   await app.register(usersRoutes);
   await app.register(invitesRoutes);
   await app.register(scansRoutes);
+  await app.register(dashboardRoutes);
 
   return app;
 }
