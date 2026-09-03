@@ -726,3 +726,32 @@ n'a pas été demandé — la fiche hôtel elle-même doit continuer à montrer
 tout, traité ou non, pour rester consultable/modifiable).
 
 Backend typecheck/build passent (aucun changement frontend nécessaire).
+
+## Phase F9 — "Tester la connexion" (2026-09-03)
+
+Bouton présent depuis le début de l'écran Paramètres → Hôtels mais
+jamais branché (juste un `<button>` sans `onClick`). C'est exactement la
+"vérification automatique dans Expérience (recherche par nom normalisé)"
+évoquée comme non-implémentée dans la modale "Ajouter un hôtel" depuis
+la Phase C.5 — jamais construite jusqu'ici.
+
+- `backend/scans/run-test-connection.ts` (nouveau) — réutilise
+  `selectHotel()`, la même primitive qu'au tout début d'un scan : si la
+  recherche/sélection réussit, l'hôtel a de bonnes chances d'être
+  scannable. Résultat toujours 200 (un "non trouvé" est une réponse
+  légitime à afficher, pas une erreur de requête) : `ACTIVE` (trouvé,
+  `experienceStatus`/`lastConnectionCheckAt` mis à jour), `NOT_FOUND`
+  (recherche infructueuse), ou `ERROR` (session Expérience invalide —
+  seul cas où `experienceStatus` n'est pas mis à `NOT_FOUND`, la
+  vérification n'a même pas pu avoir lieu).
+- `POST /api/hotels/:hotelId/test-connection` (nouveau).
+- Frontend : bouton branché, message affiché sous le tableau (vert si
+  `ACTIVE`, rouge sinon). Comme les actions audience, tous les boutons
+  "Tester la connexion" se désactivent pendant qu'un test tourne (une
+  seule session Expérience possible côté serveur).
+- Phrase "Un hôtel n'est actif que si sa connexion a été validée..."
+  retirée (retour explicite) — redondante maintenant que l'action existe
+  réellement plutôt que d'être seulement décrite.
+
+Backend et frontend typecheck/build passent. Non testé contre
+Expérience réel.

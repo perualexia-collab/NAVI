@@ -50,6 +50,8 @@ export const api = {
   getHotelsOverview: () => request<RealHotelListItem[]>("/hotels/overview"),
   createHotel: (name: string) => request<RealHotel>("/hotels", { method: "POST", body: JSON.stringify({ name }) }),
   deleteHotel: (hotelId: string) => request<{ ok: true }>(`/hotels/${hotelId}`, { method: "DELETE" }),
+  testHotelConnection: (hotelId: string) =>
+    request<{ status: "ACTIVE" | "NOT_FOUND" | "ERROR"; message: string }>(`/hotels/${hotelId}/test-connection`, { method: "POST" }),
   getHotelHealth: (hotelId: string) => request<RealHotelHealth>(`/hotels/${hotelId}/health`),
   listHotelScans: (hotelId: string) => request<RealScanHistoryEntry[]>(`/hotels/${hotelId}/scans`),
   getHotelScan: (hotelId: string, scanHotelId: string) => request<RealScanSummary>(`/hotels/${hotelId}/scans/${scanHotelId}`),

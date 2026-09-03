@@ -102,12 +102,31 @@ function HotelsAdmin() {
     }
   }
 
+  // "Tester la connexion" — vérifie que l'hôtel est bien retrouvable dans
+  // Expérience sous son libellé (même primitive que le début d'un scan).
+  const [testingHotelId, setTestingHotelId] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<{ hotelId: string; hotelName: string; status: "ACTIVE" | "NOT_FOUND" | "ERROR"; message: string } | null>(null);
+  const testConnectionMutation = useMutation({
+    mutationFn: (hotelId: string) => api.testHotelConnection(hotelId),
+    onMutate: (hotelId: string) => {
+      setTestingHotelId(hotelId);
+      setTestResult(null);
+    },
+    onSuccess: (result, hotelId) => {
+      queryClient.invalidateQueries({ queryKey: ["hotels"] });
+      const hotelName = hotelsQuery.data?.find((h) => h.id === hotelId)?.name ?? "";
+      setTestResult({ hotelId, hotelName, status: result.status, message: result.message });
+    },
+    onError: (err, hotelId) => {
+      const hotelName = hotelsQuery.data?.find((h) => h.id === hotelId)?.name ?? "";
+      setTestResult({ hotelId, hotelName, status: "ERROR", message: err instanceof ApiError ? err.message : "Le test de connexion a échoué." });
+    },
+    onSettled: () => setTestingHotelId(null)
+  });
+
   return (
     <Card>
-      <div className="mb-4 flex items-center justify-between">
-        <p className="text-sm text-graphite-soft">
-          Un hôtel n'est actif que si sa connexion a été validée dans Expérience (brief §24) — la seule saisie d'un nom ne suffit pas.
-        </p>
+      <div className="mb-4 flex items-center justify-end">
         <button
           onClick={() => setModalOpen(true)}
           className="flex shrink-0 items-center gap-1.5 rounded-lg bg-terracotta px-4 py-2 text-sm font-medium text-white hover:opacity-90"
@@ -118,6 +137,11 @@ function HotelsAdmin() {
 
       {hotelsQuery.isLoading && <p className="text-sm text-graphite-faint">Chargement…</p>}
       {hotelsQuery.isError && <p className="text-sm text-alert">Impossible de charger la liste des hôtels.</p>}
+      {testResult && (
+        <p className={`mb-3 text-sm ${testResult.status === "ACTIVE" ? "text-sage-ink" : "text-alert"}`}>
+          {testResult.hotelName} — {testResult.message}
+        </p>
+      )}
 
       {hotelsQuery.data && (
         <table className="w-full text-sm">
@@ -141,8 +165,12 @@ function HotelsAdmin() {
                 </td>
                 <td className="text-right">
                   <div className="flex justify-end gap-2">
-                    <button className="rounded-lg border border-graphite/15 px-3 py-1 text-xs text-graphite-soft hover:border-terracotta hover:text-terracotta">
-                      Tester la connexion
+                    <button
+                      onClick={() => testConnectionMutation.mutate(hotel.id)}
+                      disabled={testingHotelId !== null}
+                      className="rounded-lg border border-graphite/15 px-3 py-1 text-xs text-graphite-soft hover:border-terracotta hover:text-terracotta disabled:opacity-50"
+                    >
+                      {testingHotelId === hotel.id ? "Test en cours…" : "Tester la connexion"}
                     </button>
                     <button
                       onClick={() => handleDelete(hotel.id, hotel.name)}

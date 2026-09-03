@@ -7,6 +7,7 @@ import { executeAudienceCompute } from "../../../scans/run-audience-compute.js";
 import { executeP11OpportunityFinder } from "../../../scans/run-p11-opportunity-finder.js";
 import { executeP10Comparison } from "../../../scans/run-p10-comparison.js";
 import { executeCreateAudienceList } from "../../../scans/run-create-audience-list.js";
+import { executeTestConnection } from "../../../scans/run-test-connection.js";
 import { PersistentProfileSessionProvider } from "../../../experience/core/session.js";
 import type { Env } from "../../config/env.js";
 import type { ScanPeriod } from "../../../experience/core/config.js";
@@ -85,6 +86,39 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
 
     await prisma.hotel.delete({ where: { id: hotelId } });
     return { ok: true };
+  });
+
+  // "Tester la connexion" (Settings) — vérification manuelle qu'un hôtel
+  // est bien trouvable dans Expérience sous son experienceLabel. Toujours
+  // 200 (le résultat "non trouvé" est une réponse légitime à afficher, pas
+  // une erreur de requête) — met à jour experienceStatus/lastConnectionCheckAt.
+  app.post("/api/hotels/:hotelId/test-connection", async (request, reply) => {
+    const user = await requireUser(request, reply);
+    if (!user) return;
+
+    const { hotelId } = request.params as { hotelId: string };
+    const hotel = await prisma.hotel.findUnique({ where: { id: hotelId } });
+    if (!hotel) return reply.code(404).send({ error: "Hôtel introuvable." });
+
+    const sessionProvider = new PersistentProfileSessionProvider({
+      userDataDir: options.env.EXPERIENCE_PROFILE_DIR,
+      headless: options.env.PLAYWRIGHT_HEADLESS
+    });
+
+    try {
+      return await executeTestConnection({
+        hotelId,
+        hotelName: hotel.experienceLabel,
+        sessionProvider,
+        credentials: {
+          email: options.env.EXPERIENCE_SERVICE_ACCOUNT_EMAIL,
+          password: options.env.EXPERIENCE_SERVICE_ACCOUNT_PASSWORD
+        }
+      });
+    } catch (error) {
+      request.log.error(error);
+      return reply.code(502).send({ error: "Le test de connexion a échoué de façon inattendue." });
+    }
   });
 
   // Phase F6 — liste enrichie pour l'affichage CRM Health (même format que
