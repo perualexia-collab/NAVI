@@ -18,7 +18,21 @@ const envSchema = z.object({
   // (comportement d'origine). Avec eux, seuls email/mot de passe sont
   // pré-remplis — la 2FA reste toujours manuelle (retours Phase C, clôture).
   EXPERIENCE_SERVICE_ACCOUNT_EMAIL: z.string().optional(),
-  EXPERIENCE_SERVICE_ACCOUNT_PASSWORD: z.string().optional()
+  EXPERIENCE_SERVICE_ACCOUNT_PASSWORD: z.string().optional(),
+  // Ask NAVI / LLM Service (§09 Architecture Proposal, Phase H) — tous
+  // optionnels : sans eux, le reste de NAVI démarre et fonctionne
+  // normalement, Ask NAVI n'est simplement pas branché. Provider-agnostic
+  // par construction : LLM_PROVIDER ne vaut aujourd'hui que
+  // "http-openai-compatible" (n'importe quel endpoint compatible OpenAI —
+  // Groq, un futur self-host Ollama, etc.), jamais "groq" en dur.
+  LLM_PROVIDER: z.enum(["http-openai-compatible"]).optional(),
+  LLM_BASE_URL: z.string().optional(),
+  LLM_MODEL: z.string().optional(),
+  // Clé secrète du provider actif — nom volontairement générique
+  // (GROQ_API_KEY quand LLM_PROVIDER pointe vers Groq) plutôt que
+  // LLM_API_KEY, pour rester lisible si plusieurs clés provider
+  // coexistent un jour. Jamais loguée, jamais exposée au frontend.
+  GROQ_API_KEY: z.string().optional()
 });
 
 export type Env = z.infer<typeof envSchema>;
