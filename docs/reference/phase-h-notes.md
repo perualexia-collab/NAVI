@@ -132,3 +132,67 @@ raisonnement.
   affichée à l'écran pour la suite.
 
 Backend typecheck/build passent après cette correction.
+
+## H2 — Context Builder (2026-09-03)
+
+Le jeu fermé de fonctions qui donne à Ask NAVI accès aux données NAVI
+(§09 Architecture Proposal) — jamais de requête Prisma libre depuis
+l'orchestration Ask NAVI (à construire), jamais un second appel LLM
+pour "décider quoi chercher". Les 5 fonctions construites reprennent
+exactement les noms d'exemple du §09 :
+
+- **`getHotelHealth(hotelId)`** — snapshot du dernier scan connu d'un
+  hôtel : score/niveau, ventilation par pilier, KPI, signaux actifs.
+  `null` seulement si l'hôtel n'existe pas ; un hôtel jamais scanné
+  renvoie un objet valide avec `hasScan: false` (pas `null`), pour que
+  l'orchestration puisse distinguer "hôtel inconnu" de "pas encore
+  scanné" sans avoir à re-vérifier l'existence séparément.
+- **`getScanHistory(hotelId, limit?)`** — historique des derniers scans
+  terminés (mêmes 3 statuts que "Historique des scans" côté fiche
+  hôtel), pour "comment a évolué le score de tel hôtel ?".
+- **`getPortfolioSignals(userId, portfolioId)`** — signaux actifs des
+  hôtels d'un portefeuille, groupés par hôtel. Un portefeuille
+  appartient à un seul utilisateur (`Portfolio.ownerId`, comme
+  `/api/portfolios`) : `null` si `userId` ne correspond pas au
+  propriétaire — même traitement qu'un portefeuille inexistant, pour ne
+  pas laisser un utilisateur déduire l'existence du portefeuille d'un
+  autre par la forme de la réponse.
+- **`getTopOpportunities(limit?)`** — meilleures opportunités actives,
+  org-wide (les hôtels n'appartiennent à aucun utilisateur en
+  particulier, comme `/api/dashboard`). Reprend le principe de priorité
+  du dashboard (P11 avec un résultat ⭐ mis en avant = "high") mais
+  **réimplémenté indépendamment** plutôt que partagé avec
+  `dashboard.ts` — la forme de sortie utile à Ask NAVI diffère de celle
+  du dashboard, et modifier une route déjà validée par l'utilisateur
+  pour un gain de factorisation à ce stade n'était pas justifié. À
+  fusionner si un troisième appelant apparaît avec le même besoin exact.
+- **`getHotelsWithoutRecentScan(days?)`** — hôtels jamais scannés ou pas
+  scannés depuis plus de `days` jours, pour "quels hôtels ai-je oublié
+  de scanner ?".
+
+**Règle de sécurité produit reprise du brief** : aucune de ces fonctions
+ne renvoie de `playbookId` ("P06"...) — le brief interdit explicitement
+de l'exposer à l'utilisateur final, et Ask NAVI répond à l'utilisateur
+final. Seuls des libellés déjà humains (nom du signal, texte de
+recommandation) sortent du Context Builder.
+
+**Signaux "actifs" uniquement** (ni Traité ni Ignoré) dans
+`getHotelHealth`, `getPortfolioSignals` et `getTopOpportunities` — même
+règle que le dashboard (retours réels 2026-09-03). Choix cohérent avec
+l'esprit de ces fonctions ("qu'est-ce qui mérite mon attention"), pas
+avec l'exhaustivité de la fiche hôtel elle-même.
+
+**Ce qui n'est toujours pas construit** : le routeur d'intention (quelle
+fonction appeler selon la question posée), le prompt système "NAVI
+décide, Qwen explique", la route API `/api/ask-navi`, le branchement
+frontend. `backend/ai/ask-navi/` reste vide.
+
+**Test** : `pnpm --filter @navi/backend ai:test-context-builder` — lit
+de vraies données (premier hôtel, premier portefeuille trouvés en base),
+n'appelle aucun LLM (contrairement à `ai:test-connection`), affiche le
+JSON renvoyé par chacune des 5 fonctions. Aucune limite Groq consommée
+par ce test.
+
+Backend typecheck/build passent. Non testé contre de vraies données
+depuis cet environnement (pas de PostgreSQL accessible ici) — à valider
+par l'utilisateur dans son Codespace.

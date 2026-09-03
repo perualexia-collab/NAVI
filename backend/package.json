@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "connect:experience": "tsx experience/login.ts",
     "ai:test-connection": "tsx ai/test-connection.ts",
+    "ai:test-context-builder": "tsx ai/test-context-builder.ts",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
