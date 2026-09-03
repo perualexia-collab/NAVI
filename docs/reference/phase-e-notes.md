@@ -647,3 +647,28 @@ inutilement jusqu'au bout des 20s à *chaque* scan, sans jamais lever
 d'erreur (elle rend la main normalement au bout du délai). Délai réduit
 à 5s (largement suffisant pour les 2-3s observés), bornant ce coût sans
 perdre la correction. Non re-testé.
+
+## Phase F7 — définition d'audience affichée pour les signaux SINGLE (2026-09-03)
+
+Même demande que celle déjà traitée pour P11 (§Phase F et son "j'aimerais
+qu'à côté du nom du segment... la définition") mais restée incomplète :
+P02/P03/P04/P06/P07/P09 (mode SINGLE) n'affichaient que le nombre de
+destinataires, jamais la définition de l'audience.
+
+- `GET /health` (et `/scans/:scanHotelId`, détail historique) inclut
+  maintenant `recommendation.audienceDefinition` et expose
+  `audienceDescription` par signal (`AudienceDefinition.description`,
+  catalogue déjà en base — juste jamais branché à l'affichage).
+- Descriptions de `RISK_INACTIVITY`/`OTA_CONVERTIBLE`/`SECOND_BOOKING`/
+  `HIGH_VALUE_ONE_TIMER` (`seed-data/audience-definitions.ts`) réécrites
+  dans le même style compact que P11 (`p11-opportunities.ts`) : plus de
+  suffixe playbook entre parenthèses (redondant — la carte elle-même dit
+  déjà de quel playbook il s'agit) ni de phrase complète avec point final,
+  des `+` entre critères. **Nécessite un `pnpm prisma:seed`** pour se
+  répercuter en base.
+- Frontend : `({description})` affiché juste après le nombre de
+  destinataires, même position que pour P10 ("310 (Couples)") — retour
+  explicite du 2026-09-03 sur cet emplacement précis.
+
+Backend et frontend typecheck/build passent. Non testé contre une vraie
+base.

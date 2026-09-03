@@ -17,22 +17,22 @@ export const audienceDefinitions: AudienceDefinitionSeed[] = [
   {
     id: "RISK_INACTIVITY",
     name: "Profils à risque d'inactivité",
-    description: "Aucun e-mail ouvert depuis ≥ 12 mois, dernier séjour il y a moins de 36 mois. (P02, P03, P04)"
+    description: "Aucun e-mail ouvert depuis ≥12 mois + dernier séjour ≤36 mois"
   },
   {
     id: "OTA_CONVERTIBLE",
     name: "OTA convertibles",
-    description: "≥ 2 séjours, dernier séjour via Booking/Expedia, dernier séjour il y a moins de 36 mois. (P06)"
+    description: "≥2 séjours + dernier séjour Booking/Expedia + dernier séjour ≤36 mois"
   },
   {
     id: "SECOND_BOOKING",
     name: "Deuxième réservation",
-    description: "Exactement 1 séjour, dernier séjour entre 3 et 18 mois. (P07)"
+    description: "1 séjour + dernier séjour entre 3 et 18 mois"
   },
   {
     id: "HIGH_VALUE_ONE_TIMER",
     name: "One-timers à forte valeur",
-    description: "Exactement 1 séjour, dernier séjour il y a moins de 12 mois, montant ≥ dépense moyenne par réservation de l'hôtel. (P09)"
+    description: "1 séjour + dernier séjour ≤12 mois + montant ≥ dépense moyenne par réservation"
   },
   {
     id: "P11_ONETIMER",

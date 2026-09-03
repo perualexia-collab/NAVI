@@ -91,6 +91,8 @@ export interface RealSignalResult {
   /** Phase E2 — id à passer à api.computeAudience() pour P02/P03/P04/P06/P07/P09. null pour les autres signaux. */
   recommendationId: string | null;
   audienceDefinitionId: string | null;
+  /** Phase F7 — définition compacte de l'audience SINGLE, affichée à côté du nombre de destinataires. null pour NONE/MULTIPLE. */
+  audienceDescription: string | null;
   /** Dernière mesure connue — null tant que "Calculer l'audience" n'a pas été cliqué. */
   audienceResult: { recipients: number; measuredAt: string } | null;
   /** Phase E3 — uniquement pour P10/P11 (playbookId). null pour les autres signaux. */

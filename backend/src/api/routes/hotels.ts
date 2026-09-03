@@ -169,7 +169,7 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
         steps: true,
         errors: true,
         kpiResults: { include: { kpiDefinition: true }, orderBy: { id: "asc" } },
-        signalResults: { include: { signal: true, recommendations: true } }
+        signalResults: { include: { signal: true, recommendations: { include: { audienceDefinition: true } } } }
       }
     });
 
@@ -307,6 +307,10 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
             // l'utilisateur n'a pas cliqué "Calculer l'audience".
             recommendationId: recommendation?.id ?? null,
             audienceDefinitionId: recommendation?.audienceDefinitionId ?? null,
+            // Phase F7 — définition compacte de l'audience (même principe
+            // que le "(description)" déjà affiché pour P11), affichée à
+            // côté du nombre de destinataires pour les signaux SINGLE.
+            audienceDescription: recommendation?.audienceDefinition?.description ?? null,
             audienceResult: audienceResult && { recipients: audienceResult.recipients, measuredAt: audienceResult.measuredAt },
             // Phase E3 — MULTIPLE (P10, P11) : null tant que "Comparer..."
             // n'a pas été lancé au moins une fois.
@@ -369,7 +373,7 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
         steps: true,
         errors: true,
         kpiResults: { include: { kpiDefinition: true }, orderBy: { id: "asc" } },
-        signalResults: { include: { signal: true, recommendations: true } }
+        signalResults: { include: { signal: true, recommendations: { include: { audienceDefinition: true } } } }
       }
     });
 
@@ -422,6 +426,7 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
           recommendationText: recommendation?.text ?? null,
           recommendationId: null,
           audienceDefinitionId: null,
+          audienceDescription: recommendation?.audienceDefinition?.description ?? null,
           audienceResult: null,
           comparison: null,
           exportedListName: null,
