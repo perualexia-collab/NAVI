@@ -5,7 +5,6 @@ import { useAuth } from "../lib/auth-context.js";
 import { Card, CardHeader } from "../components/ui/Card.js";
 import { ScoreRing } from "../components/ui/ScoreRing.js";
 import { Modal } from "../components/ui/Modal.js";
-import { DateRangeControl } from "../components/ui/DateRangeControl.js";
 import { Icon } from "../components/ui/icons.js";
 import { formatDateTime, formatNumber } from "../lib/format.js";
 import { api } from "../lib/api.js";
@@ -28,12 +27,9 @@ export function Home() {
 
   return (
     <div>
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl">Bienvenue {firstName} 👋</h1>
-          <p className="mt-1 text-sm text-graphite-soft">Voici la santé CRM de votre portefeuille aujourd'hui.</p>
-        </div>
-        <DateRangeControl />
+      <div>
+        <h1 className="text-2xl">Bienvenue {firstName} 👋</h1>
+        <p className="mt-1 text-sm text-graphite-soft">Voici la santé CRM de votre portefeuille aujourd'hui.</p>
       </div>
 
       {dashboardQuery.isLoading && <Card className="mt-6"><p className="text-sm text-graphite-faint">Chargement…</p></Card>}
