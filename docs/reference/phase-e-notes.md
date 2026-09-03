@@ -373,3 +373,69 @@ retour utilisateur pris en compte immédiatement.
 
 **Phase E déclarée entièrement terminée** (E1, E2, E3-P11, E3-P10),
 toutes validées en conditions réelles.
+
+## Phase F1 — "Créer la liste dans Expérience" (2026-09-03, non testé)
+
+Brief §22 pas disponible en entier dans ce projet (seule la ligne
+"Brancher le flux contextuel complet du brief §22 depuis chaque
+recommandation existante" de `architecture-proposal.html`). Clarification
+demandée à l'utilisateur via 3 options ; choix explicite retenu : **Option
+1 — "Action après le choix"**. Une fois une audience calculée (E2, mode
+SINGLE) ou choisie (E3, P10/P11), un nouveau bouton "Créer la liste dans
+Expérience" permet de rejouer le cycle Audience Builder **sans supprimer
+la liste à la fin** — contrairement à E2/E3 qui mesurent puis suppriment
+systématiquement. La liste reste utilisable telle quelle par l'équipe
+marketing pour lancer une vraie campagne.
+
+Construit :
+- `Recommendation.exportedListName` / `exportedAt` (nouvelles colonnes,
+  migration `20260903090000_add_recommendation_export_tracking`) — trace
+  qu'une liste réelle (non temporaire) a été créée pour cette
+  recommandation, et sous quel nom.
+- `computeAudiencePreview()` (`compute-audience.ts`) étendu avec un
+  paramètre optionnel `persistAs?: string` : si fourni, ce nom remplace le
+  nom temporaire généré par `createTempName()`, et l'étape de suppression
+  finale (`deleteAudience`) est sautée. E2/E3 (P10/P11) n'en fournissent
+  toujours pas — comportement inchangé pour eux (mesure puis suppression
+  systématique).
+- `backend/scans/run-create-audience-list.ts` (nouveau) —
+  `executeCreateAudienceList()`, réutilise le même cycle que E2/E3 mais
+  avec `persistAs`. `buildFiltersForAudience()` : dispatcher générique qui
+  route vers le bon catalogue de filtres (E2 `AUDIENCE_DEFINITIONS`, P11
+  `P11_OPPORTUNITIES`, ou P10 via `AUDIENCE_TAG_TO_DEFINITION_ID` +
+  `buildP10AudienceFilter`) selon l'`audienceDefinitionId` reçu — possible
+  car les 3 catalogues n'ont jamais d'id en commun (`RISK_INACTIVITY…` /
+  `P11_ONETIMER…` / `P10_REPEATERS…`).
+- `POST /api/hotels/:hotelId/recommendations/:recommendationId/create-list`
+  (`backend/src/api/routes/hotels.ts`) — résout l'`audienceDefinitionId` et
+  un libellé lisible différemment selon le mode : SINGLE → celui déjà sur
+  la `Recommendation` ; MULTIPLE (P10/P11) → celui du résultat choisi
+  (`AudienceComparison.chosenResultId`, doit déjà exister — sinon 400,
+  rien à créer tant que rien n'est choisi). `buildRealListName(label,
+  hotelName)` construit un nom de liste humainement lisible (pas le nom
+  technique temporaire `createTempName()`). Met à jour
+  `exportedListName`/`exportedAt` sur succès.
+- Frontend : bouton "Créer la liste dans Expérience" (`renderCreateListAction()`
+  dans `RealHotelOverview.tsx`, factorisé — utilisé aux 3 endroits SINGLE/
+  P11/P10), visible seulement une fois qu'il y a quelque chose à exporter
+  (`signal.audienceResult` pour SINGLE, `comparison.chosenResultId` pour
+  P10/P11). Une fois créée, affiche le nom de la liste + date, avec un
+  bouton "Recréer" en cas de besoin (ex. audience recalculée entre-temps).
+  Compte dans le même verrou partagé `audienceActionRunning` que les
+  autres actions Playwright (une seule session Expérience à la fois).
+
+**Décision explicite : pas de champ `month` stocké sur
+`AudienceComparison`.** Pour P10, le libellé de la campagne choisie au
+moment de l'export continue d'être dérivé à la volée du mois courant
+(`currentMonthNameFR()` + `P10_LIBRARY`), comme pour l'affichage de la
+comparaison elle-même — cohérent avec le fait que rien dans le schéma
+existant ne fige le mois d'une comparaison passée.
+
+Typecheck + build backend et frontend passent tous les deux. **Non testé
+contre Expérience réel** — c'est un chemin de code entièrement nouveau
+(la liste n'est jamais supprimée), jamais exercé avant cette phase, y
+compris le nommage réel de la liste (`buildRealListName`) et le
+comportement de `saveTemporaryAudience`/`reopenTemporaryAudience` avec un
+nom "définitif" plutôt que temporaire. À tester en conditions réelles
+avant de considérer F1 terminée, avec la même méthode habituelle
+(message d'erreur exact / DOM réel → correction) en cas d'échec.

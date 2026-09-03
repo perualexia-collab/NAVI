@@ -57,6 +57,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ resultId })
     }),
+  createAudienceList: (hotelId: string, recommendationId: string) =>
+    request<{ listName: string; recipients: number; audienceResultId: string; measuredAt: string }>(
+      `/hotels/${hotelId}/recommendations/${recommendationId}/create-list`,
+      { method: "POST" }
+    ),
 
   listPortfolios: () => request<RealPortfolio[]>("/portfolios"),
   createPortfolio: (name: string, hotelIds: string[]) =>

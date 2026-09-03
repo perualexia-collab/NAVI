@@ -86,6 +86,9 @@ export interface RealSignalResult {
   audienceResult: { recipients: number; measuredAt: string } | null;
   /** Phase E3 — uniquement pour P10/P11 (playbookId). null pour les autres signaux. */
   comparison: RealAudienceComparison | null;
+  /** Phase F1 — null tant que "Créer la liste dans Expérience" n'a pas été utilisé sur cette recommandation. */
+  exportedListName: string | null;
+  exportedAt: string | null;
 }
 
 export interface RealAudienceComparisonResult {

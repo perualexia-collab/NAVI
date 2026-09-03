@@ -6,6 +6,7 @@ import { runHotelScan } from "../../../scans/run-hotel-scan.js";
 import { executeAudienceCompute } from "../../../scans/run-audience-compute.js";
 import { executeP11OpportunityFinder } from "../../../scans/run-p11-opportunity-finder.js";
 import { executeP10Comparison } from "../../../scans/run-p10-comparison.js";
+import { executeCreateAudienceList } from "../../../scans/run-create-audience-list.js";
 import { PersistentProfileSessionProvider } from "../../../experience/core/session.js";
 import type { Env } from "../../config/env.js";
 import type { ScanPeriod } from "../../../experience/core/config.js";
@@ -33,6 +34,13 @@ export const periodSchema = z
 const createHotelSchema = z.object({
   name: z.string().trim().min(1, "Nom de l'hôtel requis.")
 });
+
+/** Phase F1 — nom lisible pour une liste réellement créée dans Expérience (reconnaissable par l'équipe marketing, contrairement aux noms NAVI_TEMP_*). */
+function buildRealListName(label: string, hotelName: string): string {
+  const date = new Date();
+  const formattedDate = [String(date.getDate()).padStart(2, "0"), String(date.getMonth() + 1).padStart(2, "0"), date.getFullYear()].join("/");
+  return `NAVI - ${label} - ${hotelName} - ${formattedDate}`;
+}
 
 export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) {
   app.get("/api/hotels", async (request, reply) => {
@@ -237,7 +245,11 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
             audienceResult: audienceResult && { recipients: audienceResult.recipients, measuredAt: audienceResult.measuredAt },
             // Phase E3 — MULTIPLE (P10, P11) : null tant que "Comparer..."
             // n'a pas été lancé au moins une fois.
-            comparison: result.playbookId === "P11" ? p11Comparison : result.playbookId === "P10" ? p10Comparison : null
+            comparison: result.playbookId === "P11" ? p11Comparison : result.playbookId === "P10" ? p10Comparison : null,
+            // Phase F1 — null tant que "Créer la liste dans Expérience"
+            // n'a pas été utilisé sur cette recommandation.
+            exportedListName: recommendation?.exportedListName ?? null,
+            exportedAt: recommendation?.exportedAt ?? null
           };
         })
       }
@@ -465,5 +477,97 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
     });
 
     return { comparisonId: updated.id, chosenResultId: updated.chosenResultId };
+  });
+
+  // Phase F1 — "Créer la liste dans Expérience" : une fois l'audience
+  // calculée (E2, SINGLE) ou choisie (E3, MULTIPLE), la crée réellement
+  // (pas une liste temporaire supprimée aussitôt) pour que l'équipe
+  // marketing puisse l'utiliser. Synchrone, même raisonnement que les
+  // routes ci-dessus.
+  app.post("/api/hotels/:hotelId/recommendations/:recommendationId/create-list", async (request, reply) => {
+    const user = await requireUser(request, reply);
+    if (!user) return;
+
+    const { hotelId, recommendationId } = request.params as { hotelId: string; recommendationId: string };
+
+    const recommendation = await prisma.recommendation.findUnique({
+      where: { id: recommendationId },
+      include: { signalResult: { include: { signal: true, scanHotel: { include: { scan: true } } } } }
+    });
+
+    if (!recommendation || recommendation.signalResult.scanHotel.hotelId !== hotelId) {
+      return reply.code(404).send({ error: "Recommandation introuvable." });
+    }
+
+    const playbookId = recommendation.signalResult.playbookId;
+    const audienceMode = recommendation.signalResult.signal.audienceMode;
+
+    let audienceDefinitionId: string | null = null;
+    let label: string;
+
+    if (audienceMode === "SINGLE") {
+      audienceDefinitionId = recommendation.audienceDefinitionId;
+      if (!audienceDefinitionId) return reply.code(400).send({ error: "Cette recommandation n'a pas d'audience associée." });
+      const definition = await prisma.audienceDefinition.findUnique({ where: { id: audienceDefinitionId } });
+      label = definition?.name ?? audienceDefinitionId;
+    } else if (audienceMode === "MULTIPLE") {
+      const comparison = await prisma.audienceComparison.findFirst({
+        where: { hotelId, playbookId },
+        orderBy: { id: "desc" },
+        include: { results: { include: { audienceDefinition: true } } }
+      });
+      if (!comparison || !comparison.chosenResultId) {
+        return reply.code(400).send({ error: "Choisis d'abord une option comparée avant de créer la liste." });
+      }
+      const chosenResult = comparison.results.find((result) => result.id === comparison.chosenResultId);
+      if (!chosenResult) return reply.code(400).send({ error: "Le résultat choisi est introuvable." });
+      audienceDefinitionId = chosenResult.audienceDefinitionId;
+
+      if (playbookId === "P10") {
+        const monthName = currentMonthNameFR();
+        const campaign = (P10_LIBRARY[monthName] ?? []).find((candidate) => AUDIENCE_TAG_TO_DEFINITION_ID[candidate.audience] === audienceDefinitionId);
+        label = campaign?.name ?? chosenResult.audienceDefinition.name;
+      } else {
+        label = chosenResult.audienceDefinition.name;
+      }
+    } else {
+      return reply.code(400).send({ error: "Cette recommandation n'a pas d'audience associée." });
+    }
+
+    const hotel = await prisma.hotel.findUniqueOrThrow({ where: { id: hotelId } });
+    const listName = buildRealListName(label, hotel.name);
+
+    const sessionProvider = new PersistentProfileSessionProvider({
+      userDataDir: options.env.EXPERIENCE_PROFILE_DIR,
+      headless: options.env.PLAYWRIGHT_HEADLESS
+    });
+
+    try {
+      const result = await executeCreateAudienceList({
+        hotelId,
+        hotelName: hotel.experienceLabel,
+        playbookId,
+        audienceDefinitionId,
+        listName,
+        period: recommendation.signalResult.scanHotel.scan.period as unknown as ScanPeriod,
+        sessionProvider,
+        credentials: {
+          email: options.env.EXPERIENCE_SERVICE_ACCOUNT_EMAIL,
+          password: options.env.EXPERIENCE_SERVICE_ACCOUNT_PASSWORD
+        }
+      });
+
+      await prisma.recommendation.update({
+        where: { id: recommendationId },
+        data: { exportedListName: result.listName, exportedAt: new Date(result.measuredAt) }
+      });
+
+      return result;
+    } catch (error) {
+      request.log.error(error);
+      return reply.code(502).send({
+        error: error instanceof Error ? error.message : "La création de la liste a échoué dans Expérience."
+      });
+    }
   });
 }

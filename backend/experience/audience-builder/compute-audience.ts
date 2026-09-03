@@ -15,28 +15,40 @@ export interface AudiencePreviewInput {
    * cf. backend/experience/audience-builder/p10-filters.ts).
    */
   buildFilters: (page: Page) => Promise<void>;
+  /**
+   * Phase F1 — si fourni, la liste est enregistrée sous ce nom et **n'est
+   * pas supprimée** à la fin : ce n'est plus un aperçu temporaire mais une
+   * vraie liste d'envoi, utilisable telle quelle par l'équipe marketing
+   * dans Expérience (cf. backend/scans/run-create-audience-list.ts).
+   */
+  persistAs?: string;
 }
 
 export interface AudiencePreviewResult {
   definitionId: string;
   name: string;
   recipients: number;
+  /** Rempli uniquement quand `persistAs` était fourni — nom réel de la liste conservée dans Expérience. */
+  listName: string | null;
 }
 
 /**
  * Cycle complet de calcul d'une audience — porté à l'identique depuis
  * `previewAudience()` (docs/reference/moteur-experience-existant.js, bloc
- * 5/8) : création d'une liste TEMPORAIRE → filtres → recalcul → mode NAVI
- * → sauvegarde → réouverture (pour lire le volume de façon fiable) →
- * lecture → suppression. Ne crée jamais de liste persistante.
+ * 5/8) : création d'une liste → filtres → recalcul → mode NAVI →
+ * sauvegarde → réouverture (pour lire le volume de façon fiable) →
+ * lecture → suppression. Par défaut la liste est temporaire et toujours
+ * supprimée ; avec `persistAs` (Phase F1), elle est conservée.
  *
- * Filet de sécurité : si une erreur survient après la sauvegarde
- * temporaire, on tente quand même de supprimer la liste avant de
- * propager l'erreur, pour ne jamais laisser de liste NAVI_TEMP_* traîner
- * dans Expérience.
+ * Filet de sécurité (aperçu temporaire uniquement) : si une erreur
+ * survient après la sauvegarde, on tente quand même de supprimer la
+ * liste avant de propager l'erreur, pour ne jamais laisser de liste
+ * NAVI_TEMP_* traîner dans Expérience. Ne s'applique pas en mode
+ * `persistAs` — une liste volontairement conservée n'est jamais
+ * supprimée automatiquement, même en cas d'erreur après la sauvegarde.
  */
 export async function computeAudiencePreview(page: Page, input: AudiencePreviewInput): Promise<AudiencePreviewResult> {
-  const { hotelName, playbookId, audienceId, audienceName, buildFilters } = input;
+  const { hotelName, playbookId, audienceId, audienceName, buildFilters, persistAs } = input;
   let tempName: string | null = null;
 
   try {
@@ -46,19 +58,22 @@ export async function computeAudiencePreview(page: Page, input: AudiencePreviewI
     await recalculateResults(page);
     await selectNaviMode(page);
 
-    tempName = createTempName(playbookId, hotelName, audienceId);
+    tempName = persistAs ?? createTempName(playbookId, hotelName, audienceId);
     await saveTemporaryAudience(page, tempName);
     await reopenTemporaryAudience(page, tempName);
 
     const recipients = await readAudienceRecipientCount(page);
     console.log(`[audience-builder] ${audienceName} (${playbookId}, ${hotelName}) : ${recipients} destinataire(s)`);
 
-    await deleteAudience(page, tempName);
+    const savedName = tempName;
+    if (!persistAs) {
+      await deleteAudience(page, savedName);
+    }
     tempName = null;
 
-    return { definitionId: audienceId, name: audienceName, recipients };
+    return { definitionId: audienceId, name: audienceName, recipients, listName: persistAs ? savedName : null };
   } catch (error) {
-    if (tempName) {
+    if (tempName && !persistAs) {
       try {
         await deleteAudience(page, tempName);
       } catch (cleanupError) {

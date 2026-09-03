@@ -236,7 +236,29 @@ function ScanResult({ scan, hotelId }: { scan: RealScanSummary; hotelId: string 
     onSettled: () => setComparingAudiencesRecommendationId(null)
   });
 
-  const audienceActionRunning = computingRecommendationId !== null || comparingRecommendationId !== null || comparingAudiencesRecommendationId !== null;
+  // Phase F1 — "Créer la liste dans Expérience" : même session Playwright
+  // partagée que les actions ci-dessus, donc compte aussi dans
+  // audienceActionRunning.
+  const [creatingListRecommendationId, setCreatingListRecommendationId] = useState<string | null>(null);
+  const [createListError, setCreateListError] = useState<{ recommendationId: string; message: string } | null>(null);
+  const createListMutation = useMutation({
+    mutationFn: (recommendationId: string) => api.createAudienceList(hotelId, recommendationId),
+    onMutate: (recommendationId: string) => {
+      setCreatingListRecommendationId(recommendationId);
+      setCreateListError(null);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["hotel-health", hotelId] }),
+    onError: (error: unknown, recommendationId: string) => {
+      setCreateListError({ recommendationId, message: error instanceof ApiError ? error.message : "La création de la liste a échoué." });
+    },
+    onSettled: () => setCreatingListRecommendationId(null)
+  });
+
+  const audienceActionRunning =
+    computingRecommendationId !== null ||
+    comparingRecommendationId !== null ||
+    comparingAudiencesRecommendationId !== null ||
+    creatingListRecommendationId !== null;
 
   // Choix d'une option comparée — écriture simple, pas de session
   // Expérience impliquée, donc indépendant de audienceActionRunning.
@@ -247,6 +269,44 @@ function ScanResult({ scan, hotelId }: { scan: RealScanSummary; hotelId: string 
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["hotel-health", hotelId] }),
     onSettled: () => setChoosingResultId(null)
   });
+
+  // Phase F1 — bouton "Créer la liste dans Expérience" (ou confirmation +
+  // "Recréer" si déjà fait), factorisé car appelé depuis 3 zones du JSX
+  // (SINGLE, comparaison P11, comparaison P10).
+  function renderCreateListAction(recommendationId: string, exportedListName: string | null, exportedAt: string | null) {
+    if (exportedListName) {
+      return (
+        <div className="mt-2 rounded-md bg-sage-soft px-2 py-1.5 text-xs text-sage-ink">
+          ✅ Liste créée dans Expérience : <span className="font-medium">{exportedListName}</span>
+          {exportedAt && ` — le ${formatDateTime(exportedAt)}`}
+          <button
+            type="button"
+            onClick={() => createListMutation.mutate(recommendationId)}
+            disabled={audienceActionRunning}
+            className="ml-2 rounded-md border border-sage/30 px-2 py-0.5 text-xs font-medium text-sage-ink hover:bg-sage-soft/70 disabled:opacity-50"
+          >
+            {creatingListRecommendationId === recommendationId ? "…" : "Recréer"}
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="mt-2">
+        <button
+          type="button"
+          onClick={() => createListMutation.mutate(recommendationId)}
+          disabled={audienceActionRunning}
+          className="rounded-md border border-graphite/20 px-2.5 py-1 text-xs font-medium text-graphite hover:bg-linen-deep disabled:opacity-50"
+        >
+          {creatingListRecommendationId === recommendationId ? "Création en cours — Expérience…" : "Créer la liste dans Expérience"}
+        </button>
+        {createListError?.recommendationId === recommendationId && (
+          <div className="mt-1 text-xs text-alert">{createListError.message}</div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -357,6 +417,9 @@ function ScanResult({ scan, hotelId }: { scan: RealScanSummary; hotelId: string 
                         {audienceError?.recommendationId === signal.recommendationId && (
                           <div className="mt-1 text-alert">{audienceError.message}</div>
                         )}
+
+                        {/* Phase F1 — dispo dès qu'une audience a été calculée au moins une fois. */}
+                        {signal.audienceResult && renderCreateListAction(signal.recommendationId, signal.exportedListName, signal.exportedAt)}
                       </div>
                     )}
 
@@ -416,6 +479,9 @@ function ScanResult({ scan, hotelId }: { scan: RealScanSummary; hotelId: string 
                         {comparisonError?.recommendationId === signal.recommendationId && (
                           <div className="mt-1 text-xs text-alert">{comparisonError.message}</div>
                         )}
+
+                        {/* Phase F1 — dispo dès qu'une option a été choisie. */}
+                        {signal.comparison?.chosenResultId && renderCreateListAction(signal.recommendationId, signal.exportedListName, signal.exportedAt)}
                       </div>
                     )}
 
@@ -490,6 +556,9 @@ function ScanResult({ scan, hotelId }: { scan: RealScanSummary; hotelId: string 
                         {audienceComparisonError?.recommendationId === signal.recommendationId && (
                           <div className="mt-1 text-xs text-alert">{audienceComparisonError.message}</div>
                         )}
+
+                        {/* Phase F1 — dispo dès qu'une option a été choisie. */}
+                        {signal.comparison?.chosenResultId && renderCreateListAction(signal.recommendationId, signal.exportedListName, signal.exportedAt)}
                       </div>
                     )}
                   </div>

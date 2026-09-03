@@ -308,11 +308,16 @@ model SignalResult {
 }
 
 model Recommendation {
-  id                    String  @id @default(cuid())
+  id                    String    @id @default(cuid())
   scanHotelId           String
   signalResultId        String
   text                  String
   audienceDefinitionId  String?
+  // Phase F1 — trace la création réelle (non temporaire) de la liste dans
+  // Expérience, une fois l'audience calculée (E2) ou choisie (E3). null
+  // tant que "Créer la liste dans Expérience" n'a pas été utilisé.
+  exportedListName      String?
+  exportedAt            DateTime?
 
   signalResult        SignalResult        @relation(fields: [signalResultId], references: [id], onDelete: Cascade)
   audienceDefinition  AudienceDefinition? @relation(fields: [audienceDefinitionId], references: [id])
