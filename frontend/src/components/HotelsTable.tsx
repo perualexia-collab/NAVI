@@ -25,7 +25,6 @@ export function HotelsTable({ hotels, showPortfolio = false }: { hotels: MockHot
             <th className="pb-2 font-medium">Vigilances</th>
             <th className="pb-2 font-medium">Opportunités</th>
             <th className="pb-2 font-medium">Statut</th>
-            <th className="pb-2" />
           </tr>
         </thead>
         <tbody>
@@ -54,11 +53,6 @@ export function HotelsTable({ hotels, showPortfolio = false }: { hotels: MockHot
               <td className="tabular-nums text-graphite-soft">{hotel.vigilances ?? <Dash />}</td>
               <td className="tabular-nums text-graphite-soft">{hotel.opportunities ?? <Dash />}</td>
               <td><StatusPill status={hotel.status} /></td>
-              <td className="text-right text-graphite-faint">
-                <button aria-label="Actions" className="rounded p-1 hover:bg-linen-deep">
-                  <Icon.MoreVertical width={16} height={16} />
-                </button>
-              </td>
             </tr>
           ))}
         </tbody>

@@ -4,7 +4,6 @@ import { Card } from "../components/ui/Card.js";
 import { DateRangeControl } from "../components/ui/DateRangeControl.js";
 import { Icon } from "../components/ui/icons.js";
 import { HotelsTable } from "../components/HotelsTable.js";
-import { hotels } from "../mock/data.js";
 import type { MockHotel } from "../mock/types.js";
 import { api } from "../lib/api.js";
 import type { RealHotelListItem } from "../lib/real-hotel-types.js";
@@ -60,9 +59,10 @@ export function CrmHealth() {
 
   const realHotelsQuery = useQuery({ queryKey: ["hotels-overview"], queryFn: api.getHotelsOverview });
 
-  // Hôtels réels (données NAVI/Playwright) et mockés (démo) affichés dans
-  // le même tableau, même format — retours réels 2026-09-03.
-  const allHotels = useMemo<MockHotel[]>(() => [...hotels, ...(realHotelsQuery.data ?? []).map(toMockHotel)], [realHotelsQuery.data]);
+  // Uniquement les hôtels réels (NAVI/Playwright) — retours réels
+  // 2026-09-03 : les hôtels de démonstration mockés n'ont plus leur place
+  // ici, ils ne représentent aucune donnée exploitable.
+  const allHotels = useMemo<MockHotel[]>(() => (realHotelsQuery.data ?? []).map(toMockHotel), [realHotelsQuery.data]);
 
   const filtered = useMemo(
     () => allHotels.filter((h) => h.name.toLowerCase().includes(search.toLowerCase()) && matchesFilter(h, filter)),
@@ -99,9 +99,7 @@ export function CrmHealth() {
           <DateRangeControl />
         </div>
 
-        {realHotelsQuery.isError && (
-          <p className="mb-3 text-sm text-alert">Impossible de charger les hôtels réels — seuls les hôtels de démonstration sont affichés.</p>
-        )}
+        {realHotelsQuery.isError && <p className="mb-3 text-sm text-alert">Impossible de charger la liste des hôtels.</p>}
 
         <HotelsTable hotels={filtered} showPortfolio />
       </Card>

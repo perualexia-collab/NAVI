@@ -1,6 +1,7 @@
 import type { Page } from "playwright";
 import type { ScanStepName } from "@navi/shared";
 import { selectHotel, openCustomerAnalysis, openActivity, openRevenue, openMarketingStats, applyPeriodWithToggle, setMarketingPeriod } from "./core/navigation.js";
+import { sleep } from "./core/utils.js";
 import type { ScanPeriod } from "./core/config.js";
 import { scrapeGeneralKPIs, type BaseKpis } from "./scrapers/base.js";
 import { scrapeEmailCapture, type EmailCaptureKpis } from "./scrapers/capture.js";
@@ -32,13 +33,33 @@ export interface CollectHotelKpisResult {
   marketing: StepResult<MarketingKpis>;
 }
 
+const STEP_ATTEMPTS = 2;
+
+/**
+ * Un ré-essai automatique (retours réels 2026-09-03, "East Paris Suite",
+ * période personnalisée) : Expérience peut mettre plus longtemps que le
+ * délai fixe post-validation (`applyPeriodWithToggle`) à recalculer ses
+ * statistiques sur une période personnalisée — la première tentative lit
+ * alors une page pas encore à jour. `fn` rejoue l'étape en entier
+ * (navigation + période + lecture), pas juste la lecture : un second
+ * passage complet laisse largement le temps à Expérience de finir son
+ * calcul.
+ */
 async function runStep<T>(step: ScanStepName, fn: () => Promise<T>): Promise<StepResult<T>> {
-  try {
-    const data = await fn();
-    return { status: "OK", data, error: null };
-  } catch (error) {
-    return { status: "ERROR", data: null, error: handleExperienceError(step, error) };
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= STEP_ATTEMPTS; attempt++) {
+    try {
+      const data = await fn();
+      return { status: "OK", data, error: null };
+    } catch (error) {
+      lastError = error;
+      if (attempt < STEP_ATTEMPTS) {
+        console.warn(`[collect-hotel-kpis] Étape ${step} en échec (tentative ${attempt}/${STEP_ATTEMPTS}) — nouvel essai :`, error instanceof Error ? error.message : error);
+        await sleep(3000);
+      }
+    }
   }
+  return { status: "ERROR", data: null, error: handleExperienceError(step, lastError) };
 }
 
 export async function collectHotelKpis(page: Page, hotelName: string, period: ScanPeriod): Promise<CollectHotelKpisResult> {

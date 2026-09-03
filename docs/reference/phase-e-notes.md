@@ -580,3 +580,33 @@ Expérience réel ni contre une vraie base** — la cascade de suppression
 en particulier mérite un test réel (créer un hôtel, le scanner au moins
 une fois, le supprimer, vérifier qu'il disparaît bien de Paramètres ET
 CRM Health, et qu'aucune ligne orpheline ne reste en base).
+
+## Retours post-F6 (2026-09-03)
+
+Quatre points signalés après un premier test de F6 en conditions réelles :
+
+- **CRM Health, hôtels mockés retirés** — la fusion mock+réel introduite
+  avec F6 était un contresens : `CrmHealth.tsx` n'affiche plus que les
+  hôtels réels (`GET /hotels/overview`), plus aucun hôtel de
+  démonstration.
+- **Seuils Bon/Excellent resserrés** — `getHealthLevel()` (crm-health.ts) :
+  75-88 = Bon (était < 90), 89-100 = Excellent. Critique/Fragile/Correct
+  inchangés. N'affecte que les scans futurs (le `healthLevel` déjà
+  persisté par scan passé ne change pas rétroactivement).
+- **Bouton "⋮" retiré** de `HotelsTable` — n'avait jamais eu d'action
+  branchée dessus, retiré plutôt que laissé comme faux affordance.
+- **Ré-essai automatique par étape du scan** — retour réel sur "East
+  Paris Suite" en période personnalisée : l'étape BASE échouait
+  ("La taille de la base... n'ont pas pu être récupérées"), mais
+  fonctionnait après un peu d'attente manuelle. Cause probable :
+  `applyPeriodWithToggle()` a un délai fixe (1800ms) après validation
+  de la période, insuffisant si Expérience met plus longtemps à
+  recalculer ses statistiques sur une période personnalisée — la
+  première lecture tombe alors sur une page pas encore à jour.
+  `collect-hotel-kpis.ts` : `runStep()` rejoue maintenant l'étape en
+  entier (navigation + période + lecture, pas juste la lecture) une
+  seconde fois après 3s si la première tentative échoue, pour chacune
+  des 5 étapes. Non testé contre Expérience réel — à confirmer que ça
+  couvre bien le cas rencontré.
+
+Backend et frontend typecheck/build passent.

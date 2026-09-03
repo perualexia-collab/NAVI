@@ -114,11 +114,13 @@ export function calculateCRMHealth({
   };
 }
 
+// Seuils Bon/Excellent resserrés à la demande explicite du 2026-09-03
+// (75-88 = Bon, 89-100 = Excellent) — Critique/Fragile/Correct inchangés.
 export function getHealthLevel(score: number): "Critique" | "Fragile" | "Correct" | "Bon" | "Excellent" {
   if (score < 40) return "Critique";
   if (score < 60) return "Fragile";
   if (score < 75) return "Correct";
-  if (score < 90) return "Bon";
+  if (score < 89) return "Bon";
   return "Excellent";
 }
 
