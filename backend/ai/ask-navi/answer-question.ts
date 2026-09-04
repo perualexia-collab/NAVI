@@ -57,7 +57,13 @@ export interface AnswerQuestionOptions {
 
 export async function answerQuestion(options: AnswerQuestionOptions): Promise<AskNaviAnswer> {
   const recentHistory = (options.history ?? []).slice(-MAX_HISTORY_TURNS);
-  const recentHistoryText = recentHistory.map((turn) => `${turn.question} ${turn.answer}`).join(" ");
+  // Retour réel 2026-09-04 : uniquement les QUESTIONS précédentes, jamais
+  // les réponses. Une réponse sur un portefeuille cite souvent des noms
+  // d'hôtels précis à titre d'exemple ("...dont le Terminus Lyon...") —
+  // les inclure ici faisait dévier une relance générique ("cet hôtel-là a
+  // le plus de résa ?") vers un hôtel jamais réellement demandé, au lieu
+  // de rester sur le portefeuille dont on parlait vraiment.
+  const recentHistoryText = recentHistory.map((turn) => turn.question).join(" ");
 
   const intent = await routeIntent(options.question, options.userId, recentHistoryText);
 

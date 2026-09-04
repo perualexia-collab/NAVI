@@ -46,6 +46,11 @@ const FINANCIAL_KEYWORDS = [
   "revenus",
   "reservation",
   "reservations",
+  // "résa" (normalisé sans accent) — abrégé courant, retour réel
+  // 2026-09-04 : absent, une relance du type "quel hôtel a le plus de
+  // résa ?" tombait sur portfolio-signals au lieu de portfolio-financials.
+  "resa",
+  "resas",
   "booking",
   "bookings"
 ];
@@ -68,13 +73,16 @@ function findBestMatch<T extends { name: string }>(entities: T[], normalizedSear
  * aucun LLM.
  *
  * `recentHistoryText` (retour réel 2026-09-03 — mémoire conversationnelle) :
- * texte des derniers échanges (questions + réponses), utilisé UNIQUEMENT
- * en repli si la question seule ne nomme aucun hôtel/portefeuille — pour
- * qu'une relance elliptique ("détaille les actions") reste rattachée à
- * l'hôtel/portefeuille mentionné juste avant, sans qu'une nouvelle
- * question qui en nomme un autre explicitement ne se fasse jamais
- * "voler" par un historique périmé (la question courante l'emporte
- * toujours).
+ * texte des QUESTIONS précédentes uniquement (jamais les réponses —
+ * retour réel 2026-09-04 : une réponse sur un portefeuille cite souvent
+ * des noms d'hôtels précis à titre d'exemple, ce qui faisait dévier une
+ * relance générique vers un hôtel jamais réellement demandé). Utilisé
+ * UNIQUEMENT en repli si la question seule ne nomme aucun hôtel/
+ * portefeuille — pour qu'une relance elliptique ("détaille les actions")
+ * reste rattachée à l'hôtel/portefeuille dont on parlait vraiment, sans
+ * qu'une nouvelle question qui en nomme un autre explicitement ne se
+ * fasse jamais "voler" par un historique périmé (la question courante
+ * l'emporte toujours).
  *
  * Reconnaissance d'entité volontairement simple (sous-chaîne, la
  * correspondance la plus longue gagne) — un vrai NLU serait

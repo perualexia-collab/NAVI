@@ -671,3 +671,43 @@ actif si c'était celui affiché.
 Backend et frontend typecheck/build passent. **Migration à appliquer**
 (`pnpm prisma:migrate`) avant de tester — voir instructions de refresh.
 Non testé contre de vraies données.
+
+### Retour immédiat : relance générique "volée" par un hôtel cité en exemple (2026-09-04)
+
+Premier vrai test de H7, très positif dans l'ensemble : "Quel est le CA
+CRM du portefeuille Paris ?" → réponse correcte et bien formulée (total
+391 033,47 €, 1083 réservations, 13 hôtels avec données, exemples
+Terminus Lyon / Belinda Hôtel & Spa, 2 hôtels sans donnée nommés). La
+persistance et l'addition portefeuille fonctionnent comme prévu.
+
+Mais les deux relances suivantes ("quel est l'hôtel de ce portefeuille
+avec le plus de résa ?", "quel hôtel du portefeuille GHP génère le plus
+de réservations automation ?") sont tombées sur le contexte de l'hôtel
+**Belinda Hôtel & Spa** au lieu de rester sur le portefeuille — NAVI
+répondant "je n'ai pas accès à la vue comparative des autres hôtels".
+
+Cause : `recentHistoryText` (repli d'entité de `routeIntent()`)
+concaténait question ET réponse de chaque tour précédent. La réponse
+sur le portefeuille Paris citait "Terminus Lyon" et "Belinda Hôtel &
+Spa" comme exemples — ces noms d'hôtels, présents dans le texte,
+"gagnaient" le repli d'entité (hôtel testé avant portefeuille) alors
+que l'utilisateur n'avait jamais réellement demandé Belinda.
+
+- `recentHistoryText` ne contient plus que les QUESTIONS précédentes,
+  jamais les réponses — une réponse peut légitimement citer plein de
+  noms d'hôtels sans qu'aucun ne devienne le sujet d'une relance.
+- `FINANCIAL_KEYWORDS` complété avec "résa"/"résas" (abrégé courant,
+  absent jusqu'ici — "quel hôtel a le plus de résa ?" tombait sur
+  `portfolio-signals` au lieu de `portfolio-financials` même une fois
+  le bon portefeuille identifié).
+
+Limite restante, pas un bug : "portefeuille GHP" ne matchera que si
+"GHP" est le nom exact (ou une sous-chaîne) d'un vrai `Portfolio.name`
+en base — un surnom/abréviation non présent tel quel dans le nom réel
+ne sera jamais reconnu par cette correspondance en sous-chaîne. Si
+c'est le cas ici, la relance retombera correctement sur le dernier
+portefeuille réellement nommé (Paris) plutôt que sur un hôtel au
+hasard — déjà une nette amélioration, mais pas la bonne réponse si
+l'intention était vraiment un portefeuille différent nommé "GHP".
+
+Backend typecheck/build passent. Non re-testé.
