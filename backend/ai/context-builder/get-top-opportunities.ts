@@ -1,14 +1,14 @@
 import { prisma } from "../../src/db/prisma.js";
 import { getLatestScanByHotelId } from "../../src/services/scans/latest-scan-by-hotel.js";
-import { hotelOwnerFilter, type RequestingUser } from "../../src/services/hotels/hotel-access.js";
+import type { RequestingUser } from "../../src/services/hotels/hotel-access.js";
 import type { TopOpportunity } from "./types.js";
 
 /**
  * Meilleures opportunités actives (ni Traité ni Ignoré) — pour "quelles
- * sont les meilleures opportunités en ce moment ?". Phase H8 (retour
- * réel 2026-09-04) : les hôtels sont désormais propres à chaque compte
- * NAVI (hotelOwnerFilter — {} pour un admin, ownerId sinon), donc
- * scopées ici comme partout ailleurs.
+ * sont les meilleures opportunités en ce moment ?". Phase G2 (retour réel
+ * 2026-09-04) : le catalogue d'hôtels est partagé ; seul "dernier scan"
+ * (d'où proviennent ces opportunités) est scopé par compte, via `user`
+ * passé à getLatestScanByHotelId().
  *
  * Reprend le même principe de priorité que le dashboard (P11 avec un
  * résultat ⭐ mis en avant = "high", tout le reste = "normal" —
@@ -18,10 +18,13 @@ import type { TopOpportunity } from "./types.js";
  * fusionner si un troisième appelant apparaît.
  */
 export async function getTopOpportunities(user: RequestingUser, limit = 5): Promise<TopOpportunity[]> {
-  const hotels = await prisma.hotel.findMany({ where: { disabled: false, ...hotelOwnerFilter(user) }, select: { id: true, name: true } });
+  const hotels = await prisma.hotel.findMany({ where: { disabled: false }, select: { id: true, name: true } });
   const hotelNameById = new Map(hotels.map((h) => [h.id, h.name]));
 
-  const latestScanByHotelId = await getLatestScanByHotelId(hotels.map((h) => h.id));
+  const latestScanByHotelId = await getLatestScanByHotelId(
+    hotels.map((h) => h.id),
+    user
+  );
   const scanHotelIds = [...latestScanByHotelId.values()].map((s) => s.scanHotelId);
   if (scanHotelIds.length === 0) return [];
 

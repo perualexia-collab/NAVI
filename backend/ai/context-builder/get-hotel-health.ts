@@ -1,5 +1,5 @@
 import { prisma } from "../../src/db/prisma.js";
-import { canAccessHotel, type RequestingUser } from "../../src/services/hotels/hotel-access.js";
+import type { RequestingUser } from "../../src/services/hotels/hotel-access.js";
 import type { ContextSignal, HotelHealthContext } from "./types.js";
 
 /**
@@ -9,19 +9,19 @@ import type { ContextSignal, HotelHealthContext } from "./types.js";
  * directement du dernier ScanHotel (moteur métier déterministe déjà
  * exécuté) — cette fonction ne recalcule jamais rien.
  *
- * `null` si l'hôtel n'existe pas OU n'appartient pas à l'utilisateur
- * (Phase H8, retour réel 2026-09-04 — défense en profondeur : routeIntent()
- * ne devrait déjà proposer que des hôtels accessibles, mais cette
- * fonction ne fait confiance qu'à sa propre vérification). Un hôtel
- * existant mais jamais scanné renvoie un objet valide avec
- * `hasScan: false`.
+ * `null` si l'hôtel n'existe pas — le catalogue d'hôtels est partagé
+ * (Phase G2, retour réel 2026-09-04). C'est le SCAN utilisé qui reste
+ * propre au compte courant : "le dernier scan" ci-dessous est filtré par
+ * `requestedById` (sauf admin, qui voit le dernier scan de n'importe
+ * qui). Un hôtel existant mais jamais scanné PAR CE COMPTE renvoie un
+ * objet valide avec `hasScan: false`.
  */
 export async function getHotelHealth(hotelId: string, user: RequestingUser): Promise<HotelHealthContext | null> {
   const hotel = await prisma.hotel.findUnique({ where: { id: hotelId } });
-  if (!hotel || !canAccessHotel(hotel, user)) return null;
+  if (!hotel) return null;
 
   const scanHotel = await prisma.scanHotel.findFirst({
-    where: { hotelId },
+    where: { hotelId, scan: user.role === "ADMIN" ? {} : { requestedById: user.id } },
     orderBy: { startedAt: "desc" },
     include: {
       kpiResults: { include: { kpiDefinition: true }, orderBy: { id: "asc" } },

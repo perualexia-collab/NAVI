@@ -1,6 +1,6 @@
 import { prisma } from "../../src/db/prisma.js";
 import { getLatestScanByHotelId } from "../../src/services/scans/latest-scan-by-hotel.js";
-import { hotelOwnerFilter, type RequestingUser } from "../../src/services/hotels/hotel-access.js";
+import type { RequestingUser } from "../../src/services/hotels/hotel-access.js";
 import type { AllHotelsOverview } from "./types.js";
 
 /**
@@ -12,17 +12,21 @@ import type { AllHotelsOverview } from "./types.js";
  * plus précise n'est identifiée — Ask NAVI a alors toujours de vraies
  * données sous la main.
  *
- * Phase H8 — retour réel 2026-09-04 : les hôtels sont désormais propres
- * à chaque compte NAVI, Ask NAVI doit donc filtrer comme n'importe quelle
- * autre vue (hotelOwnerFilter — {} pour un admin, ownerId sinon).
+ * Phase G2 — retour réel 2026-09-04 : les hôtels sont redevenus un
+ * catalogue partagé (visible par tout le monde), seuls les SCANS restent
+ * propres à chaque compte — `user` est passé à getLatestScanByHotelId()
+ * pour que "dernier scan"/statut/santé reflètent le compte courant.
  */
 export async function getAllHotelsOverview(user: RequestingUser): Promise<AllHotelsOverview> {
   const hotels = await prisma.hotel.findMany({
-    where: { disabled: false, ...hotelOwnerFilter(user) },
+    where: { disabled: false },
     include: { portfolios: { include: { portfolio: { select: { name: true } } } } },
     orderBy: { name: "asc" }
   });
-  const latestScanByHotelId = await getLatestScanByHotelId(hotels.map((h) => h.id));
+  const latestScanByHotelId = await getLatestScanByHotelId(
+    hotels.map((h) => h.id),
+    user
+  );
 
   return {
     hotels: hotels.map((hotel) => {

@@ -18,7 +18,10 @@ export async function getPortfolioSignals(userId: string, portfolioId: string): 
   if (!portfolio || portfolio.ownerId !== userId) return null;
 
   const hotelIds = portfolio.hotels.map((h) => h.hotel.id);
-  const latestScanByHotelId = await getLatestScanByHotelId(hotelIds);
+  // Portfolio.ownerId n'a aucune exception admin (contrairement aux
+  // hôtels/scans) : seul le propriétaire voit jamais ce portefeuille, donc
+  // pas besoin de bypass admin ici pour le filtre scan non plus.
+  const latestScanByHotelId = await getLatestScanByHotelId(hotelIds, { id: userId, role: "USER" });
   const scanHotelIds = [...latestScanByHotelId.values()].map((s) => s.scanHotelId);
 
   const allSignals =

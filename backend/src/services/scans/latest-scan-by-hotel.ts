@@ -1,4 +1,5 @@
 import { prisma } from "../../db/prisma.js";
+import type { RequestingUser } from "../hotels/hotel-access.js";
 
 export interface LatestHotelScan {
   scanHotelId: string;
@@ -17,11 +18,19 @@ export interface LatestHotelScan {
  * et /api/hotels/overview. Extrait dans un module partagé (plutôt que
  * dans l'une des routes qui l'utilisent) pour éviter un import circulaire
  * entre hotels.ts et portfolios.ts.
+ *
+ * Phase G2 — retour réel 2026-09-04 : les hôtels redeviennent un
+ * catalogue partagé (visible par tous, comme avant Phase G1), mais les
+ * SCANS restent propres à chaque compte — "si on n'a pas fait de scan
+ * sur ce compte-là, il n'est pas censé y en avoir". `Scan.requestedById`
+ * (déjà présent dans le schéma) sert de filtre ici plutôt qu'une
+ * restriction sur `Hotel` lui-même. Un admin voit le dernier scan de
+ * n'importe qui (même principe que hotelOwnerFilter).
  */
-export async function getLatestScanByHotelId(hotelIds: string[]): Promise<Map<string, LatestHotelScan>> {
+export async function getLatestScanByHotelId(hotelIds: string[], user: RequestingUser): Promise<Map<string, LatestHotelScan>> {
   if (hotelIds.length === 0) return new Map();
   const latestScans = await prisma.scanHotel.findMany({
-    where: { hotelId: { in: hotelIds } },
+    where: { hotelId: { in: hotelIds }, ...(user.role === "ADMIN" ? {} : { scan: { requestedById: user.id } }) },
     orderBy: { startedAt: "desc" },
     distinct: ["hotelId"],
     select: { id: true, hotelId: true, status: true, healthScore: true, healthLevel: true, startedAt: true }

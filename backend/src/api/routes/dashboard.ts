@@ -2,7 +2,6 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "../../db/prisma.js";
 import { requireUser } from "../require-auth.js";
 import { getLatestScanByHotelId } from "../../services/scans/latest-scan-by-hotel.js";
-import { hotelOwnerFilter } from "../../services/hotels/hotel-access.js";
 
 const RECENTLY_SCANNED_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -23,17 +22,18 @@ export async function dashboardRoutes(app: FastifyInstance) {
     const user = await requireUser(request, reply);
     if (!user) return;
 
-    // Phase H8 — retour réel 2026-09-04 : "propre à chaque compte NAVI,
-    // comme pour les portefeuilles". hotelOwnerFilter() ne filtre rien
-    // pour un admin (voit tout, décision explicite), sinon ownerId.
+    // Phase G2 — retour réel 2026-09-04 : le catalogue d'hôtels est
+    // partagé entre tous les comptes ; seuls les scans (d'où proviennent
+    // "dernier scan"/statut/santé ci-dessous) restent propres à chaque
+    // compte, via `user` passé à getLatestScanByHotelId().
     const [hotels, portfolioCount] = await Promise.all([
-      prisma.hotel.findMany({ where: { disabled: false, ...hotelOwnerFilter(user) }, orderBy: { name: "asc" } }),
+      prisma.hotel.findMany({ where: { disabled: false }, orderBy: { name: "asc" } }),
       prisma.portfolio.count({ where: { ownerId: user.id } })
     ]);
     const hotelIds = hotels.map((h) => h.id);
     const hotelNameById = new Map(hotels.map((h) => [h.id, h.name]));
 
-    const latestScanByHotelId = await getLatestScanByHotelId(hotelIds);
+    const latestScanByHotelId = await getLatestScanByHotelId(hotelIds, user);
 
     const now = Date.now();
     let recentlyScannedCount = 0;

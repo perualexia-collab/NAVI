@@ -1,21 +1,15 @@
 /**
- * Portée par compte des hôtels (Phase H8, retour réel 2026-09-04) —
- * "propre à chaque compte NAVI, comme pour les portefeuilles"
- * (Portfolio.ownerId). Un ADMIN voit/gère tous les hôtels (décision
- * explicite : cohérent avec la gestion des utilisateurs, déjà org-wide
- * pour les admins) ; un utilisateur normal ne voit que les siens.
+ * Phase G2 — retour réel 2026-09-04 : les hôtels sont redevenus un
+ * catalogue partagé entre tous les comptes NAVI (dès qu'un utilisateur en
+ * ajoute un, il est visible de tous). Ce fichier ne conserve donc plus
+ * que le type `RequestingUser` partagé — l'ancien filtrage par
+ * `Hotel.ownerId` (hotelOwnerFilter/canAccessHotel, Phase G1) a été
+ * retiré ; la portée par compte s'applique désormais aux SCANS, pas aux
+ * hôtels eux-mêmes (voir backend/src/services/scans/scan-access.ts et
+ * getLatestScanByHotelId()). `Hotel.ownerId` reste en base comme simple
+ * métadonnée de provenance (qui a ajouté l'hôtel), sans effet sur l'accès.
  */
 export interface RequestingUser {
   id: string;
   role: string;
-}
-
-/** Fragment `where` Prisma — {} pour un admin (aucun filtre), sinon `{ ownerId }`. */
-export function hotelOwnerFilter(user: RequestingUser): { ownerId?: string } {
-  return user.role === "ADMIN" ? {} : { ownerId: user.id };
-}
-
-/** Un hôtel orphelin (ownerId null — créé avant ce champ) n'est accessible qu'à un admin. */
-export function canAccessHotel(hotel: { ownerId: string | null }, user: RequestingUser): boolean {
-  return user.role === "ADMIN" || hotel.ownerId === user.id;
 }
