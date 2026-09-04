@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardHeader } from "../components/ui/Card.js";
 import { Icon } from "../components/ui/icons.js";
@@ -44,14 +44,21 @@ export function AskNavi() {
   const isAsking = conversation.some((entry) => entry.status === "pending");
   const lastAnsweredSources = [...conversation].reverse().find((entry) => entry.status === "success")?.sources ?? [];
 
+  // Retour réel 2026-09-03 : une double-soumission (Entrée pressée deux
+  // fois très vite) passait à travers `isAsking` — dérivé de l'état React,
+  // pas encore recalculé au moment du second appel synchrone. Une ref
+  // évite la course, indépendamment du rendu.
+  const sendingRef = useRef(false);
+
   function sendQuestion(text: string) {
     const trimmed = text.trim();
-    if (!trimmed || isAsking) return;
+    if (!trimmed || sendingRef.current) return;
+    sendingRef.current = true;
     const id = `${Date.now()}-${conversation.length}`;
     setConversation((prev) => [...prev, { id, question: trimmed, askedAt: "À l'instant", status: "pending" }]);
     setHistory((prev) => [{ title: trimmed, timestamp: "À l'instant" }, ...prev]);
     setQuestion("");
-    askMutation.mutate({ id, question: trimmed });
+    askMutation.mutate({ id, question: trimmed }, { onSettled: () => { sendingRef.current = false; } });
   }
 
   return (

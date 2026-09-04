@@ -264,3 +264,36 @@ depuis cet environnement) — à valider par l'utilisateur : poser une
 vraie question mentionnant un hôtel existant, une question
 "opportunités", une question hors sujet (doit demander une précision
 plutôt qu'inventer une réponse).
+
+### Retour immédiat : bulle vide + double-soumission (2026-09-03)
+
+Premier test réel : "quelles sont mes opportunités ?" → bulle NAVI vide
+(aucun texte, aucune erreur). Une question mentionnant un hôtel a été
+soumise deux fois (même texte, deux bulles) → les deux ont échoué en
+502 "Ask NAVI n'a pas pu répondre".
+
+- **Bulle vide** : cause probable — `reasoningFormat: "hidden"`
+  masque le raisonnement de Qwen3.6 mais ne l'empêche pas de le
+  produire ; ce raisonnement invisible consomme quand même le budget
+  `maxTokens` (documentation Groq). `maxTokens: 800` pouvait donc être
+  épuisé avant la moindre réponse visible. Remonté à `2048`. Filet de
+  sécurité ajouté en plus, quelle que soit la cause réelle : si le texte
+  renvoyé est vide, `answer-question.ts` renvoie un message honnête
+  ("NAVI n'a pas réussi à formuler de réponse complète...") plutôt
+  qu'une bulle vide.
+- **Double-soumission** : `isAsking` (dérivé de l'état React) pouvait ne
+  pas encore refléter le premier envoi au moment d'un second appel
+  synchrone très rapproché (deux `Entrée` pressées vite). Remplacé par
+  une garde `useRef` (`sendingRef`), qui bloque toute nouvelle
+  soumission tant que la précédente n'est pas *settled* — indépendant du
+  cycle de rendu, élimine la course.
+- **502 sur la question hôtel** : cause non identifiée avec certitude
+  depuis cet environnement (pas d'accès aux logs backend de
+  l'utilisateur) — `request.log.error(error)` dans
+  `backend/src/api/routes/ask-navi.ts` doit avoir tracé la vraie erreur
+  côté terminal. À investiguer avec ce log si le problème persiste après
+  ces deux correctifs (une partie du symptôme peut avoir été la
+  double-soumission ci-dessus, qui aurait pu doubler la charge sur le
+  quota Groq 30 req/min en quelques secondes).
+
+Backend et frontend typecheck/build passent après ces correctifs.

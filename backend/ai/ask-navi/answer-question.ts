@@ -77,9 +77,20 @@ export async function answerQuestion(options: AnswerQuestionOptions): Promise<As
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: userMessage }
     ],
-    maxTokens: 800,
+    // Retour réel 2026-09-03 : 800 était trop bas pour Qwen3.6 sur une
+    // vraie question avec contexte — même en reasoningFormat "hidden", le
+    // raisonnement invisible consomme le budget de tokens (Groq : "le
+    // modèle raisonne quand même, le raisonnement n'est juste pas
+    // renvoyé"), donc un raisonnement long pouvait épuiser maxTokens
+    // avant la moindre réponse visible → texte vide.
+    maxTokens: 2048,
     reasoningFormat: "hidden"
   });
 
-  return { answer: result.text, intent: intent.type, sources: hasContext ? sources : [] };
+  // Filet de sécurité : quelle qu'en soit la cause (budget de tokens,
+  // erreur provider silencieuse...), ne jamais renvoyer une bulle vide à
+  // l'utilisateur.
+  const answer = result.text.trim() || "NAVI n'a pas réussi à formuler de réponse complète — reformule ta question ou réessaie.";
+
+  return { answer, intent: intent.type, sources: hasContext ? sources : [] };
 }
