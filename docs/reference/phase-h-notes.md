@@ -545,3 +545,39 @@ en place : si ça échoue encore, le prochain log dira immédiatement si
 `/no_think` a réduit `completionTokens` ou non.
 
 Backend typecheck/build passent. Non testé.
+
+### Retour immédiat : "/no_think" sans effet, retour à reasoningEffort (2026-09-03, 4e round)
+
+Log confirmant l'échec de `/no_think` : `completionTokens: 550` (=
+`maxTokens` exactement), `finishReason: "length"` — identique au cas
+sans aucune mitigation. Ce déploiement Groq de `qwen/qwen3.6-27b`
+ignore ce "soft switch" du chat template Qwen3.x standard.
+
+Bilan des 3 approches essayées pour empêcher le raisonnement caché de
+manger tout le budget de tokens :
+1. `reasoningFormat: "hidden"` seul → masque sans empêcher, ne règle
+   rien.
+2. `reasoningEffort: "none"` → a produit une vraie réponse correcte au
+   premier essai ; un appel suivant a été rejeté (429, estimation
+   "Requested" gonflée de façon imprévisible).
+3. `"/no_think"` en texte dans le prompt → aucun effet mesuré.
+
+**Retour à l'option 2** — c'est la seule des trois qui a réellement
+fonctionné au moins une fois. Son défaut connu (rejet 429 possible sur
+un contexte volumineux) est un compromis assumé : il se manifeste par
+un message clair et actionnable ("Limite de requêtes Groq atteinte —
+réessaie dans quelques secondes", déjà géré par la route), jamais une
+bulle vide silencieuse. `maxTokens` fixé à 500 (le raisonnement étant
+cette fois réellement désactivé, une réponse de quelques phrases ne
+devrait plus avoir à en payer le coût invisible).
+
+**Si ça échoue encore avec ce réglage** : la piste suivante ne serait
+plus de retoucher ces paramètres (3 tentatives déjà), mais de
+reconsidérer le choix même d'un modèle "thinking" pour Ask NAVI — un
+modèle Groq non-reasoning (ex. `llama-3.3-70b-versatile` si encore
+actif, `openai/gpt-oss-20b`...) n'a par construction aucun raisonnement
+caché à masquer/désactiver, éliminant structurellement cette classe de
+problème. Changerait le modèle demandé initialement (Qwen) — à ne
+faire qu'après validation explicite, pas à la place de ce correctif.
+
+Backend typecheck/build passent. Non re-testé.
