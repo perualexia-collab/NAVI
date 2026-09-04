@@ -69,13 +69,14 @@ export class HttpOpenAiCompatibleProvider implements LlmService {
 
     const payload = (await response.json()) as {
       model: string;
-      choices: { message: { content: string } }[];
+      choices: { message: { content: string }; finish_reason?: string }[];
       usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
     };
 
     return {
       text: payload.choices[0]?.message.content ?? "",
       model: payload.model,
+      finishReason: payload.choices[0]?.finish_reason,
       usage: payload.usage
         ? {
             promptTokens: payload.usage.prompt_tokens,

@@ -452,3 +452,40 @@ vraies données** — à valider : "quels hôtels n'ont pas été testés ?"
 mot "scanné"), une question de CA sur un portefeuille nommé
 explicitement, puis une relance elliptique après une réponse sur un
 hôtel précis ("et son historique ?" sans renommer l'hôtel).
+
+### Retour immédiat : 3 réponses vides d'affilée après H5 (2026-09-03)
+
+Trois questions différentes ("CA CRM du portefeuille GHP" ×2, "potentiel
+de conversion OTA") ont toutes échoué avec le message de repli ("NAVI
+n'a pas réussi à formuler..."), jamais une erreur — donc bien un 200
+avec texte vide à chaque fois. Logs serveur (`statusCode: 200`,
+`responseTime` ~1000-1300ms) : nettement plus rapide que les réponses
+réussies observées avant H5 (1900-3400ms), ce qui pointe vers une
+génération coupée très tôt plutôt qu'une vraie réponse ignorée.
+Hypothèse la plus probable, non confirmée avec certitude (les logs
+pino ne capturaient ni `usage` ni `finish_reason` — juste le
+statusCode) : le contexte JSON est devenu plus volumineux depuis H5
+(org-overview/portfolio-financials, + l'historique de conversation
+maintenant injecté), ce qui pousse Qwen3.6 à "réfléchir" davantage
+avant de répondre — `maxTokens: 450` ne laissait plus assez de marge
+pour ce raisonnement caché sur ce type de question précis.
+
+Deux changements :
+- **Diagnostic instrumenté** plutôt qu'une nouvelle correction devinée
+  à l'aveugle (2 rounds précédents corrigés sur la base d'un log
+  précis, ça a marché à chaque fois — mieux vaut refaire pareil) :
+  `LlmCompletionResult` porte maintenant `finishReason` (`finish_reason`
+  du payload Groq), et `answer-question.ts` logue `console.warn(...)`
+  avec `finishReason`/`usage`/`intent` dès que le texte revient vide.
+  Si ça se reproduit, le terminal backend affichera directement la
+  cause exacte au lieu d'un simple `statusCode: 200`.
+- **`maxTokens` remonté à 900** (depuis 450) — reste sous le seuil
+  d'admission ~1000 OTPM observé pour une requête isolée (l'incident
+  `reasoningEffort` plus haut), donne beaucoup plus de marge de
+  raisonnement caché. Contrepartie assumée : moins de questions
+  possibles à la suite dans la même fenêtre de 60s avant un 429 (déjà
+  géré proprement, voir plus haut) — arbitrage nécessaire tant que le
+  raisonnement caché de Qwen3.6 reste incompressible sur ce plan
+  gratuit.
+
+Backend typecheck/build passent. Non re-testé.

@@ -40,6 +40,12 @@ export interface LlmCompletionResult {
   text: string;
   model: string;
   usage?: LlmUsage;
+  // Retour réel 2026-09-03 : diagnostiquer un texte vide sans ce champ
+  // était impossible depuis les logs serveur seuls (statusCode 200,
+  // rien d'autre) — "length" confirme que maxTokens a coupé la
+  // génération (raisonnement caché compris) avant toute réponse
+  // visible ; "stop" indiquerait autre chose.
+  finishReason?: string;
 }
 
 export interface LlmService {

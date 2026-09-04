@@ -109,16 +109,38 @@ export async function answerQuestion(options: AnswerQuestionOptions): Promise<As
     // réelle. maxTokens seul (sans reasoningEffort) s'est comporté de
     // façon prévisible (le "Requested" annoncé par Groq correspondait
     // exactement à la valeur demandée) — préféré ici tant que ce n'est
-    // pas éclairci. Valeur volontairement basse pour laisser de la marge
-    // au raisonnement caché dans le quota de 1000 OTPM.
-    maxTokens: 450,
+    // pas éclairci. Retour réel 2026-09-03 (2e round) : 450 s'est révélé
+    // TROP bas dès qu'un contexte volumineux (org-overview, portfolio-
+    // financials) accompagne la question — le raisonnement caché
+    // consommait tout le budget avant la moindre réponse visible, à
+    // chaque fois (texte vide, ~1-1.3s de réponse, bien plus rapide que
+    // les réponses réelles observées). Remonté à 900 : reste sous le
+    // seuil d'admission ~1000 OTPM d'un seul coup (cf. l'incident
+    // reasoningEffort ci-dessus), donne beaucoup plus de marge au
+    // raisonnement.
+    maxTokens: 900,
     reasoningFormat: "hidden"
   });
 
   // Filet de sécurité : quelle qu'en soit la cause (budget de tokens,
   // erreur provider silencieuse...), ne jamais renvoyer une bulle vide à
-  // l'utilisateur.
-  const answer = result.text.trim() || "NAVI n'a pas réussi à formuler de réponse complète — reformule ta question ou réessaie.";
+  // l'utilisateur. Diagnostic loggé (jamais la clé, jamais le contenu
+  // utilisateur au-delà de la question) pour comprendre la cause si ça
+  // se reproduit malgré le budget relevé — un `finishReason: "length"`
+  // confirme un budget encore trop juste pour cette question précise.
+  const answer = result.text.trim();
+  if (!answer) {
+    console.warn("[ask-navi] Réponse vide du LLM", {
+      intent: intent.type,
+      finishReason: result.finishReason,
+      usage: result.usage,
+      questionLength: options.question.length
+    });
+  }
 
-  return { answer, intent: intent.type, sources: hasContext ? sources : [] };
+  return {
+    answer: answer || "NAVI n'a pas réussi à formuler de réponse complète — reformule ta question ou réessaie.",
+    intent: intent.type,
+    sources: hasContext ? sources : []
+  };
 }
