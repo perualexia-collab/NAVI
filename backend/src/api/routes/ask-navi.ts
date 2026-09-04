@@ -69,7 +69,7 @@ export async function askNaviRoutes(app: FastifyInstance, options: { env: Env })
     }
 
     try {
-      const result = await answerQuestion({ question: body.data.question, userId: user.id, llmService, history });
+      const result = await answerQuestion({ question: body.data.question, user, llmService, history });
 
       const savedConversation = conversation
         ? await prisma.askNaviConversation.update({ where: { id: conversation.id }, data: { updatedAt: new Date() } })

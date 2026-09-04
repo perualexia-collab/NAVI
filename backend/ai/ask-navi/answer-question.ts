@@ -10,6 +10,7 @@ import {
 } from "../context-builder/index.js";
 import { routeIntent } from "./route-intent.js";
 import type { AskNaviAnswer, AskNaviHistoryTurn, AskNaviSource } from "./types.js";
+import type { RequestingUser } from "../../src/services/hotels/hotel-access.js";
 
 // "NAVI décide, Qwen explique" (§09 Architecture Proposal) : le modèle ne
 // reçoit jamais un accès libre à la base, seulement le contexte JSON déjà
@@ -49,7 +50,7 @@ export const MAX_HISTORY_TURNS = 3;
 
 export interface AnswerQuestionOptions {
   question: string;
-  userId: string;
+  user: RequestingUser;
   llmService: LlmService;
   /** Derniers échanges du même fil (le plus ancien en premier) — mémoire conversationnelle, retour réel 2026-09-03. */
   history?: AskNaviHistoryTurn[];
@@ -65,38 +66,38 @@ export async function answerQuestion(options: AnswerQuestionOptions): Promise<As
   // de rester sur le portefeuille dont on parlait vraiment.
   const recentHistoryText = recentHistory.map((turn) => turn.question).join(" ");
 
-  const intent = await routeIntent(options.question, options.userId, recentHistoryText);
+  const intent = await routeIntent(options.question, options.user, recentHistoryText);
 
   let context: unknown = null;
   let sources: AskNaviSource[] = [];
 
   switch (intent.type) {
     case "hotel-health":
-      context = await getHotelHealth(intent.hotelId);
+      context = await getHotelHealth(intent.hotelId, options.user);
       sources = [{ label: intent.hotelName, detail: "Santé CRM, KPI et signaux actifs — dernier scan connu" }];
       break;
     case "hotel-history":
-      context = await getScanHistory(intent.hotelId);
+      context = await getScanHistory(intent.hotelId, options.user);
       sources = [{ label: intent.hotelName, detail: "Historique des derniers scans" }];
       break;
     case "portfolio-signals":
-      context = await getPortfolioSignals(options.userId, intent.portfolioId);
+      context = await getPortfolioSignals(options.user.id, intent.portfolioId);
       sources = [{ label: intent.portfolioName, detail: "Signaux actifs du portefeuille" }];
       break;
     case "portfolio-financials":
-      context = await getPortfolioFinancials(options.userId, intent.portfolioId);
+      context = await getPortfolioFinancials(options.user.id, intent.portfolioId);
       sources = [{ label: intent.portfolioName, detail: "CA et réservations générés, additionnés sur le portefeuille" }];
       break;
     case "top-opportunities":
-      context = await getTopOpportunities(5);
+      context = await getTopOpportunities(options.user, 5);
       sources = [{ label: "Opportunités actives", detail: "Meilleures opportunités, tous hôtels confondus" }];
       break;
     case "hotels-without-recent-scan":
-      context = await getHotelsWithoutRecentScan(30);
+      context = await getHotelsWithoutRecentScan(options.user, 30);
       sources = [{ label: "Fraîcheur des scans", detail: "Hôtels jamais scannés ou scannés il y a plus de 30 jours" }];
       break;
     case "org-overview":
-      context = await getAllHotelsOverview();
+      context = await getAllHotelsOverview(options.user);
       sources = [{ label: "Vue d'ensemble", detail: "Tous les hôtels — portefeuille(s), dernier scan, santé" }];
       break;
   }

@@ -15,6 +15,7 @@ import { P11_OPPORTUNITIES } from "../../../experience/audience-builder/p11-oppo
 import { calculateOpportunityScore } from "../../services/scoring/p11-opportunity.js";
 import { P10_LIBRARY, AUDIENCE_TAG_TO_DEFINITION_ID, currentMonthNameFR } from "../../../experience/audience-builder/p10-campaigns.js";
 import { getLatestScanByHotelId } from "../../services/scans/latest-scan-by-hotel.js";
+import { canAccessHotel, hotelOwnerFilter } from "../../services/hotels/hotel-access.js";
 
 const presetPeriodSchema = z.object({
   mode: z.literal("preset"),
@@ -48,7 +49,7 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
   app.get("/api/hotels", async (request, reply) => {
     const user = await requireUser(request, reply);
     if (!user) return;
-    return prisma.hotel.findMany({ orderBy: { name: "asc" } });
+    return prisma.hotel.findMany({ where: hotelOwnerFilter(user), orderBy: { name: "asc" } });
   });
 
   // Ajouter un hôtel — retours Phase C.5, §2 : le nom est la seule
@@ -67,7 +68,7 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
     }
 
     const hotel = await prisma.hotel.create({
-      data: { name: body.data.name, experienceLabel: body.data.name, experienceStatus: "TO_VERIFY" }
+      data: { name: body.data.name, experienceLabel: body.data.name, experienceStatus: "TO_VERIFY", ownerId: user.id }
     });
     return reply.code(201).send(hotel);
   });
@@ -82,7 +83,7 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
 
     const { hotelId } = request.params as { hotelId: string };
     const hotel = await prisma.hotel.findUnique({ where: { id: hotelId } });
-    if (!hotel) return reply.code(404).send({ error: "Hôtel introuvable." });
+    if (!hotel || !canAccessHotel(hotel, user)) return reply.code(404).send({ error: "Hôtel introuvable." });
 
     await prisma.hotel.delete({ where: { id: hotelId } });
     return { ok: true };
@@ -98,7 +99,7 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
 
     const { hotelId } = request.params as { hotelId: string };
     const hotel = await prisma.hotel.findUnique({ where: { id: hotelId } });
-    if (!hotel) return reply.code(404).send({ error: "Hôtel introuvable." });
+    if (!hotel || !canAccessHotel(hotel, user)) return reply.code(404).send({ error: "Hôtel introuvable." });
 
     const sessionProvider = new PersistentProfileSessionProvider({
       userDataDir: options.env.EXPERIENCE_PROFILE_DIR,
@@ -130,6 +131,7 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
     if (!user) return;
 
     const hotels = await prisma.hotel.findMany({
+      where: hotelOwnerFilter(user),
       include: { portfolios: { include: { portfolio: { select: { name: true } } } } },
       orderBy: { name: "asc" }
     });
@@ -163,7 +165,7 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
 
     const { hotelId } = request.params as { hotelId: string };
     const hotel = await prisma.hotel.findUnique({ where: { id: hotelId } });
-    if (!hotel) return reply.code(404).send({ error: "Hôtel introuvable." });
+    if (!hotel || !canAccessHotel(hotel, user)) return reply.code(404).send({ error: "Hôtel introuvable." });
     return hotel;
   });
 
@@ -173,7 +175,7 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
 
     const { hotelId } = request.params as { hotelId: string };
     const hotel = await prisma.hotel.findUnique({ where: { id: hotelId } });
-    if (!hotel) return reply.code(404).send({ error: "Hôtel introuvable." });
+    if (!hotel || !canAccessHotel(hotel, user)) return reply.code(404).send({ error: "Hôtel introuvable." });
 
     const scanCount = await prisma.scanHotel.count({ where: { hotelId, status: { in: ["SUCCESS", "PARTIAL_SUCCESS"] } } });
 
@@ -374,7 +376,7 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
 
     const { hotelId } = request.params as { hotelId: string };
     const hotel = await prisma.hotel.findUnique({ where: { id: hotelId } });
-    if (!hotel) return reply.code(404).send({ error: "Hôtel introuvable." });
+    if (!hotel || !canAccessHotel(hotel, user)) return reply.code(404).send({ error: "Hôtel introuvable." });
 
     const scans = await prisma.scanHotel.findMany({
       where: { hotelId, status: { in: ["SUCCESS", "PARTIAL_SUCCESS", "FAILED"] } },
@@ -400,6 +402,9 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
     if (!user) return;
 
     const { hotelId, scanHotelId } = request.params as { hotelId: string; scanHotelId: string };
+    const hotel = await prisma.hotel.findUnique({ where: { id: hotelId } });
+    if (!hotel || !canAccessHotel(hotel, user)) return reply.code(404).send({ error: "Hôtel introuvable." });
+
     const scanHotel = await prisma.scanHotel.findUnique({
       where: { id: scanHotelId },
       include: {
@@ -480,7 +485,7 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
     if (!body.success) return reply.code(400).send({ error: "Période invalide." });
 
     const hotel = await prisma.hotel.findUnique({ where: { id: hotelId } });
-    if (!hotel) return reply.code(404).send({ error: "Hôtel introuvable." });
+    if (!hotel || !canAccessHotel(hotel, user)) return reply.code(404).send({ error: "Hôtel introuvable." });
 
     const sessionProvider = new PersistentProfileSessionProvider({
       userDataDir: options.env.EXPERIENCE_PROFILE_DIR,
@@ -529,7 +534,8 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
       return reply.code(400).send({ error: "Cette recommandation ne nécessite pas de calcul d'audience." });
     }
 
-    const hotel = await prisma.hotel.findUniqueOrThrow({ where: { id: hotelId } });
+    const hotel = await prisma.hotel.findUnique({ where: { id: hotelId } });
+    if (!hotel || !canAccessHotel(hotel, user)) return reply.code(404).send({ error: "Hôtel introuvable." });
 
     const sessionProvider = new PersistentProfileSessionProvider({
       userDataDir: options.env.EXPERIENCE_PROFILE_DIR,
@@ -580,7 +586,8 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
       return reply.code(400).send({ error: "Cette recommandation ne propose pas de comparaison d'opportunités." });
     }
 
-    const hotel = await prisma.hotel.findUniqueOrThrow({ where: { id: hotelId } });
+    const hotel = await prisma.hotel.findUnique({ where: { id: hotelId } });
+    if (!hotel || !canAccessHotel(hotel, user)) return reply.code(404).send({ error: "Hôtel introuvable." });
 
     const sessionProvider = new PersistentProfileSessionProvider({
       userDataDir: options.env.EXPERIENCE_PROFILE_DIR,
@@ -635,7 +642,8 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
       return reply.code(400).send({ error: "Returning Guests indisponible pour ce scan — impossible d'appliquer la règle de mise en avant." });
     }
 
-    const hotel = await prisma.hotel.findUniqueOrThrow({ where: { id: hotelId } });
+    const hotel = await prisma.hotel.findUnique({ where: { id: hotelId } });
+    if (!hotel || !canAccessHotel(hotel, user)) return reply.code(404).send({ error: "Hôtel introuvable." });
 
     const sessionProvider = new PersistentProfileSessionProvider({
       userDataDir: options.env.EXPERIENCE_PROFILE_DIR,
@@ -673,6 +681,9 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
     const { hotelId, comparisonId } = request.params as { hotelId: string; comparisonId: string };
     const body = z.object({ resultId: z.string().min(1) }).safeParse(request.body);
     if (!body.success) return reply.code(400).send({ error: "Identifiant de résultat requis." });
+
+    const hotel = await prisma.hotel.findUnique({ where: { id: hotelId } });
+    if (!hotel || !canAccessHotel(hotel, user)) return reply.code(404).send({ error: "Hôtel introuvable." });
 
     const comparison = await prisma.audienceComparison.findUnique({
       where: { id: comparisonId },
@@ -714,6 +725,9 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
       return reply.code(404).send({ error: "Recommandation introuvable." });
     }
 
+    const hotel = await prisma.hotel.findUnique({ where: { id: hotelId } });
+    if (!hotel || !canAccessHotel(hotel, user)) return reply.code(404).send({ error: "Hôtel introuvable." });
+
     const playbookId = recommendation.signalResult.playbookId;
     const audienceMode = recommendation.signalResult.signal.audienceMode;
 
@@ -749,7 +763,6 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
       return reply.code(400).send({ error: "Cette recommandation n'a pas d'audience associée." });
     }
 
-    const hotel = await prisma.hotel.findUniqueOrThrow({ where: { id: hotelId } });
     const listName = buildRealListName(label, hotel.name);
 
     const sessionProvider = new PersistentProfileSessionProvider({
@@ -795,6 +808,9 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
     const { hotelId, recommendationId } = request.params as { hotelId: string; recommendationId: string };
     const body = z.object({ status: z.enum(["OPEN", "IN_PROGRESS", "DONE", "DISMISSED"]) }).safeParse(request.body);
     if (!body.success) return reply.code(400).send({ error: "Statut invalide." });
+
+    const hotel = await prisma.hotel.findUnique({ where: { id: hotelId } });
+    if (!hotel || !canAccessHotel(hotel, user)) return reply.code(404).send({ error: "Hôtel introuvable." });
 
     const recommendation = await prisma.recommendation.findUnique({
       where: { id: recommendationId },

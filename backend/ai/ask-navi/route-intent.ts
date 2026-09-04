@@ -1,4 +1,5 @@
 import { prisma } from "../../src/db/prisma.js";
+import { hotelOwnerFilter, type RequestingUser } from "../../src/services/hotels/hotel-access.js";
 
 export type AskNaviIntent =
   | { type: "hotel-health"; hotelId: string; hotelName: string }
@@ -89,11 +90,14 @@ function findBestMatch<T extends { name: string }>(entities: T[], normalizedSear
  * disproportionné pour un premier jeu de questions ; se durcira avec
  * l'usage réel plutôt que d'être deviné à l'avance.
  */
-export async function routeIntent(question: string, userId: string, recentHistoryText?: string): Promise<AskNaviIntent> {
+export async function routeIntent(question: string, user: RequestingUser, recentHistoryText?: string): Promise<AskNaviIntent> {
   const normalizedQuestion = normalize(question);
   const normalizedWithHistory = recentHistoryText ? `${normalizedQuestion} ${normalize(recentHistoryText)}` : normalizedQuestion;
 
-  const hotels = await prisma.hotel.findMany({ select: { id: true, name: true } });
+  // Phase H8 — retour réel 2026-09-04 : les hôtels sont propres à chaque
+  // compte NAVI, un utilisateur ne doit donc même pas pouvoir "activer"
+  // un hôtel d'un autre compte en le nommant dans une question.
+  const hotels = await prisma.hotel.findMany({ where: hotelOwnerFilter(user), select: { id: true, name: true } });
   const matchedHotel = findBestMatch(hotels, normalizedQuestion) ?? findBestMatch(hotels, normalizedWithHistory);
 
   if (matchedHotel) {
@@ -102,7 +106,7 @@ export async function routeIntent(question: string, userId: string, recentHistor
       : { type: "hotel-health", hotelId: matchedHotel.id, hotelName: matchedHotel.name };
   }
 
-  const portfolios = await prisma.portfolio.findMany({ where: { ownerId: userId }, select: { id: true, name: true } });
+  const portfolios = await prisma.portfolio.findMany({ where: { ownerId: user.id }, select: { id: true, name: true } });
   const matchedPortfolio = findBestMatch(portfolios, normalizedQuestion) ?? findBestMatch(portfolios, normalizedWithHistory);
 
   if (matchedPortfolio) {

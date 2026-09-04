@@ -1,5 +1,6 @@
 import { prisma } from "../../src/db/prisma.js";
 import { getLatestScanByHotelId } from "../../src/services/scans/latest-scan-by-hotel.js";
+import { hotelOwnerFilter, type RequestingUser } from "../../src/services/hotels/hotel-access.js";
 import type { AllHotelsOverview } from "./types.js";
 
 /**
@@ -10,10 +11,14 @@ import type { AllHotelsOverview } from "./types.js";
  * vide, routeIntent() utilise cette fonction dès qu'aucune intention
  * plus précise n'est identifiée — Ask NAVI a alors toujours de vraies
  * données sous la main.
+ *
+ * Phase H8 — retour réel 2026-09-04 : les hôtels sont désormais propres
+ * à chaque compte NAVI, Ask NAVI doit donc filtrer comme n'importe quelle
+ * autre vue (hotelOwnerFilter — {} pour un admin, ownerId sinon).
  */
-export async function getAllHotelsOverview(): Promise<AllHotelsOverview> {
+export async function getAllHotelsOverview(user: RequestingUser): Promise<AllHotelsOverview> {
   const hotels = await prisma.hotel.findMany({
-    where: { disabled: false },
+    where: { disabled: false, ...hotelOwnerFilter(user) },
     include: { portfolios: { include: { portfolio: { select: { name: true } } } } },
     orderBy: { name: "asc" }
   });

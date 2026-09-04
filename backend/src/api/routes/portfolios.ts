@@ -6,6 +6,7 @@ import type { Env } from "../../config/env.js";
 import { periodSchema } from "./hotels.js";
 import { launchPortfolioScan } from "../../../scans/run-portfolio-scan.js";
 import { getLatestScanByHotelId, type LatestHotelScan } from "../../services/scans/latest-scan-by-hotel.js";
+import { hotelOwnerFilter } from "../../services/hotels/hotel-access.js";
 
 const createPortfolioSchema = z.object({
   name: z.string().trim().min(1, "Nom du portefeuille requis."),
@@ -102,7 +103,11 @@ export async function portfoliosRoutes(app: FastifyInstance, options: { env: Env
       return reply.code(400).send({ error: body.error.issues[0]?.message ?? "Requête invalide." });
     }
 
-    const matchingHotels = await prisma.hotel.count({ where: { id: { in: body.data.hotelIds } } });
+    // hotelOwnerFilter (pas seulement l'existence) : un hôtel qui existe
+    // mais appartient à un autre compte ne doit pas pouvoir rejoindre ce
+    // portefeuille (Phase H8, retour réel 2026-09-04 — même principe que
+    // l'accès direct à un hôtel).
+    const matchingHotels = await prisma.hotel.count({ where: { id: { in: body.data.hotelIds }, ...hotelOwnerFilter(user) } });
     if (matchingHotels !== body.data.hotelIds.length) {
       return reply.code(400).send({ error: "Un ou plusieurs hôtels sélectionnés sont introuvables." });
     }
@@ -134,7 +139,7 @@ export async function portfoliosRoutes(app: FastifyInstance, options: { env: Env
     }
 
     if (body.data.hotelIds) {
-      const matchingHotels = await prisma.hotel.count({ where: { id: { in: body.data.hotelIds } } });
+      const matchingHotels = await prisma.hotel.count({ where: { id: { in: body.data.hotelIds }, ...hotelOwnerFilter(user) } });
       if (matchingHotels !== body.data.hotelIds.length) {
         return reply.code(400).send({ error: "Un ou plusieurs hôtels sélectionnés sont introuvables." });
       }

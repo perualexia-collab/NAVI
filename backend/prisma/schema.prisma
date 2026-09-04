@@ -47,6 +47,7 @@ model User {
   scans               Scan[]
   invites             InviteToken[]
   askNaviConversations AskNaviConversation[]
+  hotels              Hotel[]
 }
 
 // Jeton d'activation à usage unique — on ne stocke jamais le jeton en
@@ -90,7 +91,15 @@ model Hotel {
   disabled               Boolean               @default(false)
   lastConnectionCheckAt  DateTime?
   createdAt              DateTime              @default(now())
+  // Phase H8 — retour réel 2026-09-04 : "propre à chaque compte NAVI,
+  // comme pour les portefeuilles" (Portfolio.ownerId). Nullable
+  // (contrairement à Portfolio.ownerId) pour représenter honnêtement les
+  // hôtels créés AVANT ce champ : orphelins plutôt que rattachés à un
+  // propriétaire deviné — visibles uniquement par un admin (§ query
+  // hotelOwnerFilter), jamais par un utilisateur normal au hasard.
+  ownerId                String?
 
+  owner          User?                 @relation(fields: [ownerId], references: [id])
   portfolios     PortfolioHotel[]
   scanHotels     ScanHotel[]
   audienceResults    AudienceResult[]

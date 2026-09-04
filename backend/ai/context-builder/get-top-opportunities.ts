@@ -1,13 +1,14 @@
 import { prisma } from "../../src/db/prisma.js";
 import { getLatestScanByHotelId } from "../../src/services/scans/latest-scan-by-hotel.js";
+import { hotelOwnerFilter, type RequestingUser } from "../../src/services/hotels/hotel-access.js";
 import type { TopOpportunity } from "./types.js";
 
 /**
- * Meilleures opportunités actives (ni Traité ni Ignoré), org-wide — pour
- * "quelles sont les meilleures opportunités en ce moment ?". Les hôtels
- * n'appartiennent à aucun utilisateur en particulier (comme
- * /api/dashboard) : pas de scoping par userId ici, contrairement à
- * getPortfolioSignals().
+ * Meilleures opportunités actives (ni Traité ni Ignoré) — pour "quelles
+ * sont les meilleures opportunités en ce moment ?". Phase H8 (retour
+ * réel 2026-09-04) : les hôtels sont désormais propres à chaque compte
+ * NAVI (hotelOwnerFilter — {} pour un admin, ownerId sinon), donc
+ * scopées ici comme partout ailleurs.
  *
  * Reprend le même principe de priorité que le dashboard (P11 avec un
  * résultat ⭐ mis en avant = "high", tout le reste = "normal" —
@@ -16,8 +17,8 @@ import type { TopOpportunity } from "./types.js";
  * résolu par ailleurs, etc.) diffère de celle utile à Ask NAVI. À
  * fusionner si un troisième appelant apparaît.
  */
-export async function getTopOpportunities(limit = 5): Promise<TopOpportunity[]> {
-  const hotels = await prisma.hotel.findMany({ where: { disabled: false }, select: { id: true, name: true } });
+export async function getTopOpportunities(user: RequestingUser, limit = 5): Promise<TopOpportunity[]> {
+  const hotels = await prisma.hotel.findMany({ where: { disabled: false, ...hotelOwnerFilter(user) }, select: { id: true, name: true } });
   const hotelNameById = new Map(hotels.map((h) => [h.id, h.name]));
 
   const latestScanByHotelId = await getLatestScanByHotelId(hotels.map((h) => h.id));

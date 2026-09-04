@@ -38,22 +38,29 @@ async function main() {
   }
   console.log(`  ✓ ${audienceDefinitions.length} définitions d'audience`);
 
-  await prisma.hotel.upsert({
-    where: { id: pilotHotel.id },
-    create: pilotHotel,
-    update: pilotHotel
-  });
-  console.log(`  ✓ hôtel pilote du vertical slice : ${pilotHotel.name} (statut ${pilotHotel.experienceStatus})`);
-
+  // Phase H8 — retour réel 2026-09-04 : les hôtels sont propres à chaque
+  // compte NAVI. Le compte dev admin est créé AVANT l'hôtel pilote (ordre
+  // inversé par rapport à avant) pour pouvoir le lui rattacher —
+  // sinon l'hôtel pilote serait orphelin (visible par un admin, mais
+  // jamais pré-affecté à personne) au tout premier lancement.
+  let devAdminUserId: string | undefined;
   if (process.env.SEED_DEV_ADMIN === "true") {
     const passwordHash = await argon2.hash(devAdmin.password);
-    await prisma.user.upsert({
+    const createdDevAdmin = await prisma.user.upsert({
       where: { email: devAdmin.email },
       create: { email: devAdmin.email, passwordHash, name: devAdmin.name, role: "ADMIN", status: "ACTIVE" },
       update: { passwordHash }
     });
+    devAdminUserId = createdDevAdmin.id;
     console.log(`  ✓ compte de développement local : ${devAdmin.email}`);
   }
+
+  await prisma.hotel.upsert({
+    where: { id: pilotHotel.id },
+    create: { ...pilotHotel, ownerId: devAdminUserId },
+    update: { ...pilotHotel, ownerId: devAdminUserId }
+  });
+  console.log(`  ✓ hôtel pilote du vertical slice : ${pilotHotel.name} (statut ${pilotHotel.experienceStatus})`);
 
   console.log("Seed terminé.");
 }
