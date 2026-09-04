@@ -1,35 +1,57 @@
 import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { Card, CardHeader } from "../components/ui/Card.js";
 import { Icon } from "../components/ui/icons.js";
-import { conversationHistory as initialHistory, mockAnswer, moreSuggestedQuestions } from "../mock/ask-navi.js";
+import { conversationHistory as initialHistory, moreSuggestedQuestions } from "../mock/ask-navi.js";
+import { api, ApiError } from "../lib/api.js";
+import type { AskNaviSource } from "../lib/real-hotel-types.js";
 
 interface ConversationEntry {
   id: string;
   question: string;
   askedAt: string;
+  status: "pending" | "success" | "error";
+  answer?: string;
+  sources?: AskNaviSource[];
+  errorMessage?: string;
 }
 
 /**
- * Ask NAVI — retours Phase C.5 (3ᵉ passe, ciblée) : vrai point d'entrée de
- * chat unique (plus de question préremplie ni de réponse mockée affichée
- * par défaut). Tant que le moteur IA n'est pas branché (Phase F/H), on
- * n'invente ni réponse ni traitement : chaque question envoyée apparaît
- * dans le fil ("Vous" / "NAVI"), NAVI répondant honnêtement qu'aucun
- * fournisseur LLM n'est encore connecté — la structure de la conversation
- * (question + réponse empilées) est déjà celle d'un vrai échange, prête à
- * accueillir une réponse réelle le jour venu.
+ * Ask NAVI — branché sur POST /api/ask-navi (Phase H3/H4) : question →
+ * routeIntent() → Context Builder → LLM Service → réponse réelle.
+ * "Historique des conversations" reste purement local à cette session
+ * (jamais persisté côté backend — pas demandé) ; "Questions suggérées"
+ * reste un jeu d'exemples statique, pas une fonctionnalité connectée.
  */
 export function AskNavi() {
   const [question, setQuestion] = useState("");
   const [conversation, setConversation] = useState<ConversationEntry[]>([]);
   const [history, setHistory] = useState(initialHistory);
 
+  const askMutation = useMutation({
+    mutationFn: (vars: { id: string; question: string }) => api.askNavi(vars.question),
+    onSuccess: (data, vars) => {
+      setConversation((prev) =>
+        prev.map((entry) => (entry.id === vars.id ? { ...entry, status: "success", answer: data.answer, sources: data.sources } : entry))
+      );
+    },
+    onError: (error, vars) => {
+      const message = error instanceof ApiError ? error.message : "Ask NAVI n'a pas pu répondre — réessaie dans un instant.";
+      setConversation((prev) => prev.map((entry) => (entry.id === vars.id ? { ...entry, status: "error", errorMessage: message } : entry)));
+    }
+  });
+
+  const isAsking = conversation.some((entry) => entry.status === "pending");
+  const lastAnsweredSources = [...conversation].reverse().find((entry) => entry.status === "success")?.sources ?? [];
+
   function sendQuestion(text: string) {
     const trimmed = text.trim();
-    if (!trimmed) return;
-    setConversation((prev) => [...prev, { id: `${Date.now()}-${prev.length}`, question: trimmed, askedAt: "À l'instant" }]);
+    if (!trimmed || isAsking) return;
+    const id = `${Date.now()}-${conversation.length}`;
+    setConversation((prev) => [...prev, { id, question: trimmed, askedAt: "À l'instant", status: "pending" }]);
     setHistory((prev) => [{ title: trimmed, timestamp: "À l'instant" }, ...prev]);
     setQuestion("");
+    askMutation.mutate({ id, question: trimmed });
   }
 
   return (
@@ -64,14 +86,18 @@ export function AskNavi() {
                 placeholder="Posez une question à NAVI…"
                 className="w-full bg-transparent text-sm outline-none"
               />
-              <button type="submit" className="flex h-8 w-8 items-center justify-center rounded-lg bg-terracotta text-white hover:opacity-90">
+              <button
+                type="submit"
+                disabled={isAsking}
+                className="flex h-8 w-8 items-center justify-center rounded-lg bg-terracotta text-white hover:opacity-90 disabled:opacity-50"
+              >
                 <Icon.Send width={14} height={14} />
               </button>
             </form>
           </Card>
 
           {conversation.map((entry) => (
-            <ConversationExchange key={entry.id} question={entry.question} askedAt={entry.askedAt} />
+            <ConversationExchange key={entry.id} entry={entry} />
           ))}
 
           {conversation.length > 0 && (
@@ -82,18 +108,21 @@ export function AskNavi() {
         <div className="flex flex-col gap-4">
           <Card>
             <CardHeader title="Sources utilisées" />
-            <div className="flex flex-col gap-3">
-              {mockAnswer.sources.map((source) => (
-                <div key={source.label} className="flex items-start gap-2 text-sm">
-                  <Icon.Info width={14} height={14} className="mt-0.5 text-graphite-faint" />
-                  <div>
-                    <div className="font-medium">{source.label}</div>
-                    <div className="text-xs text-graphite-faint">{source.detail}</div>
+            {lastAnsweredSources.length === 0 ? (
+              <p className="text-sm text-graphite-faint">Posez une question pour voir ici les données utilisées par NAVI pour répondre.</p>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {lastAnsweredSources.map((source) => (
+                  <div key={source.label} className="flex items-start gap-2 text-sm">
+                    <Icon.Info width={14} height={14} className="mt-0.5 text-graphite-faint" />
+                    <div>
+                      <div className="font-medium">{source.label}</div>
+                      <div className="text-xs text-graphite-faint">{source.detail}</div>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-            <button className="mt-3 text-xs font-medium text-terracotta hover:underline">Voir le détail des sources →</button>
+                ))}
+              </div>
+            )}
           </Card>
 
           <Card>
@@ -128,19 +157,14 @@ export function AskNavi() {
   );
 }
 
-/**
- * Un échange : la question de l'utilisateur, puis la réponse NAVI. Tant
- * que l'IA n'est pas connectée, la "réponse" est un état honnête plutôt
- * qu'un contenu inventé — mais la structure (question puis réponse,
- * empilées dans le fil) est déjà celle d'une vraie conversation.
- */
-function ConversationExchange({ question, askedAt }: { question: string; askedAt: string }) {
+/** Un échange : la question de l'utilisateur, puis la réponse réelle d'Ask NAVI (ou son état en cours / d'erreur). */
+function ConversationExchange({ entry }: { entry: ConversationEntry }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex justify-end">
         <div className="max-w-[80%] rounded-2xl rounded-tr-sm bg-terracotta-soft px-4 py-2.5">
-          <div className="text-[10px] font-semibold uppercase tracking-wide text-terracotta-ink/70">Vous · {askedAt}</div>
-          <p className="mt-0.5 text-sm text-terracotta-ink">{question}</p>
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-terracotta-ink/70">Vous · {entry.askedAt}</div>
+          <p className="mt-0.5 text-sm text-terracotta-ink">{entry.question}</p>
         </div>
       </div>
       <div className="flex justify-start">
@@ -148,10 +172,14 @@ function ConversationExchange({ question, askedAt }: { question: string; askedAt
           <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-graphite-faint">
             <Icon.Sparkles width={11} height={11} className="text-terracotta" /> NAVI
           </div>
-          <div className="flex items-start gap-2 text-sm text-graphite-soft">
-            <Icon.Info width={14} height={14} className="mt-0.5 shrink-0 text-horizon" />
-            <span>NAVI n'est pas encore connecté à un fournisseur LLM — impossible de générer une réponse à cette question pour l'instant.</span>
-          </div>
+          {entry.status === "pending" && <p className="text-sm text-graphite-faint">NAVI réfléchit…</p>}
+          {entry.status === "success" && <p className="whitespace-pre-wrap text-sm text-graphite-soft">{entry.answer}</p>}
+          {entry.status === "error" && (
+            <div className="flex items-start gap-2 text-sm text-alert">
+              <Icon.AlertTriangle width={14} height={14} className="mt-0.5 shrink-0" />
+              <span>{entry.errorMessage}</span>
+            </div>
+          )}
         </div>
       </div>
     </div>

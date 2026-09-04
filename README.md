@@ -4,7 +4,7 @@ Copilote CRM hôtelier posé au-dessus d'Expérience (D-EDGE). Voir [`docs/archi
 
 ## Statut
 
-**Phase C** validée avec de vraies données Expérience (voir [`docs/reference/phase-c-real-connection-notes.md`](docs/reference/phase-c-real-connection-notes.md)). **Phase D — scan multi-hôtels**, livrée (D1 infra Redis/BullMQ, D3 robustesse, D2 progression temps réel — voir [`docs/reference/phase-d-notes.md`](docs/reference/phase-d-notes.md)). **Phase E — moteur métier**, terminée et validée avec de vraies données Expérience (E1, E2, E3-P11, E3-P10) — voir [`docs/reference/phase-e-notes.md`](docs/reference/phase-e-notes.md). **Phase F — Audiences**, F1 à F5 validées avec de vraies données Expérience (création de liste, suivi d'action, historique des scans, estimation de temps, dashboard réel). **Phase F6 — suppression réelle (hôtels/utilisateurs) + CRM Health réel**, construite (backend + frontend, typecheck/build OK), pas encore testée — voir les sections Phase F du même document. **Phase H — Ask NAVI (démarrée en avance)** : H1 — LLM Service provider-agnostic + adaptateur Groq/Qwen (plan gratuit), connectivité backend → Groq → Qwen validée avec de vraies données. H2 — Context Builder (`getHotelHealth`, `getScanHistory`, `getPortfolioSignals`, `getTopOpportunities`, `getHotelsWithoutRecentScan`), construit, pas encore testé contre de vraies données — voir [`docs/reference/phase-h-notes.md`](docs/reference/phase-h-notes.md). Reste à construire : routeur d'intention, prompt système, route API, branchement frontend.
+**Phase C** validée avec de vraies données Expérience (voir [`docs/reference/phase-c-real-connection-notes.md`](docs/reference/phase-c-real-connection-notes.md)). **Phase D — scan multi-hôtels**, livrée (D1 infra Redis/BullMQ, D3 robustesse, D2 progression temps réel — voir [`docs/reference/phase-d-notes.md`](docs/reference/phase-d-notes.md)). **Phase E — moteur métier**, terminée et validée avec de vraies données Expérience (E1, E2, E3-P11, E3-P10) — voir [`docs/reference/phase-e-notes.md`](docs/reference/phase-e-notes.md). **Phase F — Audiences**, F1 à F5 validées avec de vraies données Expérience (création de liste, suivi d'action, historique des scans, estimation de temps, dashboard réel). **Phase F6 — suppression réelle (hôtels/utilisateurs) + CRM Health réel**, construite (backend + frontend, typecheck/build OK), pas encore testée — voir les sections Phase F du même document. **Phase H — Ask NAVI (démarrée en avance)**, construite de bout en bout : H1 — LLM Service provider-agnostic + adaptateur Groq/Qwen (plan gratuit), connectivité validée avec de vraies données. H2 — Context Builder (5 fonctions fermées). H3 — routeur d'intention (mots-clés + entités, sans second appel LLM). H4 — orchestration + route `POST /api/ask-navi` + branchement frontend (page Ask NAVI). Construit et typecheck/build OK, **pas encore testé de bout en bout contre de vraies données** — voir [`docs/reference/phase-h-notes.md`](docs/reference/phase-h-notes.md).
 
 ## Structure
 
@@ -82,12 +82,10 @@ nouveau scan") réutilisent automatiquement la session, en headless.
 La session Expérience peut expirer : si un scan échoue avec une erreur
 d'authentification, relancer l'étape 2.
 
-## Connecter NAVI à un LLM (Ask NAVI — test minimal)
+## Connecter NAVI à un LLM (Ask NAVI)
 
-Ask NAVI n'est pas encore branché aux données NAVI (Context Builder à
-venir) : cette étape valide uniquement que le backend arrive à parler au
-provider LLM configuré (Groq/Qwen, plan gratuit) et à récupérer une
-réponse.
+Ask NAVI (page dédiée du frontend) est branché à de vraies données —
+une clé Groq est nécessaire pour qu'il puisse répondre.
 
 1. Créer une clé API sur [console.groq.com/keys](https://console.groq.com/keys)
    (compte gratuit).

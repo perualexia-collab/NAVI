@@ -221,3 +221,15 @@ export interface ScanProgressEvent {
   etaMs: number | null;
   hotels: { scanHotelId: string; hotelId: string; hotelName: string; status: ScanHotelStatus }[];
 }
+
+/** Réponse d'Ask NAVI — POST /api/ask-navi (Phase H3/H4). */
+export interface AskNaviSource {
+  label: string;
+  detail: string;
+}
+
+export interface AskNaviAnswer {
+  answer: string;
+  intent: "hotel-health" | "hotel-history" | "portfolio-signals" | "top-opportunities" | "hotels-without-recent-scan" | "unknown";
+  sources: AskNaviSource[];
+}

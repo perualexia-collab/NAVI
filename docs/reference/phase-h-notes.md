@@ -196,3 +196,71 @@ par ce test.
 Backend typecheck/build passent. Non testé contre de vraies données
 depuis cet environnement (pas de PostgreSQL accessible ici) — à valider
 par l'utilisateur dans son Codespace.
+
+## H3/H4 — routeur d'intention, orchestration, route API, branchement frontend (2026-09-03)
+
+Les 4 briques manquantes pour rendre Ask NAVI réellement utilisable
+dans l'UI, construites en une passe (demande explicite : "on enchaîne
+sur ces 4 étapes").
+
+**H3 — `backend/ai/ask-navi/route-intent.ts`** — le routeur d'intention
+du §09 : mots-clés + entités reconnues, **jamais** un second appel LLM
+pour "décider quoi chercher" (règle explicite du brief). Reconnaissance
+d'entité volontairement simple (sous-chaîne dans la question,
+normalisée sans accents ; la correspondance la plus longue gagne parmi
+les hôtels/portefeuilles existants) — un vrai NLU serait disproportionné
+pour un premier jeu de questions. `routeIntent(question, userId)` :
+1. Hôtel reconnu dans la question → `hotel-history` (mots-clés
+   "historique/évolution/tendance") ou `hotel-health` par défaut.
+2. Sinon portefeuille reconnu (scopé à l'utilisateur, comme
+   `/api/portfolios`) → `portfolio-signals`.
+3. Sinon mots-clés "opportunité/potentiel/convertir" →
+   `top-opportunities`.
+4. Sinon mots-clés "pas scanné/oublié/dernier scan" →
+   `hotels-without-recent-scan`.
+5. Sinon `unknown` — y compris un mot-clé "alerte/vigilance/signal" SANS
+   portefeuille reconnu : `getPortfolioSignals` exige un portefeuille,
+   pas de 6ᵉ fonction "tous portefeuilles" inventée pour ce cas.
+
+**H4a — `backend/ai/ask-navi/answer-question.ts`** — orchestration :
+`routeIntent()` → fonction du Context Builder correspondante → prompt
+système "NAVI décide, Qwen explique" (interdiction explicite de
+recalculer un chiffre, interdiction de mentionner un playbookId,
+consigne de demander une précision plutôt que répondre dans le vide si
+`intent: "unknown"`) → `LlmService.complete()` avec
+`reasoningFormat: "hidden"` (retour réel H1 — Qwen3.6 est un modèle
+"thinking"). Renvoie aussi des `sources` (libellé + détail humain, ex.
+"Hôtel Louis II" / "Santé CRM, KPI et signaux actifs") pour le panneau
+"Sources utilisées" du frontend — pas encore de lien cliquable
+(`références structurées que NAVI transforme en liens`, §09) : juste du
+texte pour cette passe, le lien profond est un raffinement ultérieur.
+
+**H4b — `backend/src/api/routes/ask-navi.ts`** — `POST /api/ask-navi`,
+enregistrée dans `app.ts`. `503` (pas `500`) si aucun provider LLM
+n'est configuré — état légitime tant que l'utilisateur n'a pas renseigné
+sa clé (`GROQ_API_KEY` optionnelle), pas une panne serveur ; `502` si le
+LLM Service échoue une fois configuré (timeout, erreur Groq...).
+
+**H4c — `frontend/src/pages/AskNavi.tsx`** — remplace le placeholder
+honnête "NAVI n'est pas encore connecté à un fournisseur LLM" par un
+vrai appel à `POST /api/ask-navi` (`useMutation`). Chaque échange suit
+son propre statut (`pending`/`success`/`error`) plutôt qu'un seul état
+de mutation partagé, pour permettre plusieurs questions à la suite sans
+attendre. Le panneau "Sources utilisées" devient dynamique (sources du
+dernier échange réussi) au lieu d'afficher `mockAnswer.sources` en dur.
+"Questions suggérées" et "Historique des conversations" restent
+inchangés (le premier est un jeu d'exemples statique assumé, le second
+est purement local à la session — jamais demandé de le persister côté
+backend).
+
+**Ce qui reste** : liens cliquables sur les sources (au lieu de texte
+brut), persistance de l'historique de conversation côté backend (si
+jamais demandé), affinage du routeur d'intention à l'usage réel plutôt
+qu'en devinant à l'avance quelles questions seront posées.
+
+Backend et frontend typecheck/build passent. **Non testé de bout en
+bout contre de vraies données** (pas de PostgreSQL/Groq accessibles
+depuis cet environnement) — à valider par l'utilisateur : poser une
+vraie question mentionnant un hôtel existant, une question
+"opportunités", une question hors sujet (doit demander une précision
+plutôt qu'inventer une réponse).

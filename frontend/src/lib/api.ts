@@ -10,7 +10,8 @@ import type {
   RealScanHistoryEntry,
   RealScanSummary,
   RealDashboard,
-  RealHotelListItem
+  RealHotelListItem,
+  AskNaviAnswer
 } from "./real-hotel-types.js";
 
 export class ApiError extends Error {
@@ -45,6 +46,8 @@ export const api = {
   me: () => request<User>("/auth/me"),
 
   getDashboard: () => request<RealDashboard>("/dashboard"),
+
+  askNavi: (question: string) => request<AskNaviAnswer>("/ask-navi", { method: "POST", body: JSON.stringify({ question }) }),
 
   listRealHotels: () => request<RealHotel[]>("/hotels"),
   getHotelsOverview: () => request<RealHotelListItem[]>("/hotels/overview"),
