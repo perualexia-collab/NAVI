@@ -581,3 +581,38 @@ problème. Changerait le modèle demandé initialement (Qwen) — à ne
 faire qu'après validation explicite, pas à la place de ce correctif.
 
 Backend typecheck/build passent. Non re-testé.
+
+## H6 — historique en vrais fils de conversation + questions suggérées (2026-09-03)
+
+Demande explicite, purement frontend :
+
+- **Historique** — `frontend/src/pages/AskNavi.tsx` : les 4 entrées du
+  mock-up (`conversationHistory`, supprimée de `mock/ask-navi.ts`)
+  retirées ; l'historique n'affiche plus que les vraies conversations
+  posées dans la session. Passé d'un état plat (`ConversationEntry[]`)
+  à un état à deux niveaux (`Conversation[]`, chacune portant ses
+  propres `entries`) : une conversation = un fil, créé au premier
+  message envoyé (jamais à l'ouverture de "Nouvelle conversation" —
+  évite les fils vides dans l'historique), titré avec cette première
+  question. Cliquer une entrée d'historique (`setActiveConversationId`)
+  réaffiche tout le fil et permet d'y répondre à la suite — la mémoire
+  conversationnelle (derniers échanges envoyés au LLM) reste scopée au
+  fil actif, pas mélangée entre conversations.
+- **5 visibles, "Voir tout"** — bouton affiché seulement s'il y a plus
+  de 5 conversations ; bascule vers la liste complète (`showAllHistory`),
+  avec un "Voir moins" pour revenir. Tri par activité la plus récente
+  (`updatedAt`, horodatage interne — jamais affiché, distinct du
+  libellé relatif "À l'instant" montré à l'utilisateur, cohérent avec
+  le reste de l'app qui n'invente jamais d'horodatage précis).
+- **Questions suggérées** — `moreSuggestedQuestions` (mock) remplacé par
+  les 4 demandées : potentiel OTA→direct, CA CRM d'un portefeuille, taux
+  de captation d'un hôtel, opportunités. Les deux dernières contiennent
+  volontairement "portefeuille X"/"hôtel X" tels quels (aucun nom réel
+  choisi à la place de l'utilisateur) — cliquer remplit le champ, à
+  l'utilisateur de remplacer "X" par un nom exact avant d'envoyer.
+
+**Non fait, volontairement** : aucune persistance (localStorage ou
+backend) de l'historique — comme avant ce changement, tout disparaît à
+un rechargement de page. Pas demandé ; à ajouter si besoin plus tard.
+
+Frontend typecheck/build passent. Non testé dans le navigateur.
