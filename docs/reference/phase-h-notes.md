@@ -345,3 +345,45 @@ données** (dépend de la clé Groq de l'utilisateur) — à valider : une
 question devrait maintenant consommer beaucoup moins de tokens de
 sortie et laisser de la marge pour plusieurs questions à la suite dans
 la même minute.
+
+### Retour immédiat : reasoningEffort retiré, comportement imprévisible chez Groq (2026-09-03)
+
+Premier test après le correctif ci-dessus : "quelles sont mes
+opportunités ?" a fonctionné parfaitement (vraie réponse, bien
+formulée, citant les vrais hôtels/volumes). Mais la question suivante,
+20s plus tard ("oui tu peux détailler les actions"), a échoué :
+
+```
+LLM Service (429) : "Request too large for model qwen/qwen3.6-27b ...
+on output tokens per minute (OTPM): Limit 1000, Requested 1296. ..."
+```
+
+Aucun champ "Used" cette fois (contrairement au 429 précédent) : Groq a
+jugé CETTE requête, à elle seule, trop grande — alors que `maxTokens`
+valait 600 dans le code. `reasoningEffort: "none"` était le seul autre
+paramètre présent. Sans certitude absolue (boîte noire côté Groq), le
+plus probable : la présence de `reasoning_effort` fait gonfler
+l'estimation interne de Groq bien au-delà de `maxTokens` pour ce
+modèle — un comportement contradictoire avec la doc/les échos trouvés
+en ligne (une source dit "reasoning_effort désactive vraiment le
+raisonnement pour Qwen3", une autre dit qu'il n'est supporté que par
+les modèles GPT-OSS). Plutôt que de continuer à deviner, **retiré**
+de l'appel : `reasoningEffort` reste disponible dans
+`LlmCompletionRequest` (utile si un autre provider/modèle le supporte
+proprement) mais n'est plus envoyé par `answer-question.ts`.
+`maxTokens` abaissé à `450` (marge supplémentaire dans le quota de
+1000 OTPM, avec `reasoningFormat: "hidden"` seul — le seul réglage qui
+s'est comporté de façon prévisible jusqu'ici, "Requested" annoncé par
+Groq correspondant exactement à la valeur demandée).
+
+**Limitation produit à noter, distincte de ce bug** : Ask NAVI n'a pas
+de mémoire conversationnelle — chaque question part d'un contexte
+neuf (`routeIntent()` ne connaît rien des échanges précédents dans le
+fil). "Détaille les actions" sans nommer l'hôtel retombera donc sur
+`unknown` (aucun hôtel/portefeuille/mot-clé reconnu dans cette phrase
+seule) et demandera une précision plutôt que de poursuivre sur "Lilas
+Blanc" mentionné juste avant. Non corrigé ici — hors du périmètre des 4
+étapes demandées, mais à garder en tête pour un futur incrément
+(passer les derniers échanges du fil au LLM Service).
+
+Backend typecheck/build passent.

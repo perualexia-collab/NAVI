@@ -80,15 +80,20 @@ export async function answerQuestion(options: AnswerQuestionOptions): Promise<As
     // Retour réel 2026-09-03 : reasoningFormat "hidden" masque le
     // raisonnement mais ne l'empêche pas d'être généré — il consomme
     // quand même le quota "tokens de sortie / minute" du plan gratuit
-    // Groq (1000 OTPM sur qwen/qwen3.6-27b : largement dépassé après
-    // une seule question, 429 sur toutes les suivantes). Ask NAVI n'a
-    // pas besoin d'un raisonnement profond (il reformule un résultat
-    // déjà calculé, cf. prompt système) : reasoningEffort "none"
-    // désactive réellement le raisonnement pour la famille Qwen3.x sur
-    // Groq (pas juste son affichage) — la vraie source du problème.
-    maxTokens: 600,
-    reasoningFormat: "hidden",
-    reasoningEffort: "none"
+    // Groq (1000 OTPM sur qwen/qwen3.6-27b). `reasoningEffort: "none"`
+    // (censé désactiver réellement le raisonnement) a été essayé mais
+    // RETIRÉ : sur un appel il s'est comporté normalement, sur le
+    // suivant (20s plus tard) Groq a rejeté la requête en annonçant
+    // "Requested 1296" alors que maxTokens valait 600 — signe que ce
+    // paramètre fait gonfler l'estimation interne de Groq de façon
+    // imprévisible pour ce modèle, plutôt que de réduire la consommation
+    // réelle. maxTokens seul (sans reasoningEffort) s'est comporté de
+    // façon prévisible (le "Requested" annoncé par Groq correspondait
+    // exactement à la valeur demandée) — préféré ici tant que ce n'est
+    // pas éclairci. Valeur volontairement basse pour laisser de la marge
+    // au raisonnement caché dans le quota de 1000 OTPM.
+    maxTokens: 450,
+    reasoningFormat: "hidden"
   });
 
   // Filet de sécurité : quelle qu'en soit la cause (budget de tokens,
