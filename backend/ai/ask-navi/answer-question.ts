@@ -43,7 +43,9 @@ Règles strictes, jamais négociables :
 - Réponds en français, de façon concise (quelques phrases, pas un long rapport), professionnelle et actionnable pour un utilisateur hôtelier.
 - La conversation peut contenir des échanges précédents : une question elliptique ("détaille", "et pour celui-là ?") se rapporte au sujet dont vous veniez de parler.`;
 
-const MAX_HISTORY_TURNS = 3;
+// Exporté : la route (Phase H6) l'utilise aussi pour limiter le nombre de
+// messages chargés depuis la conversation persistée en base.
+export const MAX_HISTORY_TURNS = 3;
 
 export interface AnswerQuestionOptions {
   question: string;

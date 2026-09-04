@@ -43,9 +43,10 @@ model User {
   status       UserStatus @default(PENDING)
   createdAt    DateTime   @default(now())
 
-  portfolios Portfolio[]
-  scans      Scan[]
-  invites    InviteToken[]
+  portfolios          Portfolio[]
+  scans               Scan[]
+  invites             InviteToken[]
+  askNaviConversations AskNaviConversation[]
 }
 
 // Jeton d'activation à usage unique — on ne stocke jamais le jeton en
@@ -383,4 +384,41 @@ model AudienceComparison {
   // Phase F6 — suppression réelle d'un hôtel : cascade sur ses comparaisons.
   hotel   Hotel            @relation(fields: [hotelId], references: [id], onDelete: Cascade)
   results AudienceResult[]
+}
+
+// ------------------------------------------------------------------
+// Ask NAVI — Phase H6 : sauvegarde de l'historique de conversation,
+// demandée explicitement (jusque-là purement en mémoire côté frontend,
+// perdu à chaque rechargement de page).
+// ------------------------------------------------------------------
+
+model AskNaviConversation {
+  id        String   @id @default(cuid())
+  userId    String
+  // Titre affiché dans l'historique — la première question posée dans ce fil.
+  title     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages AskNaviMessage[]
+
+  @@index([userId])
+}
+
+model AskNaviMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  question       String
+  answer         String
+  // Sources affichées par le frontend ("Sources utilisées") — même forme
+  // que AskNaviSource ({ label, detail }[]), stockée telle quelle.
+  sources        Json
+  createdAt      DateTime @default(now())
+
+  // Seuls les échanges réussis sont persistés (retour réel 2026-09-03) —
+  // un échec est retentable, ce n'est pas un historique à conserver.
+  conversation AskNaviConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
 }

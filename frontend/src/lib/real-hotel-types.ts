@@ -228,11 +228,6 @@ export interface AskNaviSource {
   detail: string;
 }
 
-export interface AskNaviHistoryTurn {
-  question: string;
-  answer: string;
-}
-
 export interface AskNaviAnswer {
   answer: string;
   intent:
@@ -244,4 +239,22 @@ export interface AskNaviAnswer {
     | "hotels-without-recent-scan"
     | "org-overview";
   sources: AskNaviSource[];
+  // Phase H6 — nouvelle conversation créée, ou existante prolongée.
+  conversationId: string;
+}
+
+/** Historique persisté (Phase H6) — GET /api/ask-navi/conversations. */
+export interface AskNaviMessageRecord {
+  id: string;
+  question: string;
+  answer: string;
+  sources: AskNaviSource[];
+  createdAt: string;
+}
+
+export interface AskNaviConversationRecord {
+  id: string;
+  title: string;
+  updatedAt: string;
+  messages: AskNaviMessageRecord[];
 }

@@ -616,3 +616,58 @@ backend) de l'historique — comme avant ce changement, tout disparaît à
 un rechargement de page. Pas demandé ; à ajouter si besoin plus tard.
 
 Frontend typecheck/build passent. Non testé dans le navigateur.
+
+## H7 — sauvegarde de l'historique en base + suppression de conversations (2026-09-04)
+
+Demande explicite juste après H6 : "je veux qu'on ajoute une sauvegarde
+de l'historique" + "la possibilité de supprimer des conversations".
+Choix d'une vraie persistance PostgreSQL plutôt que du `localStorage` —
+cohérent avec le reste de NAVI (rien d'important n'est stocké
+uniquement côté navigateur) et permet à l'historique de suivre
+l'utilisateur d'un Codespace à l'autre, pas seulement du navigateur.
+
+**Schéma** (migration `20260904090000_add_ask_navi_conversations`) :
+- `AskNaviConversation` (id, userId, title, createdAt, updatedAt) —
+  `onDelete: Cascade` depuis `User`.
+- `AskNaviMessage` (id, conversationId, question, answer, sources JSON,
+  createdAt) — `onDelete: Cascade` depuis `AskNaviConversation`. **Seuls
+  les échanges réussis sont persistés** : pas de statut "pending"/"error"
+  en base, un échec est retentable, pas un historique à conserver.
+
+**Route `POST /api/ask-navi` modifiée** : accepte `conversationId`
+(optionnel) au lieu de `history` (Phase H5, retiré) — le backend
+récupère lui-même les derniers messages de la conversation en base pour
+la mémoire conversationnelle (`MAX_HISTORY_TURNS`, maintenant exporté
+depuis `answer-question.ts`, réutilisé ici) plutôt que de faire
+confiance à ce que le frontend renvoie. Sur une réponse réussie :
+crée la conversation si `conversationId` est absent (titre = première
+question, tronquée à 200 caractères) ou touche son `updatedAt` sinon,
+persiste le message, renvoie `conversationId` en plus de la réponse.
+Sur un échec (429/502) : rien n'est créé ni persisté, comme avant.
+
+**Nouvelles routes `backend/src/api/routes/ask-navi-conversations.ts`** :
+- `GET /api/ask-navi/conversations` — toutes les conversations de
+  l'utilisateur courant, messages inclus (pas de pagination : le volume
+  attendu par utilisateur reste modeste pour l'instant).
+- `DELETE /api/ask-navi/conversations/:conversationId` — vérifie la
+  propriété (404 sinon, jamais un 403 qui confirmerait l'existence
+  d'une conversation d'un autre utilisateur), cascade sur ses messages.
+
+**Frontend `AskNavi.tsx`** — refonte du modèle de données : React Query
+(`["ask-navi-conversations"]`) devient la source de vérité pour les
+messages déjà persistés ; au plus UN message local éphémère
+(`pendingEntry`, jamais persisté tant qu'il n'a pas réussi) représente
+la question en cours ou son échec. Sur succès : invalide la query,
+efface `pendingEntry`. Subtilité gérée explicitement : si l'utilisateur
+change de fil PENDANT qu'une question est en cours ailleurs, la vue ne
+doit pas "sauter" vers la conversation qui vient de répondre — une ref
+(`activeConversationIdRef`) évite de comparer contre un state React
+potentiellement périmé dans le callback de la mutation. Suppression :
+bouton "corbeille" par ligne d'historique (visible au survol),
+confirmation `window.confirm()` (même formulation que la suppression
+d'hôtel dans Paramètres), invalide la query et réinitialise le fil
+actif si c'était celui affiché.
+
+Backend et frontend typecheck/build passent. **Migration à appliquer**
+(`pnpm prisma:migrate`) avant de tester — voir instructions de refresh.
+Non testé contre de vraies données.

@@ -10,6 +10,7 @@ import { invitesRoutes } from "./api/routes/invites.js";
 import { scansRoutes } from "./api/routes/scans.js";
 import { dashboardRoutes } from "./api/routes/dashboard.js";
 import { askNaviRoutes } from "./api/routes/ask-navi.js";
+import { askNaviConversationsRoutes } from "./api/routes/ask-navi-conversations.js";
 
 export async function buildApp(env: Env) {
   const app = Fastify({
@@ -30,6 +31,7 @@ export async function buildApp(env: Env) {
   await app.register(scansRoutes);
   await app.register(dashboardRoutes);
   await app.register(askNaviRoutes, { env });
+  await app.register(askNaviConversationsRoutes);
 
   return app;
 }

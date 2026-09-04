@@ -1,12 +1,12 @@
 import { useRef, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardHeader } from "../components/ui/Card.js";
 import { Icon } from "../components/ui/icons.js";
 import { moreSuggestedQuestions } from "../mock/ask-navi.js";
 import { api, ApiError } from "../lib/api.js";
-import type { AskNaviHistoryTurn, AskNaviSource } from "../lib/real-hotel-types.js";
+import type { AskNaviSource } from "../lib/real-hotel-types.js";
 
-interface ConversationEntry {
+interface DisplayEntry {
   id: string;
   question: string;
   askedAt: string;
@@ -16,75 +16,73 @@ interface ConversationEntry {
   errorMessage?: string;
 }
 
-interface Conversation {
-  id: string;
-  // Titre affiché dans l'historique — la première question posée dans ce fil.
-  title: string;
-  startedAt: string;
-  // Clé de tri interne uniquement (jamais affichée) — "startedAt" reste un
-  // libellé relatif ("À l'instant"), pas une vraie date exploitable pour trier.
-  updatedAt: number;
-  entries: ConversationEntry[];
-}
-
-const MAX_HISTORY_TURNS = 3;
 const VISIBLE_HISTORY_COUNT = 5;
 
 /**
  * Ask NAVI — branché sur POST /api/ask-navi (Phase H3/H4) : question →
  * routeIntent() → Context Builder → LLM Service → réponse réelle.
- * Mémoire conversationnelle (retour réel 2026-09-03) : les derniers
- * échanges réussis DU FIL ACTIF sont envoyés à chaque nouvelle question,
- * pour qu'une relance elliptique ("détaille les actions") reste
- * rattachée au bon hôtel/portefeuille.
  *
- * "Historique des conversations" (retour réel 2026-09-03) : un vrai fil
- * par conversation (pas un message par ligne), cliquable pour reprendre
- * l'échange — plus jamais les 4 entrées du mock-up. Rien de tout ceci
- * n'est persisté côté backend (comme avant) : tout disparaît à un
- * rechargement de page, pas seulement au clic sur "Nouvelle conversation".
- * "Questions suggérées" reste un jeu d'exemples statique, pas une
- * fonctionnalité connectée.
+ * Historique persisté en base (Phase H6, demande explicite) —
+ * GET/DELETE /api/ask-navi/conversations. Le fil affiché combine les
+ * messages déjà persistés (source de vérité, via React Query) et AU
+ * PLUS UN message local éphémère (`pendingEntry`, pending ou en échec —
+ * jamais persisté tant qu'il n'a pas réussi, cf. backend/src/api/routes/
+ * ask-navi.ts). "Questions suggérées" reste un jeu d'exemples statique,
+ * pas une fonctionnalité connectée.
  */
 export function AskNavi() {
+  const queryClient = useQueryClient();
   const [question, setQuestion] = useState("");
-  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [showAllHistory, setShowAllHistory] = useState(false);
+  const [pendingEntry, setPendingEntry] = useState<(DisplayEntry & { conversationId: string | null }) | null>(null);
 
+  // Miroir synchrone de activeConversationId — lu dans le callback de la
+  // mutation pour savoir si l'utilisateur a changé de fil pendant l'appel
+  // (auquel cas on ne le fait pas sauter vers la conversation qui vient
+  // de répondre). Un state React lu dans une closure de callback peut
+  // être périmé ; une ref ne l'est jamais.
+  const activeConversationIdRef = useRef<string | null>(null);
+  function updateActiveConversation(id: string | null) {
+    activeConversationIdRef.current = id;
+    setActiveConversationId(id);
+  }
+
+  const conversationsQuery = useQuery({
+    queryKey: ["ask-navi-conversations"],
+    queryFn: api.listAskNaviConversations
+  });
+  const conversations = conversationsQuery.data ?? [];
   const activeConversation = conversations.find((c) => c.id === activeConversationId) ?? null;
-  const activeEntries = activeConversation?.entries ?? [];
+
+  const persistedEntries: DisplayEntry[] =
+    activeConversation?.messages.map((m) => ({
+      id: m.id,
+      question: m.question,
+      askedAt: "",
+      status: "success",
+      answer: m.answer,
+      sources: m.sources
+    })) ?? [];
+  const displayEntries =
+    pendingEntry && pendingEntry.conversationId === activeConversationId ? [...persistedEntries, pendingEntry] : persistedEntries;
 
   const askMutation = useMutation({
-    mutationFn: (vars: { entryId: string; conversationId: string; question: string; history: AskNaviHistoryTurn[] }) =>
-      api.askNavi(vars.question, vars.history),
-    onSuccess: (data, vars) => {
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.id === vars.conversationId
-            ? { ...c, entries: c.entries.map((e) => (e.id === vars.entryId ? { ...e, status: "success", answer: data.answer, sources: data.sources } : e)) }
-            : c
-        )
-      );
-    },
-    onError: (error, vars) => {
-      const message = error instanceof ApiError ? error.message : "Ask NAVI n'a pas pu répondre — réessaie dans un instant.";
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.id === vars.conversationId
-            ? { ...c, entries: c.entries.map((e) => (e.id === vars.entryId ? { ...e, status: "error", errorMessage: message } : e)) }
-            : c
-        )
-      );
+    mutationFn: (vars: { question: string; conversationId: string | null }) => api.askNavi(vars.question, vars.conversationId ?? undefined)
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (conversationId: string) => api.deleteAskNaviConversation(conversationId),
+    onSuccess: (_data, conversationId) => {
+      queryClient.invalidateQueries({ queryKey: ["ask-navi-conversations"] });
+      if (activeConversationIdRef.current === conversationId) updateActiveConversation(null);
     }
   });
 
-  // Global (toutes conversations confondues), pas seulement le fil actif —
-  // un seul appel LLM à la fois, même si on change de fil en attendant.
-  const isAsking = conversations.some((c) => c.entries.some((e) => e.status === "pending"));
-  const lastAnsweredSources = [...activeEntries].reverse().find((entry) => entry.status === "success")?.sources ?? [];
+  const isAsking = pendingEntry?.status === "pending";
+  const lastAnsweredSources = [...displayEntries].reverse().find((entry) => entry.status === "success")?.sources ?? [];
 
-  const sortedConversations = [...conversations].sort((a, b) => b.updatedAt - a.updatedAt);
+  const sortedConversations = [...conversations].sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
   const visibleHistory = showAllHistory ? sortedConversations : sortedConversations.slice(0, VISIBLE_HISTORY_COUNT);
 
   // Retour réel 2026-09-03 : une double-soumission (Entrée pressée deux
@@ -98,33 +96,33 @@ export function AskNavi() {
     if (!trimmed || sendingRef.current) return;
     sendingRef.current = true;
 
-    const entryId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const newEntry: ConversationEntry = { id: entryId, question: trimmed, askedAt: "À l'instant", status: "pending" };
-
-    let conversationId = activeConversationId;
-    let recentTurns: AskNaviHistoryTurn[] = [];
-
-    if (conversationId) {
-      const current = conversations.find((c) => c.id === conversationId);
-      recentTurns = (current?.entries ?? [])
-        .filter((e): e is ConversationEntry & { answer: string } => e.status === "success" && e.answer !== undefined)
-        .slice(-MAX_HISTORY_TURNS)
-        .map((e) => ({ question: e.question, answer: e.answer }));
-      setConversations((prev) => prev.map((c) => (c.id === conversationId ? { ...c, entries: [...c.entries, newEntry], updatedAt: Date.now() } : c)));
-    } else {
-      conversationId = `conv-${entryId}`;
-      setConversations((prev) => [
-        { id: conversationId!, title: trimmed, startedAt: "À l'instant", updatedAt: Date.now(), entries: [newEntry] },
-        ...prev
-      ]);
-      setActiveConversationId(conversationId);
-    }
-
+    const entryId = `local-${Date.now()}`;
+    const conversationIdAtSend = activeConversationId;
+    setPendingEntry({ id: entryId, question: trimmed, askedAt: "À l'instant", status: "pending", conversationId: conversationIdAtSend });
     setQuestion("");
+
     askMutation.mutate(
-      { entryId, conversationId, question: trimmed, history: recentTurns },
-      { onSettled: () => { sendingRef.current = false; } }
+      { question: trimmed, conversationId: conversationIdAtSend },
+      {
+        onSuccess: (data) => {
+          setPendingEntry(null);
+          queryClient.invalidateQueries({ queryKey: ["ask-navi-conversations"] });
+          // Ne fait sauter la vue que si l'utilisateur n'a pas navigué
+          // vers un autre fil entre-temps (cf. commentaire sur la ref).
+          if (activeConversationIdRef.current === conversationIdAtSend) updateActiveConversation(data.conversationId);
+        },
+        onError: (error) => {
+          const message = error instanceof ApiError ? error.message : "Ask NAVI n'a pas pu répondre — réessaie dans un instant.";
+          setPendingEntry((prev) => (prev && prev.id === entryId ? { ...prev, status: "error", errorMessage: message } : prev));
+        },
+        onSettled: () => { sendingRef.current = false; }
+      }
     );
+  }
+
+  function deleteConversation(id: string, title: string) {
+    if (!window.confirm(`Supprimer la conversation "${title}" ? Cette action est définitive.`)) return;
+    deleteMutation.mutate(id);
   }
 
   return (
@@ -136,7 +134,8 @@ export function AskNavi() {
         </div>
         <button
           onClick={() => {
-            setActiveConversationId(null);
+            updateActiveConversation(null);
+            setPendingEntry(null);
             setQuestion("");
           }}
           className="flex items-center gap-1.5 rounded-lg bg-sage px-4 py-2 text-sm font-medium text-white hover:opacity-90"
@@ -169,11 +168,11 @@ export function AskNavi() {
             </form>
           </Card>
 
-          {activeEntries.map((entry) => (
+          {displayEntries.map((entry) => (
             <ConversationExchange key={entry.id} entry={entry} />
           ))}
 
-          {activeEntries.length > 0 && (
+          {displayEntries.length > 0 && (
             <p className="text-center text-xs text-graphite-faint">NAVI peut faire des erreurs. Vérifiez toujours les informations critiques.</p>
           )}
         </div>
@@ -224,21 +223,29 @@ export function AskNavi() {
                 ) : undefined
               }
             />
-            {sortedConversations.length === 0 ? (
+            {conversationsQuery.isLoading ? (
+              <p className="text-sm text-graphite-faint">Chargement…</p>
+            ) : sortedConversations.length === 0 ? (
               <p className="text-sm text-graphite-faint">Aucune conversation pour l'instant.</p>
             ) : (
               <div className="flex flex-col divide-y divide-graphite/10">
                 {visibleHistory.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => { setActiveConversationId(c.id); setQuestion(""); }}
-                    className={`w-full py-2 text-left first:pt-0 last:pb-0 ${
-                      c.id === activeConversationId ? "text-terracotta" : "text-graphite-soft hover:text-terracotta"
-                    }`}
-                  >
-                    <div className="truncate text-sm">{c.title}</div>
-                    <div className="text-xs text-graphite-faint">{c.startedAt}</div>
-                  </button>
+                  <div key={c.id} className="group flex items-center gap-1 py-2 first:pt-0 last:pb-0">
+                    <button
+                      onClick={() => { updateActiveConversation(c.id); setPendingEntry(null); setQuestion(""); }}
+                      className={`min-w-0 flex-1 text-left ${c.id === activeConversationId ? "text-terracotta" : "text-graphite-soft hover:text-terracotta"}`}
+                    >
+                      <div className="truncate text-sm">{c.title}</div>
+                      <div className="text-xs text-graphite-faint">{c.messages.length} message{c.messages.length > 1 ? "s" : ""}</div>
+                    </button>
+                    <button
+                      onClick={() => deleteConversation(c.id, c.title)}
+                      title="Supprimer la conversation"
+                      className="shrink-0 rounded p-1 text-graphite-faint opacity-0 hover:bg-alert-soft hover:text-alert group-hover:opacity-100"
+                    >
+                      <Icon.Trash width={13} height={13} />
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -250,12 +257,12 @@ export function AskNavi() {
 }
 
 /** Un échange : la question de l'utilisateur, puis la réponse réelle d'Ask NAVI (ou son état en cours / d'erreur). */
-function ConversationExchange({ entry }: { entry: ConversationEntry }) {
+function ConversationExchange({ entry }: { entry: DisplayEntry }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex justify-end">
         <div className="max-w-[80%] rounded-2xl rounded-tr-sm bg-terracotta-soft px-4 py-2.5">
-          <div className="text-[10px] font-semibold uppercase tracking-wide text-terracotta-ink/70">Vous · {entry.askedAt}</div>
+          {entry.askedAt && <div className="text-[10px] font-semibold uppercase tracking-wide text-terracotta-ink/70">Vous · {entry.askedAt}</div>}
           <p className="mt-0.5 text-sm text-terracotta-ink">{entry.question}</p>
         </div>
       </div>

@@ -12,7 +12,7 @@ import type {
   RealDashboard,
   RealHotelListItem,
   AskNaviAnswer,
-  AskNaviHistoryTurn
+  AskNaviConversationRecord
 } from "./real-hotel-types.js";
 
 export class ApiError extends Error {
@@ -48,8 +48,11 @@ export const api = {
 
   getDashboard: () => request<RealDashboard>("/dashboard"),
 
-  askNavi: (question: string, history?: AskNaviHistoryTurn[]) =>
-    request<AskNaviAnswer>("/ask-navi", { method: "POST", body: JSON.stringify({ question, history }) }),
+  askNavi: (question: string, conversationId?: string) =>
+    request<AskNaviAnswer>("/ask-navi", { method: "POST", body: JSON.stringify({ question, conversationId }) }),
+  listAskNaviConversations: () => request<AskNaviConversationRecord[]>("/ask-navi/conversations"),
+  deleteAskNaviConversation: (conversationId: string) =>
+    request<{ ok: true }>(`/ask-navi/conversations/${conversationId}`, { method: "DELETE" }),
 
   listRealHotels: () => request<RealHotel[]>("/hotels"),
   getHotelsOverview: () => request<RealHotelListItem[]>("/hotels/overview"),
