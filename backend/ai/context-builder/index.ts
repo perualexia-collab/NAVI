@@ -9,6 +9,8 @@ export { getScanHistory } from "./get-scan-history.js";
 export { getPortfolioSignals } from "./get-portfolio-signals.js";
 export { getTopOpportunities } from "./get-top-opportunities.js";
 export { getHotelsWithoutRecentScan } from "./get-hotels-without-recent-scan.js";
+export { getAllHotelsOverview } from "./get-all-hotels-overview.js";
+export { getPortfolioFinancials } from "./get-portfolio-financials.js";
 
 export type {
   ContextSignal,
@@ -20,5 +22,9 @@ export type {
   PortfolioSignalsContext,
   PortfolioHotelSignals,
   TopOpportunity,
-  HotelWithoutRecentScan
+  HotelWithoutRecentScan,
+  HotelOverviewEntry,
+  AllHotelsOverview,
+  PortfolioFinancialsContext,
+  PortfolioFinancialsHotelEntry
 } from "./types.js";

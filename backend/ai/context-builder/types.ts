@@ -90,3 +90,47 @@ export interface HotelWithoutRecentScan {
   // null = jamais scanné du tout (distinct de "scanné il y a longtemps").
   lastScanAt: string | null;
 }
+
+export interface HotelOverviewEntry {
+  hotelId: string;
+  hotelName: string;
+  portfolioNames: string[];
+  lastScanAt: string | null;
+  scanStatus: string | null;
+  healthScore: number | null;
+  healthLevel: string | null;
+}
+
+/** Vue d'ensemble de tous les hôtels — contexte de repli par défaut (routeIntent "org-overview"), pour qu'Ask NAVI ait toujours de vraies données sous la main plutôt qu'un contexte vide. */
+export interface AllHotelsOverview {
+  hotels: HotelOverviewEntry[];
+}
+
+export interface PortfolioFinancialsHotelEntry {
+  hotelId: string;
+  hotelName: string;
+  hasData: boolean;
+  // Valeur "officielle" scrapée (Statistiques Marketing) — sert de
+  // vérification face à automation+campagne, même principe que
+  // PerformanceBusinessCard côté frontend.
+  crmRevenue: number | null;
+  crmBookings: number | null;
+  automationRevenue: number | null;
+  automationBookings: number | null;
+  campaignRevenue: number | null;
+  campaignBookings: number | null;
+}
+
+export interface PortfolioFinancialsContext {
+  portfolioId: string;
+  portfolioName: string;
+  hotels: PortfolioFinancialsHotelEntry[];
+  // Sommes déjà calculées par NAVI (jamais par le LLM) sur les hôtels
+  // disposant de données — "NAVI décide, Qwen explique" (§09).
+  totals: {
+    totalRevenue: number;
+    totalBookings: number;
+    hotelsWithData: number;
+    hotelsWithoutData: number;
+  };
+}

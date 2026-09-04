@@ -4,7 +4,7 @@ import { Card, CardHeader } from "../components/ui/Card.js";
 import { Icon } from "../components/ui/icons.js";
 import { conversationHistory as initialHistory, moreSuggestedQuestions } from "../mock/ask-navi.js";
 import { api, ApiError } from "../lib/api.js";
-import type { AskNaviSource } from "../lib/real-hotel-types.js";
+import type { AskNaviHistoryTurn, AskNaviSource } from "../lib/real-hotel-types.js";
 
 interface ConversationEntry {
   id: string;
@@ -16,12 +16,18 @@ interface ConversationEntry {
   errorMessage?: string;
 }
 
+const MAX_HISTORY_TURNS = 3;
+
 /**
  * Ask NAVI — branché sur POST /api/ask-navi (Phase H3/H4) : question →
  * routeIntent() → Context Builder → LLM Service → réponse réelle.
- * "Historique des conversations" reste purement local à cette session
- * (jamais persisté côté backend — pas demandé) ; "Questions suggérées"
- * reste un jeu d'exemples statique, pas une fonctionnalité connectée.
+ * Mémoire conversationnelle (retour réel 2026-09-03) : les derniers
+ * échanges réussis du fil sont envoyés à chaque nouvelle question, pour
+ * qu'une relance elliptique ("détaille les actions") reste rattachée au
+ * bon hôtel/portefeuille — gérée uniquement côté client (jamais
+ * persistée côté backend, comme le reste de cette page). "Questions
+ * suggérées" reste un jeu d'exemples statique, pas une fonctionnalité
+ * connectée.
  */
 export function AskNavi() {
   const [question, setQuestion] = useState("");
@@ -29,7 +35,7 @@ export function AskNavi() {
   const [history, setHistory] = useState(initialHistory);
 
   const askMutation = useMutation({
-    mutationFn: (vars: { id: string; question: string }) => api.askNavi(vars.question),
+    mutationFn: (vars: { id: string; question: string; history: AskNaviHistoryTurn[] }) => api.askNavi(vars.question, vars.history),
     onSuccess: (data, vars) => {
       setConversation((prev) =>
         prev.map((entry) => (entry.id === vars.id ? { ...entry, status: "success", answer: data.answer, sources: data.sources } : entry))
@@ -54,11 +60,15 @@ export function AskNavi() {
     const trimmed = text.trim();
     if (!trimmed || sendingRef.current) return;
     sendingRef.current = true;
+    const recentTurns: AskNaviHistoryTurn[] = conversation
+      .filter((entry): entry is ConversationEntry & { answer: string } => entry.status === "success" && entry.answer !== undefined)
+      .slice(-MAX_HISTORY_TURNS)
+      .map((entry) => ({ question: entry.question, answer: entry.answer }));
     const id = `${Date.now()}-${conversation.length}`;
     setConversation((prev) => [...prev, { id, question: trimmed, askedAt: "À l'instant", status: "pending" }]);
     setHistory((prev) => [{ title: trimmed, timestamp: "À l'instant" }, ...prev]);
     setQuestion("");
-    askMutation.mutate({ id, question: trimmed }, { onSettled: () => { sendingRef.current = false; } });
+    askMutation.mutate({ id, question: trimmed, history: recentTurns }, { onSettled: () => { sendingRef.current = false; } });
   }
 
   return (

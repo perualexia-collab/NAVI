@@ -1,34 +1,44 @@
-import type { LlmService } from "../llm-service/index.js";
+import type { LlmMessage, LlmService } from "../llm-service/index.js";
 import {
+  getAllHotelsOverview,
   getHotelHealth,
   getHotelsWithoutRecentScan,
+  getPortfolioFinancials,
   getPortfolioSignals,
   getScanHistory,
   getTopOpportunities
 } from "../context-builder/index.js";
 import { routeIntent } from "./route-intent.js";
-import type { AskNaviAnswer, AskNaviSource } from "./types.js";
+import type { AskNaviAnswer, AskNaviHistoryTurn, AskNaviSource } from "./types.js";
 
 // "NAVI décide, Qwen explique" (§09 Architecture Proposal) : le modèle ne
 // reçoit jamais un accès libre à la base, seulement le contexte JSON déjà
 // calculé par le Context Builder ci-dessous — il ne recalcule jamais un
-// score, il le met en mots.
+// score ni une somme, il les met en mots.
 const SYSTEM_PROMPT = `Tu es Ask NAVI, l'assistant conversationnel du copilote CRM NAVI pour des hôtels, posé au-dessus du CRM Expérience (D-EDGE).
 
 Règles strictes, jamais négociables :
-- Tu ne calcules JAMAIS toi-même un score, un pourcentage, un montant ou une évolution : tu reformules et expliques uniquement les données déjà calculées fournies dans le contexte JSON ci-dessous. Si un chiffre n'y figure pas, ne l'invente pas.
-- Si le contexte est vide ou insuffisant pour répondre, dis-le honnêtement et demande une précision (le nom exact d'un hôtel ou d'un portefeuille) plutôt que de répondre dans le vide.
+- Tu ne calcules JAMAIS toi-même un score, un pourcentage, un montant, une somme ou une évolution : tu reformules et expliques uniquement les données déjà calculées fournies dans le contexte JSON ci-dessous (y compris les totaux, déjà additionnés par NAVI). Si un chiffre n'y figure pas, ne l'invente pas et ne le recalcule pas toi-même.
+- Si le contexte est insuffisant pour répondre précisément, dis-le honnêtement et demande une précision (le nom exact d'un hôtel ou d'un portefeuille) plutôt que de répondre dans le vide — mais le contexte "vue d'ensemble" ci-dessous te donne toujours au moins la liste réelle des hôtels/portefeuilles : appuie-toi dessus plutôt que de prétendre n'avoir aucune donnée.
 - Ne mentionne jamais un identifiant technique interne (playbookId type "P06", uuid, code interne) — uniquement des noms et libellés lisibles par un humain.
-- Réponds en français, de façon concise (quelques phrases, pas un long rapport), professionnelle et actionnable pour un utilisateur hôtelier.`;
+- Réponds en français, de façon concise (quelques phrases, pas un long rapport), professionnelle et actionnable pour un utilisateur hôtelier.
+- La conversation peut contenir des échanges précédents : une question elliptique ("détaille", "et pour celui-là ?") se rapporte au sujet dont vous veniez de parler.`;
+
+const MAX_HISTORY_TURNS = 3;
 
 export interface AnswerQuestionOptions {
   question: string;
   userId: string;
   llmService: LlmService;
+  /** Derniers échanges du même fil (le plus ancien en premier) — mémoire conversationnelle, retour réel 2026-09-03. */
+  history?: AskNaviHistoryTurn[];
 }
 
 export async function answerQuestion(options: AnswerQuestionOptions): Promise<AskNaviAnswer> {
-  const intent = await routeIntent(options.question, options.userId);
+  const recentHistory = (options.history ?? []).slice(-MAX_HISTORY_TURNS);
+  const recentHistoryText = recentHistory.map((turn) => `${turn.question} ${turn.answer}`).join(" ");
+
+  const intent = await routeIntent(options.question, options.userId, recentHistoryText);
 
   let context: unknown = null;
   let sources: AskNaviSource[] = [];
@@ -46,6 +56,10 @@ export async function answerQuestion(options: AnswerQuestionOptions): Promise<As
       context = await getPortfolioSignals(options.userId, intent.portfolioId);
       sources = [{ label: intent.portfolioName, detail: "Signaux actifs du portefeuille" }];
       break;
+    case "portfolio-financials":
+      context = await getPortfolioFinancials(options.userId, intent.portfolioId);
+      sources = [{ label: intent.portfolioName, detail: "CA et réservations générés, additionnés sur le portefeuille" }];
+      break;
     case "top-opportunities":
       context = await getTopOpportunities(5);
       sources = [{ label: "Opportunités actives", detail: "Meilleures opportunités, tous hôtels confondus" }];
@@ -54,29 +68,34 @@ export async function answerQuestion(options: AnswerQuestionOptions): Promise<As
       context = await getHotelsWithoutRecentScan(30);
       sources = [{ label: "Fraîcheur des scans", detail: "Hôtels jamais scannés ou scannés il y a plus de 30 jours" }];
       break;
-    case "unknown":
-      context = null;
-      sources = [];
+    case "org-overview":
+      context = await getAllHotelsOverview();
+      sources = [{ label: "Vue d'ensemble", detail: "Tous les hôtels — portefeuille(s), dernier scan, santé" }];
       break;
   }
 
   // Défensif : par construction routeIntent() ne renvoie que des
   // identifiants déjà vérifiés (hôtel existant, portefeuille possédé par
-  // l'utilisateur), donc `context` ne devrait jamais être null ici en
-  // dehors de "unknown" — mais si ça arrivait quand même, traiter comme
-  // "pas de contexte" plutôt que planter la requête ou fabriquer un
-  // contexte vide silencieux.
+  // l'utilisateur), donc `context` ne devrait jamais être null ici — mais
+  // si ça arrivait quand même, traiter comme "pas de contexte" plutôt que
+  // planter la requête ou fabriquer un contexte vide silencieux.
   const hasContext = context !== null && context !== undefined;
 
   const userMessage = hasContext
     ? `Question de l'utilisateur : ${options.question}\n\nContexte disponible (déjà calculé par NAVI) :\n${JSON.stringify(context, null, 2)}`
-    : `Question de l'utilisateur : ${options.question}\n\nAucun contexte identifié : ni hôtel ni portefeuille reconnu dans la question, et aucun mot-clé ne correspond à une donnée que tu peux consulter (opportunités, hôtels non scannés récemment). Demande une précision à l'utilisateur (nom exact d'un hôtel ou d'un portefeuille) plutôt que de répondre dans le vide.`;
+    : `Question de l'utilisateur : ${options.question}\n\nAucun contexte disponible pour cette question.`;
+
+  const messages: LlmMessage[] = [
+    { role: "system", content: SYSTEM_PROMPT },
+    ...recentHistory.flatMap((turn): LlmMessage[] => [
+      { role: "user", content: turn.question },
+      { role: "assistant", content: turn.answer }
+    ]),
+    { role: "user", content: userMessage }
+  ];
 
   const result = await options.llmService.complete({
-    messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: userMessage }
-    ],
+    messages,
     // Retour réel 2026-09-03 : reasoningFormat "hidden" masque le
     // raisonnement mais ne l'empêche pas d'être généré — il consomme
     // quand même le quota "tokens de sortie / minute" du plan gratuit

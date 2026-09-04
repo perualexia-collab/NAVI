@@ -4,9 +4,14 @@ export type AskNaviIntent =
   | { type: "hotel-health"; hotelId: string; hotelName: string }
   | { type: "hotel-history"; hotelId: string; hotelName: string }
   | { type: "portfolio-signals"; portfolioId: string; portfolioName: string }
+  | { type: "portfolio-financials"; portfolioId: string; portfolioName: string }
   | { type: "top-opportunities" }
   | { type: "hotels-without-recent-scan" }
-  | { type: "unknown" };
+  // Contexte de repli — toujours un aperçu réel (getAllHotelsOverview),
+  // jamais un contexte vide. Retour réel 2026-09-03 : "quels hôtels
+  // n'ont pas encore été testés ?" ne correspondait à aucun mot-clé,
+  // Ask NAVI n'avait alors RIEN à se mettre sous la dent.
+  | { type: "org-overview" };
 
 function normalize(text: string): string {
   return text
@@ -17,11 +22,42 @@ function normalize(text: string): string {
 
 const HISTORY_KEYWORDS = ["historique", "evolution", "evolue", "evoluer", "tendance", "progression"];
 const OPPORTUNITY_KEYWORDS = ["opportunite", "opportunites", "potentiel", "convertir", "a saisir"];
-const WITHOUT_SCAN_KEYWORDS = ["pas scanne", "a scanner", "oublie", "jamais scanne", "dernier scan", "non scanne"];
-const SIGNAL_KEYWORDS = ["alerte", "vigilance", "signal", "signaux", "surveiller", "attention"];
+// "teste/testes" ajoutés (retour réel 2026-09-03) — synonyme courant de
+// "scanné" dans le langage naturel, distinct du sens technique de
+// "Tester la connexion" (Paramètres) qui n'a pas d'équivalent Context
+// Builder dédié pour l'instant.
+const WITHOUT_SCAN_KEYWORDS = [
+  "pas scanne",
+  "a scanner",
+  "oublie",
+  "jamais scanne",
+  "dernier scan",
+  "non scanne",
+  "pas teste",
+  "jamais teste",
+  "non testes",
+  "pas encore teste"
+];
+const FINANCIAL_KEYWORDS = [
+  "ca crm",
+  "chiffre d'affaires",
+  "chiffre daffaires",
+  "revenu",
+  "revenus",
+  "reservation",
+  "reservations",
+  "booking",
+  "bookings"
+];
 
 function containsAny(normalizedQuestion: string, keywords: string[]): boolean {
   return keywords.some((keyword) => normalizedQuestion.includes(keyword));
+}
+
+function findBestMatch<T extends { name: string }>(entities: T[], normalizedSearchText: string): T | undefined {
+  return entities
+    .filter((entity) => entity.name.length >= 3 && normalizedSearchText.includes(normalize(entity.name)))
+    .sort((a, b) => b.name.length - a.name.length)[0];
 }
 
 /**
@@ -31,18 +67,26 @@ function containsAny(normalizedQuestion: string, keywords: string[]): boolean {
  * fonctions du Context Builder ; ne construit aucun prompt, ne parle à
  * aucun LLM.
  *
+ * `recentHistoryText` (retour réel 2026-09-03 — mémoire conversationnelle) :
+ * texte des derniers échanges (questions + réponses), utilisé UNIQUEMENT
+ * en repli si la question seule ne nomme aucun hôtel/portefeuille — pour
+ * qu'une relance elliptique ("détaille les actions") reste rattachée à
+ * l'hôtel/portefeuille mentionné juste avant, sans qu'une nouvelle
+ * question qui en nomme un autre explicitement ne se fasse jamais
+ * "voler" par un historique périmé (la question courante l'emporte
+ * toujours).
+ *
  * Reconnaissance d'entité volontairement simple (sous-chaîne, la
  * correspondance la plus longue gagne) — un vrai NLU serait
  * disproportionné pour un premier jeu de questions ; se durcira avec
  * l'usage réel plutôt que d'être deviné à l'avance.
  */
-export async function routeIntent(question: string, userId: string): Promise<AskNaviIntent> {
+export async function routeIntent(question: string, userId: string, recentHistoryText?: string): Promise<AskNaviIntent> {
   const normalizedQuestion = normalize(question);
+  const normalizedWithHistory = recentHistoryText ? `${normalizedQuestion} ${normalize(recentHistoryText)}` : normalizedQuestion;
 
   const hotels = await prisma.hotel.findMany({ select: { id: true, name: true } });
-  const matchedHotel = hotels
-    .filter((hotel) => hotel.name.length >= 3 && normalizedQuestion.includes(normalize(hotel.name)))
-    .sort((a, b) => b.name.length - a.name.length)[0];
+  const matchedHotel = findBestMatch(hotels, normalizedQuestion) ?? findBestMatch(hotels, normalizedWithHistory);
 
   if (matchedHotel) {
     return containsAny(normalizedQuestion, HISTORY_KEYWORDS)
@@ -51,23 +95,16 @@ export async function routeIntent(question: string, userId: string): Promise<Ask
   }
 
   const portfolios = await prisma.portfolio.findMany({ where: { ownerId: userId }, select: { id: true, name: true } });
-  const matchedPortfolio = portfolios
-    .filter((portfolio) => portfolio.name.length >= 3 && normalizedQuestion.includes(normalize(portfolio.name)))
-    .sort((a, b) => b.name.length - a.name.length)[0];
+  const matchedPortfolio = findBestMatch(portfolios, normalizedQuestion) ?? findBestMatch(portfolios, normalizedWithHistory);
 
   if (matchedPortfolio) {
-    return { type: "portfolio-signals", portfolioId: matchedPortfolio.id, portfolioName: matchedPortfolio.name };
+    return containsAny(normalizedQuestion, FINANCIAL_KEYWORDS)
+      ? { type: "portfolio-financials", portfolioId: matchedPortfolio.id, portfolioName: matchedPortfolio.name }
+      : { type: "portfolio-signals", portfolioId: matchedPortfolio.id, portfolioName: matchedPortfolio.name };
   }
 
   if (containsAny(normalizedQuestion, OPPORTUNITY_KEYWORDS)) return { type: "top-opportunities" };
   if (containsAny(normalizedQuestion, WITHOUT_SCAN_KEYWORDS)) return { type: "hotels-without-recent-scan" };
 
-  // Un mot-clé "signal/alerte/vigilance" sans portefeuille reconnu ne
-  // correspond à aucune des 5 fonctions (getPortfolioSignals exige un
-  // portefeuille) — mieux vaut laisser Ask NAVI demander une précision
-  // que d'inventer un contexte "tous portefeuilles confondus" qui
-  // n'existe pas dans le Context Builder.
-  if (containsAny(normalizedQuestion, SIGNAL_KEYWORDS)) return { type: "unknown" };
-
-  return { type: "unknown" };
+  return { type: "org-overview" };
 }

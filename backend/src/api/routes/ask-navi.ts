@@ -5,7 +5,14 @@ import type { Env } from "../../config/env.js";
 import { createLlmService, LlmRateLimitError } from "../../../ai/llm-service/index.js";
 import { answerQuestion } from "../../../ai/ask-navi/index.js";
 
-const askSchema = z.object({ question: z.string().trim().min(1, "Question requise.") });
+const askSchema = z.object({
+  question: z.string().trim().min(1, "Question requise."),
+  // Mémoire conversationnelle (retour réel 2026-09-03) — le fil reste géré
+  // côté frontend (jamais persisté en base, comme avant) ; le backend ne
+  // fait que le relayer au LLM Service et au routeur d'intention pour
+  // qu'une relance elliptique reste rattachée au bon hôtel/portefeuille.
+  history: z.array(z.object({ question: z.string(), answer: z.string() })).optional()
+});
 
 /**
  * Phase H3/H4 — première route réelle d'Ask NAVI (§09 Architecture
@@ -38,7 +45,7 @@ export async function askNaviRoutes(app: FastifyInstance, options: { env: Env })
     }
 
     try {
-      const result = await answerQuestion({ question: body.data.question, userId: user.id, llmService });
+      const result = await answerQuestion({ question: body.data.question, userId: user.id, llmService, history: body.data.history });
       return result;
     } catch (error) {
       // Un 429 (quota atteint, plan gratuit) est un état attendu et

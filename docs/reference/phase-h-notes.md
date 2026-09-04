@@ -387,3 +387,68 @@ Blanc" mentionné juste avant. Non corrigé ici — hors du périmètre des 4
 (passer les derniers échanges du fil au LLM Service).
 
 Backend typecheck/build passent.
+
+## H5 — mémoire conversationnelle + accès élargi aux données (2026-09-03)
+
+Demande explicite après validation d'Ask NAVI en conditions réelles :
+mémoire conversationnelle, et deux trous concrets rencontrés en test —
+"quels hôtels n'ont pas encore été testés ?" (contexte vide, aucun
+mot-clé reconnu) et l'incapacité à additionner le CA CRM de plusieurs
+hôtels d'un portefeuille.
+
+**Mémoire conversationnelle** :
+- `POST /api/ask-navi` accepte désormais `history` (derniers échanges
+  question/réponse du même fil, question la plus ancienne en premier).
+  Toujours géré côté frontend uniquement (`AskNavi.tsx`, `MAX_HISTORY_TURNS
+  = 3`) — jamais persisté en base, comme le reste de cette page.
+- `answer-question.ts` : les échanges reçus sont injectés comme de vrais
+  tours `user`/`assistant` dans les messages envoyés au LLM (avant la
+  question courante), pour que Qwen ait une vraie continuité de fil.
+- `route-intent.ts` : `routeIntent(question, userId, recentHistoryText?)`
+  — si la question seule ne nomme aucun hôtel/portefeuille, retente sur
+  question + historique récent concaténé, pour qu'une relance elliptique
+  ("détaille les actions") reste rattachée au bon hôtel/portefeuille. La
+  question courante l'emporte toujours : un historique périmé ne peut
+  jamais "voler" l'entité d'une nouvelle question qui en nomme une autre
+  explicitement (l'historique n'est consulté qu'en second essai, jamais
+  en premier).
+
+**Accès élargi aux données** — deux nouvelles fonctions Context Builder :
+- **`getAllHotelsOverview()`** — tous les hôtels (portefeuille(s),
+  dernier scan, statut, santé). Devient le contexte de repli par défaut
+  de `routeIntent()` : l'intention `"unknown"` a été retirée et remplacée
+  par `"org-overview"`, qui utilise TOUJOURS cette fonction plutôt qu'un
+  contexte vide. Ask NAVI a désormais toujours de vraies données sous la
+  main, même sur une question mal formulée ou hors des mots-clés
+  explicitement prévus — c'est la correction directe du symptôme "hôtels
+  pas encore testés" (le mot "testé" n'était simplement pas dans la liste
+  de synonymes de "scanné", ajouté au passage à `WITHOUT_SCAN_KEYWORDS`).
+- **`getPortfolioFinancials(userId, portfolioId)`** — nouvelle intention
+  `"portfolio-financials"` (portefeuille reconnu + mot-clé financier :
+  "CA CRM", "chiffre d'affaires", "revenu", "réservations"...). Pour
+  chaque hôtel du portefeuille : les 6 KPI business (mêmes que
+  `PerformanceBusinessCard` côté frontend) + un total déjà additionné
+  par NAVI (jamais par le LLM — "NAVI décide, Qwen explique", §09). Un
+  hôtel jamais scanné ou sans stats marketing est compté à part
+  (`hotelsWithoutData`), jamais traité comme 0 pour ne pas fausser le
+  total. Le prompt système a été renforcé en conséquence : "tu ne
+  calcules JAMAIS toi-même... une somme" (ajouté explicitement, l'ancien
+  prompt ne parlait que de score/pourcentage/montant/évolution).
+
+**Non fait, volontairement** : pas de fonction générique "somme
+n'importe quel KPI" — seuls les 6 KPI business (montants/comptages
+absolus, sommables sans ambiguïté) sont agrégés. Les KPI en pourcentage
+(taux d'activabilité, part OTA...) ne le sont pas : une somme de
+pourcentages n'a pas de sens, et rien dans le référentiel ne distingue
+aujourd'hui les deux catégories côté backend (seulement en dur côté
+frontend, `PERCENT_KPI_IDS`) — pas dupliqué ici sans un vrai besoin
+exprimé. Pas de vue "toutes les alertes/vigilances org-wide" (similaire
+à `getTopOpportunities` mais pour ALERT/VIGILANCE) — pas explicitement
+demandé, `getAllHotelsOverview()` couvre déjà le cas par défaut.
+
+Backend et frontend typecheck/build passent. **Non testé contre de
+vraies données** — à valider : "quels hôtels n'ont pas été testés ?"
+(devrait maintenant lister les hôtels via `org-overview` même sans le
+mot "scanné"), une question de CA sur un portefeuille nommé
+explicitement, puis une relance elliptique après une réponse sur un
+hôtel précis ("et son historique ?" sans renommer l'hôtel).

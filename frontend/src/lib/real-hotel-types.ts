@@ -228,8 +228,20 @@ export interface AskNaviSource {
   detail: string;
 }
 
+export interface AskNaviHistoryTurn {
+  question: string;
+  answer: string;
+}
+
 export interface AskNaviAnswer {
   answer: string;
-  intent: "hotel-health" | "hotel-history" | "portfolio-signals" | "top-opportunities" | "hotels-without-recent-scan" | "unknown";
+  intent:
+    | "hotel-health"
+    | "hotel-history"
+    | "portfolio-signals"
+    | "portfolio-financials"
+    | "top-opportunities"
+    | "hotels-without-recent-scan"
+    | "org-overview";
   sources: AskNaviSource[];
 }
