@@ -3,6 +3,7 @@ import { HttpOpenAiCompatibleProvider } from "./http-openai-compatible-provider.
 import type { LlmService } from "./types.js";
 
 export type { LlmService, LlmMessage, LlmCompletionRequest, LlmCompletionResult, LlmUsage } from "./types.js";
+export { LlmRateLimitError } from "./types.js";
 
 export type LlmServiceEnv = Pick<Env, "LLM_PROVIDER" | "LLM_BASE_URL" | "LLM_MODEL" | "GROQ_API_KEY">;
 

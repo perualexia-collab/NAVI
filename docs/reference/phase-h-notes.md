@@ -297,3 +297,51 @@ soumise deux fois (même texte, deux bulles) → les deux ont échoué en
   quota Groq 30 req/min en quelques secondes).
 
 Backend et frontend typecheck/build passent après ces correctifs.
+
+### Retour immédiat : 429 — vraie cause du 502 identifiée par les logs (2026-09-03)
+
+Log backend fourni par l'utilisateur — diagnostic certain cette fois :
+
+```
+LLM Service (429) : {"error":{"message":"Rate limit reached for model
+`qwen/qwen3.6-27b` ... on output tokens per minute (OTPM): Limit 1000,
+Used 366, Requested 800. Please try again in 9.96s. ..."}}
+```
+
+Le plan gratuit Groq limite **qwen/qwen3.6-27b à 1000 tokens de sortie
+par minute (OTPM)**, tous appels confondus. Or `reasoningFormat:
+"hidden"` masque le raisonnement de Qwen3.6 sans l'empêcher d'être
+généré — il consomme quand même ce quota de 1000 OTPM. Une seule
+question avec contexte pouvait déjà en utiliser plusieurs centaines,
+laissant peu de marge pour la suivante dans la même minute. **Le
+correctif précédent (maxTokens → 2048) aggravait le problème** : une
+seule requête pouvait demander plus que le quota total disponible et se
+faire rejeter systématiquement, même sur une minute fraîche.
+
+Vrai correctif, trouvé en vérifiant la doc Groq sur le raisonnement
+(console.groq.com/docs/reasoning) : pour la famille Qwen3.x sur Groq, un
+paramètre distinct **`reasoning_effort: "none"` désactive réellement le
+raisonnement** (contrairement à `reasoning_format: "hidden"`, qui
+l'exécute puis le cache). C'est la bonne solution pour Ask NAVI, qui n'a
+pas besoin de réflexion profonde — il reformule un résultat déjà
+calculé, jamais il ne raisonne lui-même (cf. prompt système).
+
+- `LlmCompletionRequest` : nouveau champ optionnel `reasoningEffort`
+  (`"none" | "low" | "medium" | "high" | "xhigh"`) — même principe que
+  `reasoningFormat` (extension non-standard, absente du corps si non
+  demandée explicitement).
+- `answer-question.ts` : `reasoningEffort: "none"` + `maxTokens` revenu
+  à `600` (raisonnable maintenant que le raisonnement invisible ne le
+  consomme plus) ; garde aussi `reasoningFormat: "hidden"` par sécurité
+  (sans effet si le raisonnement est déjà désactivé).
+- `LlmRateLimitError` (nouvelle classe, `llm-service/types.ts`) — un 429
+  provider est un état attendu et temporaire sur un plan gratuit, pas
+  une panne. La route `/api/ask-navi` le distingue maintenant :
+  **429** + "Limite de requêtes Groq atteinte (plan gratuit) — réessaie
+  dans quelques secondes." au lieu du 502 générique trompeur.
+
+Backend typecheck/build passent. **Non re-testé contre de vraies
+données** (dépend de la clé Groq de l'utilisateur) — à valider : une
+question devrait maintenant consommer beaucoup moins de tokens de
+sortie et laisser de la marge pour plusieurs questions à la suite dans
+la même minute.

@@ -1,4 +1,4 @@
-import type { LlmCompletionRequest, LlmCompletionResult, LlmService } from "./types.js";
+import { LlmRateLimitError, type LlmCompletionRequest, type LlmCompletionResult, type LlmService } from "./types.js";
 
 export interface HttpOpenAiCompatibleProviderOptions {
   /** Ex: "https://api.groq.com/openai/v1" — sans le "/chat/completions" final. */
@@ -40,10 +40,12 @@ export class HttpOpenAiCompatibleProvider implements LlmService {
           messages: request.messages,
           temperature: request.temperature ?? 0.3,
           max_tokens: request.maxTokens ?? 512,
-          // Extension non-standard (Groq) au-delà du contrat OpenAI —
-          // absente du corps si l'appelant ne la demande pas explicitement,
-          // donc sans effet sur un provider qui ne la reconnaît pas.
-          ...(request.reasoningFormat ? { reasoning_format: request.reasoningFormat } : {})
+          // Extensions non-standard (Groq) au-delà du contrat OpenAI —
+          // absentes du corps si l'appelant ne les demande pas
+          // explicitement, donc sans effet sur un provider qui ne les
+          // reconnaît pas.
+          ...(request.reasoningFormat ? { reasoning_format: request.reasoningFormat } : {}),
+          ...(request.reasoningEffort ? { reasoning_effort: request.reasoningEffort } : {})
         })
       });
     } catch (error) {
@@ -60,7 +62,9 @@ export class HttpOpenAiCompatibleProvider implements LlmService {
       // Le corps d'erreur d'un provider compatible OpenAI ne contient
       // jamais la clé (envoyée uniquement en en-tête) — sûr à logguer/
       // remonter tel quel pour diagnostiquer (modèle inconnu, quota...).
-      throw new Error(`LLM Service (${response.status}) : ${errorBody.slice(0, 500)}`);
+      const message = `LLM Service (${response.status}) : ${errorBody.slice(0, 500)}`;
+      if (response.status === 429) throw new LlmRateLimitError(message);
+      throw new Error(message);
     }
 
     const payload = (await response.json()) as {

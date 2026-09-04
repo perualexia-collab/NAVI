@@ -77,14 +77,18 @@ export async function answerQuestion(options: AnswerQuestionOptions): Promise<As
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: userMessage }
     ],
-    // Retour réel 2026-09-03 : 800 était trop bas pour Qwen3.6 sur une
-    // vraie question avec contexte — même en reasoningFormat "hidden", le
-    // raisonnement invisible consomme le budget de tokens (Groq : "le
-    // modèle raisonne quand même, le raisonnement n'est juste pas
-    // renvoyé"), donc un raisonnement long pouvait épuiser maxTokens
-    // avant la moindre réponse visible → texte vide.
-    maxTokens: 2048,
-    reasoningFormat: "hidden"
+    // Retour réel 2026-09-03 : reasoningFormat "hidden" masque le
+    // raisonnement mais ne l'empêche pas d'être généré — il consomme
+    // quand même le quota "tokens de sortie / minute" du plan gratuit
+    // Groq (1000 OTPM sur qwen/qwen3.6-27b : largement dépassé après
+    // une seule question, 429 sur toutes les suivantes). Ask NAVI n'a
+    // pas besoin d'un raisonnement profond (il reformule un résultat
+    // déjà calculé, cf. prompt système) : reasoningEffort "none"
+    // désactive réellement le raisonnement pour la famille Qwen3.x sur
+    // Groq (pas juste son affichage) — la vraie source du problème.
+    maxTokens: 600,
+    reasoningFormat: "hidden",
+    reasoningEffort: "none"
   });
 
   // Filet de sécurité : quelle qu'en soit la cause (budget de tokens,

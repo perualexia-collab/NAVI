@@ -19,6 +19,15 @@ export interface LlmCompletionRequest {
   // qu'il parle à ce type de modèle (le champ est ignoré sans effet par
   // un provider/modèle qui ne le supporte pas).
   reasoningFormat?: "hidden" | "parsed" | "raw";
+  // Retour réel 2026-09-03 : "hidden" masque le raisonnement mais ne
+  // l'empêche pas d'être généré — il consomme quand même le budget de
+  // tokens (et le quota "tokens de sortie / minute" du plan gratuit
+  // Groq, très vite épuisé). Pour la famille Qwen3.x sur Groq,
+  // "none" désactive réellement le raisonnement (pas juste son
+  // affichage) — à préférer à "hidden" seul dès que la rapidité/le coût
+  // priment sur la profondeur de raisonnement (cas d'Ask NAVI : Qwen
+  // reformule un résultat déjà calculé, il n'a pas besoin de réfléchir).
+  reasoningEffort?: "none" | "low" | "medium" | "high" | "xhigh";
 }
 
 export interface LlmUsage {
@@ -36,3 +45,12 @@ export interface LlmCompletionResult {
 export interface LlmService {
   complete(request: LlmCompletionRequest): Promise<LlmCompletionResult>;
 }
+
+/**
+ * Distingue un 429 (quota/rate limit provider — état attendu et
+ * temporaire sur un plan gratuit) d'une vraie panne, pour que
+ * l'appelant puisse répondre différemment (retour réel 2026-09-03 :
+ * "Ask NAVI n'a pas pu répondre" générique était trompeur pour un simple
+ * dépassement de quota Groq).
+ */
+export class LlmRateLimitError extends Error {}

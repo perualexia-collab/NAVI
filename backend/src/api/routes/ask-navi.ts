@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireUser } from "../require-auth.js";
 import type { Env } from "../../config/env.js";
-import { createLlmService } from "../../../ai/llm-service/index.js";
+import { createLlmService, LlmRateLimitError } from "../../../ai/llm-service/index.js";
 import { answerQuestion } from "../../../ai/ask-navi/index.js";
 
 const askSchema = z.object({ question: z.string().trim().min(1, "Question requise.") });
@@ -41,6 +41,13 @@ export async function askNaviRoutes(app: FastifyInstance, options: { env: Env })
       const result = await answerQuestion({ question: body.data.question, userId: user.id, llmService });
       return result;
     } catch (error) {
+      // Un 429 (quota atteint, plan gratuit) est un état attendu et
+      // temporaire — retour réel 2026-09-03 : le distinguer d'une vraie
+      // panne évite un message trompeur ("n'a pas pu répondre").
+      if (error instanceof LlmRateLimitError) {
+        request.log.warn(error);
+        return reply.code(429).send({ error: "Limite de requêtes Groq atteinte (plan gratuit) — réessaie dans quelques secondes." });
+      }
       request.log.error(error);
       return reply.code(502).send({ error: "Ask NAVI n'a pas pu répondre — réessaie dans un instant." });
     }
