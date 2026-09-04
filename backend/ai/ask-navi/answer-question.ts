@@ -15,6 +15,21 @@ import type { AskNaviAnswer, AskNaviHistoryTurn, AskNaviSource } from "./types.j
 // reçoit jamais un accès libre à la base, seulement le contexte JSON déjà
 // calculé par le Context Builder ci-dessous — il ne recalcule jamais un
 // score ni une somme, il les met en mots.
+//
+// Retour réel 2026-09-03 (3e round) : preuve directe par les logs
+// (finishReason: "length", completionTokens === maxTokens) que le
+// raisonnement caché de Qwen3.6 consomme À LUI SEUL tout le budget de
+// tokens sur une question avec du contexte réel — reasoningFormat
+// "hidden" masque ce raisonnement mais ne l'empêche jamais d'être
+// généré. `reasoningEffort: "none"` avait été essayé puis retiré (il
+// avait fait gonfler l'estimation "Requested" de Groq de façon
+// imprévisible sur un appel suivant). Nouvelle tentative avec un
+// mécanisme différent, cette fois au niveau du texte du prompt plutôt
+// que d'un paramètre API spécial à Groq : "/no_think", le "soft switch"
+// que le chat template de Qwen3.x reconnaît nativement pour désactiver
+// le mode réflexion — invisible pour le système de quota de Groq (ce
+// n'est qu'une ligne de texte dans le contenu, pas un champ de requête
+// qu'il pourrait traiter spécialement).
 const SYSTEM_PROMPT = `Tu es Ask NAVI, l'assistant conversationnel du copilote CRM NAVI pour des hôtels, posé au-dessus du CRM Expérience (D-EDGE).
 
 Règles strictes, jamais négociables :
@@ -22,7 +37,9 @@ Règles strictes, jamais négociables :
 - Si le contexte est insuffisant pour répondre précisément, dis-le honnêtement et demande une précision (le nom exact d'un hôtel ou d'un portefeuille) plutôt que de répondre dans le vide — mais le contexte "vue d'ensemble" ci-dessous te donne toujours au moins la liste réelle des hôtels/portefeuilles : appuie-toi dessus plutôt que de prétendre n'avoir aucune donnée.
 - Ne mentionne jamais un identifiant technique interne (playbookId type "P06", uuid, code interne) — uniquement des noms et libellés lisibles par un humain.
 - Réponds en français, de façon concise (quelques phrases, pas un long rapport), professionnelle et actionnable pour un utilisateur hôtelier.
-- La conversation peut contenir des échanges précédents : une question elliptique ("détaille", "et pour celui-là ?") se rapporte au sujet dont vous veniez de parler.`;
+- La conversation peut contenir des échanges précédents : une question elliptique ("détaille", "et pour celui-là ?") se rapporte au sujet dont vous veniez de parler.
+
+/no_think`;
 
 const MAX_HISTORY_TURNS = 3;
 
@@ -96,29 +113,15 @@ export async function answerQuestion(options: AnswerQuestionOptions): Promise<As
 
   const result = await options.llmService.complete({
     messages,
-    // Retour réel 2026-09-03 : reasoningFormat "hidden" masque le
-    // raisonnement mais ne l'empêche pas d'être généré — il consomme
-    // quand même le quota "tokens de sortie / minute" du plan gratuit
-    // Groq (1000 OTPM sur qwen/qwen3.6-27b). `reasoningEffort: "none"`
-    // (censé désactiver réellement le raisonnement) a été essayé mais
-    // RETIRÉ : sur un appel il s'est comporté normalement, sur le
-    // suivant (20s plus tard) Groq a rejeté la requête en annonçant
-    // "Requested 1296" alors que maxTokens valait 600 — signe que ce
-    // paramètre fait gonfler l'estimation interne de Groq de façon
-    // imprévisible pour ce modèle, plutôt que de réduire la consommation
-    // réelle. maxTokens seul (sans reasoningEffort) s'est comporté de
-    // façon prévisible (le "Requested" annoncé par Groq correspondait
-    // exactement à la valeur demandée) — préféré ici tant que ce n'est
-    // pas éclairci. Retour réel 2026-09-03 (2e round) : 450 s'est révélé
-    // TROP bas dès qu'un contexte volumineux (org-overview, portfolio-
-    // financials) accompagne la question — le raisonnement caché
-    // consommait tout le budget avant la moindre réponse visible, à
-    // chaque fois (texte vide, ~1-1.3s de réponse, bien plus rapide que
-    // les réponses réelles observées). Remonté à 900 : reste sous le
-    // seuil d'admission ~1000 OTPM d'un seul coup (cf. l'incident
-    // reasoningEffort ci-dessus), donne beaucoup plus de marge au
-    // raisonnement.
-    maxTokens: 900,
+    // maxTokens redescendu (900 → 550) : avec /no_think dans le prompt
+    // système (voir plus haut), la réponse ne devrait plus avoir à
+    // "payer" un raisonnement cascadé de plusieurs centaines de tokens
+    // avant le premier mot visible — 550 reste largement suffisant pour
+    // "quelques phrases" (consigne du prompt) tout en laissant beaucoup
+    // plus de marge dans le quota de 1000 OTPM/minute pour enchaîner
+    // plusieurs questions. reasoningFormat "hidden" gardé en filet de
+    // sécurité (sans effet si le raisonnement est déjà absent).
+    maxTokens: 550,
     reasoningFormat: "hidden"
   });
 

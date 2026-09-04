@@ -489,3 +489,59 @@ Deux changements :
   gratuit.
 
 Backend typecheck/build passent. Non re-testé.
+
+### Retour immédiat : preuve directe par les logs — "/no_think" plutôt que reasoningEffort (2026-09-03, 3e round)
+
+Le diagnostic instrumenté ci-dessus a immédiatement donné la réponse,
+sans ambiguïté cette fois — même sur une question qui avait déjà
+fonctionné auparavant ("quelles sont mes opportunités ?") :
+
+```
+[ask-navi] Réponse vide du LLM {
+  intent: 'top-opportunities',
+  finishReason: 'length',
+  usage: { promptTokens: 721, completionTokens: 900, totalTokens: 1621 },
+  questionLength: 29
+}
+```
+
+`completionTokens: 900` = exactement `maxTokens`. Confirmation
+définitive : le raisonnement caché de Qwen3.6 (masqué par
+`reasoningFormat: "hidden"` mais jamais empêché d'être généré)
+consomme À LUI SEUL tout le budget de tokens sur une question avec du
+contexte réel — remonter encore `maxTokens` n'aurait rien réglé (et se
+heurte de toute façon au seuil d'admission ~1000 OTPM par requête, cf.
+l'incident `reasoningEffort` de la note précédente).
+
+Log complet fourni par l'utilisateur : 4 requêtes en ~5 minutes,
+2 × 429 (`Used 442, Requested 900` puis `Used 589, Requested 558` —
+la fenêtre glissante de 60s se reconstitue vite, mais 900 de budget
+par appel ne laisse presque aucune marge pour enchaîner), 1 × texte
+vide (`finishReason: "length"` ci-dessus), 1 × réponse réelle. Sur 4
+tentatives, une seule a effectivement répondu correctement.
+
+**Nouvelle approche, différente de `reasoningEffort` (retiré
+précédemment)** : `/no_think` ajouté en toute fin du prompt système —
+le "soft switch" que le chat template de Qwen3.x reconnaît nativement
+dans le TEXTE du prompt pour désactiver le mode réflexion, par
+opposition à `reasoning_effort`/`chat_template_kwargs` qui sont des
+champs de requête spéciaux que Groq traite (mal, semble-t-il) de façon
+spécifique. `/no_think` n'est qu'une ligne de texte dans le contenu
+envoyé — invisible pour le système de quota de Groq, qui ne devrait
+donc plus pouvoir gonfler son estimation comme avec `reasoningEffort`.
+
+`maxTokens` redescendu de 900 à 550 : si `/no_think` fonctionne, une
+réponse de "quelques phrases" (consigne du prompt système) n'a plus à
+"payer" un raisonnement de plusieurs centaines de tokens avant le
+premier mot visible, et un budget par appel plus bas laisse davantage
+de marge dans le quota partagé de 1000 OTPM/minute pour enchaîner
+plusieurs questions sans 429.
+
+**Aucune garantie que ça fonctionne mieux** — `/no_think` est un
+mécanisme documenté pour Qwen3.x en général, pas spécifiquement
+vérifié sur le déploiement Groq de `qwen/qwen3.6-27b`. Le diagnostic
+(`finishReason`/`usage` loggués dès qu'une réponse revient vide) reste
+en place : si ça échoue encore, le prochain log dira immédiatement si
+`/no_think` a réduit `completionTokens` ou non.
+
+Backend typecheck/build passent. Non testé.
