@@ -38,7 +38,7 @@ export default {
           ink: "#3a4a35"
         },
         horizon: {
-          DEFAULT: "#5f7ea3", // accent tertiaire — info, liens
+          DEFAULT: "#ced7e2", // bleu charte confirmé (retour réel 2026-09-15) — remplace l'ancienne approximation #5f7ea3
           soft: "#dbe4ed",
           ink: "#33455a"
         },

@@ -291,12 +291,17 @@ function SignalBarChart({ breakdown }: { breakdown: { alert: number; vigilance: 
   return (
     <div className="flex items-end gap-3">
       {bars.map((bar) => (
-        <div key={bar.label} className="flex flex-col items-center gap-1">
+        // Largeur fixe (plutôt qu'auto, dépendante de la longueur du
+        // libellé) — retour réel 2026-09-15 : "Vigilance"/"Opportunité"
+        // plus longs qu'"Alerte" élargissaient leur colonne et donnaient
+        // une impression d'espacement inégal entre les barres alors que
+        // le gap lui-même était déjà uniforme.
+        <div key={bar.label} className="flex w-14 flex-col items-center gap-1 text-center">
           <span className="text-xs font-medium tabular-nums">{bar.value}</span>
           <div className="flex h-16 w-6 items-end rounded bg-linen-deep">
             <div className={`w-full rounded ${bar.color}`} style={{ height: `${(bar.value / max) * 100}%` }} />
           </div>
-          <span className="text-[10px] text-graphite-faint">{bar.label}</span>
+          <span className="text-[10px] leading-tight text-graphite-faint">{bar.label}</span>
         </div>
       ))}
     </div>
