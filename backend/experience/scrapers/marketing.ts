@@ -16,8 +16,20 @@ async function readMarketingMetric(labelLocator: Locator, type: "currency" | "nu
       if (!current) break;
       const text = ((current as HTMLElement).innerText || "").replace(/ /g, " ").trim();
 
-      if (metricType === "currency" && /Chiffre d'affaires/i.test(text) && /\d[\d\s]*[,.]\d{2}\s*€/.test(text)) {
-        return text;
+      if (metricType === "currency" && /Chiffre d'affaires/i.test(text)) {
+        if (/\d[\d\s]*[,.]\d{2}\s*€/.test(text)) return text;
+
+        // Montant nul (retour réel 2026-09-15) : Expérience affiche parfois
+        // juste "0" pour ce KPI (sans "€" ni décimales) plutôt que
+        // "0,00 €" — sans ce cas, la carte ne matchait jamais localement et
+        // la boucle remontait jusqu'à retomber par erreur sur le CA d'une
+        // carte voisine (ex. Automations à 0 récupérait le CA des
+        // Campagnes affiché plus haut dans le DOM). On teste seulement ce
+        // qui suit IMMÉDIATEMENT le libellé (pas tout le texte restant) —
+        // un autre libellé/valeur accolé plus loin (ex. "Nombre de
+        // réservations 0" dans la même carte) ne doit pas empêcher le match.
+        const withoutLabel = text.replace(/Chiffre d'affaires/i, "").replace(/^\s+/, "");
+        if (/^0+(?:[.,]0+)?\s*€?(?:\s|$)/.test(withoutLabel)) return text;
       }
 
       if (metricType === "number" && /Nombre de réservations/i.test(text)) {
@@ -36,8 +48,14 @@ async function readMarketingMetric(labelLocator: Locator, type: "currency" | "nu
 
   if (type === "currency") {
     const currencyMatch = normalized.match(/(\d[\d\s]*[,.]\d{2})\s*€/);
-    if (!currencyMatch) throw new Error(`CA introuvable : ${normalized}`);
-    return Number(currencyMatch[1]!.replace(/\s/g, "").replace(",", "."));
+    if (currencyMatch) return Number(currencyMatch[1]!.replace(/\s/g, "").replace(",", "."));
+
+    // Montant nul affiché sans décimales/"€" — voir le commentaire
+    // équivalent plus haut dans cette fonction.
+    const withoutLabel = normalized.replace(/Chiffre d'affaires/i, "").replace(/^\s+/, "");
+    if (/^0+(?:[.,]0+)?\s*€?(?:\s|$)/.test(withoutLabel)) return 0;
+
+    throw new Error(`CA introuvable : ${normalized}`);
   }
 
   const withoutLabel = normalized.replace(/Nombre de réservations/i, "");
