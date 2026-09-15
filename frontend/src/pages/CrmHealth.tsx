@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "../components/ui/Card.js";
-import { DateRangeControl } from "../components/ui/DateRangeControl.js";
 import { Icon } from "../components/ui/icons.js";
 import { HotelsTable } from "../components/HotelsTable.js";
 import type { MockHotel } from "../mock/types.js";
@@ -96,7 +95,6 @@ export function CrmHealth() {
               </button>
             ))}
           </div>
-          <DateRangeControl />
         </div>
 
         {realHotelsQuery.isError && <p className="mb-3 text-sm text-alert">Impossible de charger la liste des hôtels.</p>}
