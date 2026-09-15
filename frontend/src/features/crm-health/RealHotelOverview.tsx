@@ -494,14 +494,20 @@ function ScanResult({
                 <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${SEVERITY_STYLE[signal.severity]}`}>{SEVERITY_LABEL[signal.severity]}</span>
                 <div className="mt-1 text-sm font-medium">{signal.name}</div>
                 <div className="text-xs text-graphite-faint">{signal.trigger}</div>
-                {signal.recommendationText && (
+                {/* Retour réel 2026-09-15 — P08 : le texte du référentiel ("NAVI
+                    contextualise la baisse...") est une consigne interne pour NAVI,
+                    pas une action à cocher par l'hôtelier. On n'affiche donc plus ni
+                    le texte ni le suivi de statut pour ce signal, seulement le
+                    badge/nom/déclencheur ci-dessus (déjà suffisant pour signaler la
+                    baisse). recommendationText reste inchangé côté API. */}
+                {signal.recommendationText && signal.playbookId !== "P08" && (
                   <div className="mt-2 rounded-md bg-linen-deep p-2 text-xs text-graphite-soft">
                     <div>
                       <span className="font-medium text-graphite">Recommandation — </span>
                       {signal.recommendationText}
                     </div>
 
-                    {/* Phase F2 — suivi d'action, uniquement pour les signaux sans audience (P01, P05, P08, P12). */}
+                    {/* Phase F2 — suivi d'action, uniquement pour les signaux sans audience (P01, P05, P12 — P08 exclu, voir ci-dessus). */}
                     {signal.audienceMode === "NONE" && signal.recommendationId && (
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
                         {RECOMMENDATION_STATUS_OPTIONS.map((option) => (
@@ -532,14 +538,23 @@ function ScanResult({
                             {formatDateTime(signal.audienceResult.measuredAt)}
                           </span>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => computeAudienceMutation.mutate(signal.recommendationId!)}
-                            disabled={audienceActionRunning}
-                            className="rounded-md bg-terracotta px-2.5 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
-                          >
-                            {computingRecommendationId === signal.recommendationId ? "Calcul en cours — Expérience…" : "Calculer l'audience"}
-                          </button>
+                          <>
+                            {/* Retour réel 2026-09-15 : la définition de l'audience doit
+                                être visible AVANT de cliquer "Calculer l'audience", pas
+                                seulement une fois le résultat obtenu — sinon on lance un
+                                calcul Expérience sans savoir ce qui va être mesuré. */}
+                            {signal.audienceDescription && (
+                              <div className="mb-1.5 text-xs text-graphite-faint">{signal.audienceDescription}</div>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => computeAudienceMutation.mutate(signal.recommendationId!)}
+                              disabled={audienceActionRunning}
+                              className="rounded-md bg-terracotta px-2.5 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+                            >
+                              {computingRecommendationId === signal.recommendationId ? "Calcul en cours — Expérience…" : "Calculer l'audience"}
+                            </button>
+                          </>
                         )}
 
                         {audienceError?.recommendationId === signal.recommendationId && (
