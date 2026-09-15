@@ -130,7 +130,14 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
     const user = await requireUser(request, reply);
     if (!user) return;
 
+    // Retour réel 2026-09-15 : un hôtel dont la connexion Expérience n'a
+    // jamais été vérifiée avec succès (TO_VERIFY par défaut à la création,
+    // ou NOT_FOUND/ERROR après un test raté) n'a aucune donnée exploitable
+    // ici — il reste géré depuis Paramètres (GET /api/hotels, non filtré)
+    // tant que "Tester la connexion" n'a pas confirmé experienceStatus:
+    // ACTIVE.
     const hotels = await prisma.hotel.findMany({
+      where: { experienceStatus: "ACTIVE" },
       include: { portfolios: { include: { portfolio: { select: { name: true } } } } },
       orderBy: { name: "asc" }
     });
