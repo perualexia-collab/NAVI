@@ -458,8 +458,7 @@ function UsersAdmin() {
 
   return (
     <Card>
-      <div className="mb-4 flex items-center justify-between">
-        <p className="text-sm text-graphite-soft">Pas d'inscription publique — les comptes sont créés depuis cet écran (brief §7).</p>
+      <div className="mb-4 flex items-center justify-end">
         <button
           onClick={() => setModalOpen(true)}
           className="flex shrink-0 items-center gap-1.5 rounded-lg bg-terracotta px-4 py-2 text-sm font-medium text-white hover:opacity-90"
