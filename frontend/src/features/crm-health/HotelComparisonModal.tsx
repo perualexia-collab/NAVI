@@ -188,19 +188,27 @@ export function HotelComparisonModal({ currentHotel, onClose }: { currentHotel: 
                   {row.field !== "roomCount" && <span className="text-xs text-graphite-faint">est</span>}
 
                   {row.field === "establishment" && (
-                    <select
-                      multiple
-                      value={row.establishmentIds}
-                      onChange={(e) => updateRow(row.id, { establishmentIds: Array.from(e.target.selectedOptions, (o) => o.value) })}
-                      title="Ctrl/Cmd + clic pour en choisir plusieurs"
-                      className="h-24 min-w-[12rem] rounded-lg border border-graphite/20 bg-parchment-soft px-2 py-1.5 text-sm outline-none focus:border-terracotta"
-                    >
+                    // Retour réel 2026-09-18 : un <select multiple> natif exige
+                    // Ctrl/Cmd+clic pour étendre la sélection (un clic simple la
+                    // remplace) — pas discoverable. Cases à cocher à la place.
+                    <div className="max-h-28 min-w-[12rem] overflow-y-auto rounded-lg border border-graphite/20 bg-parchment-soft p-2">
                       {allHotels.map((hotel) => (
-                        <option key={hotel.id} value={hotel.id}>
+                        <label key={hotel.id} className="flex items-center gap-2 py-0.5 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={row.establishmentIds.includes(hotel.id)}
+                            onChange={(e) =>
+                              updateRow(row.id, {
+                                establishmentIds: e.target.checked
+                                  ? [...row.establishmentIds, hotel.id]
+                                  : row.establishmentIds.filter((id) => id !== hotel.id)
+                              })
+                            }
+                          />
                           {hotel.name}
-                        </option>
+                        </label>
                       ))}
-                    </select>
+                    </div>
                   )}
 
                   {row.field === "stars" && (
