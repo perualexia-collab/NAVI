@@ -11,6 +11,7 @@ import type {
   RealScanSummary,
   RealDashboard,
   RealHotelListItem,
+  RealHotelComparisonEntry,
   AskNaviAnswer,
   AskNaviConversationRecord
 } from "./real-hotel-types.js";
@@ -56,10 +57,18 @@ export const api = {
 
   listRealHotels: () => request<RealHotel[]>("/hotels"),
   getHotelsOverview: () => request<RealHotelListItem[]>("/hotels/overview"),
+  getHotelComparison: (hotelIds: string[]) =>
+    request<RealHotelComparisonEntry[]>(`/hotels/comparison?hotelIds=${hotelIds.map(encodeURIComponent).join(",")}`),
   createHotel: (name: string) => request<RealHotel>("/hotels", { method: "POST", body: JSON.stringify({ name }) }),
+  // Phase I1 — édition manuelle étoiles/chambres/emplacement. `null` vide
+  // le champ et rend la main à Expérience au prochain test de connexion.
+  updateHotel: (hotelId: string, data: { stars?: number | null; roomCount?: number | null; location?: string | null }) =>
+    request<RealHotel>(`/hotels/${hotelId}`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteHotel: (hotelId: string) => request<{ ok: true }>(`/hotels/${hotelId}`, { method: "DELETE" }),
   testHotelConnection: (hotelId: string) =>
-    request<{ status: "ACTIVE" | "NOT_FOUND" | "ERROR"; message: string }>(`/hotels/${hotelId}/test-connection`, { method: "POST" }),
+    request<{ status: "ACTIVE" | "NOT_FOUND" | "ERROR"; message: string; hotelInfoIncomplete?: boolean }>(`/hotels/${hotelId}/test-connection`, {
+      method: "POST"
+    }),
   getHotelHealth: (hotelId: string) => request<RealHotelHealth>(`/hotels/${hotelId}/health`),
   listHotelScans: (hotelId: string) => request<RealScanHistoryEntry[]>(`/hotels/${hotelId}/scans`),
   getHotelScan: (hotelId: string, scanHotelId: string) => request<RealScanSummary>(`/hotels/${hotelId}/scans/${scanHotelId}`),

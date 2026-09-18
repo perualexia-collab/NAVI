@@ -209,6 +209,35 @@ export async function openMarketingStats(page: Page): Promise<void> {
   await sleep(1500);
 }
 
+/**
+ * Espace "Administration" — distinct de "Reporting" (openReporting ci-
+ * dessus), même principe de bascule via "Changer d'espace". Découvert
+ * Phase I1 (retour réel 2026-09-18, script codegen fourni par
+ * l'utilisateur) pour accéder à la fiche établissement (étoiles, nombre
+ * de chambres, ville/code postal) — jamais utilisé avant cette phase.
+ */
+export async function openAdministration(page: Page): Promise<void> {
+  const adminLinks = page.getByRole("link", { name: /Accès utilisateurs|Établissement|Connectivité|Dédoublonnage/i });
+  if (await adminLinks.first().isVisible().catch(() => false)) return;
+
+  const changeSpace = page.getByRole("button", { name: /Changer d'espace/i });
+  await changeSpace.waitFor({ state: "visible", timeout: 30000 });
+  await changeSpace.click();
+
+  const admin = page.getByRole("button", { name: /Administration/i });
+  await admin.waitFor({ state: "visible", timeout: 30000 });
+  await admin.click();
+  await sleep(700);
+}
+
+export async function openEstablishmentSettings(page: Page): Promise<void> {
+  await openAdministration(page);
+  const link = page.getByRole("link", { name: /Établissement/i });
+  await link.waitFor({ state: "visible", timeout: 30000 });
+  await link.click();
+  await sleep(1200);
+}
+
 export async function setMarketingPeriod(page: Page, period: ScanPeriod): Promise<void> {
   const periodControl = page.getByText("Période", { exact: true }).first();
   await periodControl.waitFor({ state: "visible", timeout: 15000 });

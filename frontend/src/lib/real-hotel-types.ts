@@ -27,6 +27,13 @@ export interface RealHotel {
   experienceStatus: ExperienceStatus;
   disabled: boolean;
   lastConnectionCheckAt: string | null;
+  // Phase I1 (retour réel 2026-09-18) — récupérés depuis Expérience
+  // (Administration > Établissement) ou saisis manuellement dans
+  // Paramètres ; null tant qu'aucune des deux sources ne les a renseignés.
+  // Pas de distinction "manuel"/"Expérience" exposée ici (volontaire).
+  stars: number | null;
+  roomCount: number | null;
+  location: string | null;
 }
 
 export interface RealPortfolioHotel extends RealHotel {
@@ -56,6 +63,24 @@ export interface RealPortfolio {
     criticalCount: number;
     healthScore: number | null;
   };
+}
+
+/** Phase I1 (retour réel 2026-09-18) — GET /api/hotels/comparison. */
+export interface RealHotelComparisonEntry {
+  hotelId: string;
+  hotelName: string;
+  stars: number | null;
+  roomCount: number | null;
+  location: string | null;
+  hasScan: boolean;
+  period: RealScanPeriod | null;
+  healthScore: number | null;
+  healthLevel: "Critique" | "Fragile" | "Correct" | "Bon" | "Excellent" | null;
+  baseScore: number | null;
+  captureScore: number | null;
+  otaScore: number | null;
+  loyaltyScore: number | null;
+  activationScore: number | null;
 }
 
 export type UserStatus = "PENDING" | "ACTIVE" | "DISABLED";

@@ -107,7 +107,21 @@ function MockHotelDetail({ hotel }: { hotel: NonNullable<ReturnType<typeof getHo
   );
 }
 
+// Phase I1 (retour réel 2026-09-18) — ligne contextuelle discrète, comme
+// dans Paramètres > Hôtels (hotelInfoLabel dans Settings.tsx) : "—"
+// seulement si les 3 infos sont inconnues, sinon jamais de placeholder
+// pour une info manquante isolée.
+function hotelInfoLine(hotel: import("../lib/real-hotel-types.js").RealHotel): string | null {
+  const parts: string[] = [];
+  if (hotel.stars !== null) parts.push("★".repeat(hotel.stars));
+  if (hotel.roomCount !== null) parts.push(`${hotel.roomCount} chambres`);
+  if (hotel.location) parts.push(hotel.location);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 function RealHotelDetail({ hotel }: { hotel: import("../lib/real-hotel-types.js").RealHotel }) {
+  const infoLine = hotelInfoLine(hotel);
+
   return (
     <div>
       <Breadcrumb name={hotel.name} />
@@ -116,7 +130,10 @@ function RealHotelDetail({ hotel }: { hotel: import("../lib/real-hotel-types.js"
         <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-linen-deep text-graphite-soft">
           <Icon.Building width={20} height={20} />
         </div>
-        <h1 className="text-xl">{hotel.name}</h1>
+        <div>
+          <h1 className="text-xl">{hotel.name}</h1>
+          {infoLine && <p className="text-xs text-graphite-faint">{infoLine}</p>}
+        </div>
       </div>
 
       <div className="mt-6">

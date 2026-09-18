@@ -9,6 +9,7 @@ import { Icon } from "../../components/ui/icons.js";
 import { formatDateTime, formatNumber, formatCurrency } from "../../lib/format.js";
 import { api, ApiError } from "../../lib/api.js";
 import type { RealHotel, RealKpiResult, RealScanPeriod, RealScanSummary, RealAutomationStatus, RecommendationStatus } from "../../lib/real-hotel-types.js";
+import { HotelComparisonModal } from "./HotelComparisonModal.js";
 
 /** P10 — le statut des automations bloque ou non la recherche de campagne ponctuelle (backend/experience/audience-builder/p10-automation-status.ts). */
 function automationStatusMessage(status: RealAutomationStatus): string {
@@ -153,6 +154,7 @@ export function RealHotelOverview({ hotel }: { hotel: RealHotel }) {
   }, [scanMutation.isPending]);
 
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [comparisonOpen, setComparisonOpen] = useState(false);
 
   return (
     <div>
@@ -166,6 +168,13 @@ export function RealHotelOverview({ hotel }: { hotel: RealHotel }) {
           >
             <Icon.Play width={14} height={14} /> {scanMutation.isPending ? "Scan en cours — Expérience…" : "Lancer un nouveau scan"}
           </button>
+          <button
+            type="button"
+            onClick={() => setComparisonOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-graphite/15 px-4 py-2 font-medium text-graphite-soft hover:border-terracotta hover:text-terracotta"
+          >
+            <Icon.Activity width={14} height={14} /> Comparaison
+          </button>
         </div>
         <button type="button" onClick={() => setHistoryOpen(true)} className="text-xs font-medium text-terracotta hover:underline">
           Voir l'historique des scans de cet hôtel
@@ -173,6 +182,7 @@ export function RealHotelOverview({ hotel }: { hotel: RealHotel }) {
       </div>
 
       {historyOpen && <ScanHistoryModal hotelId={hotel.id} onClose={() => setHistoryOpen(false)} />}
+      {comparisonOpen && <HotelComparisonModal currentHotel={hotel} onClose={() => setComparisonOpen(false)} />}
 
       {scanMutation.isPending && (
         <div className="mb-4 rounded-lg bg-horizon-soft px-3 py-2 text-sm text-horizon-ink">

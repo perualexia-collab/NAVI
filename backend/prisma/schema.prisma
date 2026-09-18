@@ -91,6 +91,26 @@ model Hotel {
   disabled               Boolean               @default(false)
   lastConnectionCheckAt  DateTime?
   createdAt              DateTime              @default(now())
+
+  // Phase I1 — comparaison d'hôtels (retour réel 2026-09-18) : infos
+  // contextuelles affichées dans CRM Health et utilisées comme critères de
+  // filtre pour construire un panel d'hôtels comparables. `location` est
+  // déjà la valeur normalisée à afficher/filtrer ("Paris 6", "Lyon") — la
+  // dérivation depuis Ville/Code postal (Expérience) a lieu au moment du
+  // scraping, pas ici. Nulls tant que ni Expérience ni une saisie manuelle
+  // ne les ont renseignées — jamais de valeur inventée.
+  stars           Int?
+  roomCount       Int?
+  location        String?
+  // Priorité manuel > Expérience (retour réel 2026-09-18) : passe à `true`
+  // dès qu'un utilisateur modifie le champ correspondant dans Paramètres —
+  // "Tester la connexion" n'écrase alors plus jamais ce champ tant qu'il
+  // n'a pas été revidé manuellement (ce qui repasse le flag à `false`).
+  // Volontairement invisible dans l'UI (pas de badge "manuel") — comporte-
+  // ment interne seulement.
+  starsManual     Boolean @default(false)
+  roomCountManual Boolean @default(false)
+  locationManual  Boolean @default(false)
   // Phase H8 — retour réel 2026-09-04 : "propre à chaque compte NAVI,
   // comme pour les portefeuilles" (Portfolio.ownerId). Nullable
   // (contrairement à Portfolio.ownerId) pour représenter honnêtement les

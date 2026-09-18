@@ -22,7 +22,20 @@ function serializePortfolio(
     id: string;
     name: string;
     createdAt: Date;
-    hotels: { hotel: { id: string; name: string; experienceLabel: string; experienceHotelId: string | null; experienceStatus: string; disabled: boolean; lastConnectionCheckAt: Date | null } }[];
+    hotels: {
+      hotel: {
+        id: string;
+        name: string;
+        experienceLabel: string;
+        experienceHotelId: string | null;
+        experienceStatus: string;
+        disabled: boolean;
+        lastConnectionCheckAt: Date | null;
+        stars: number | null;
+        roomCount: number | null;
+        location: string | null;
+      };
+    }[];
   },
   latestScanByHotelId: Map<string, LatestHotelScan>
 ) {

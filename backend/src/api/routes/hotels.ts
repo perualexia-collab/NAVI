@@ -16,6 +16,7 @@ import { calculateOpportunityScore } from "../../services/scoring/p11-opportunit
 import { P10_LIBRARY, AUDIENCE_TAG_TO_DEFINITION_ID, currentMonthNameFR } from "../../../experience/audience-builder/p10-campaigns.js";
 import { getLatestScanByHotelId } from "../../services/scans/latest-scan-by-hotel.js";
 import { canAccessScan } from "../../services/scans/scan-access.js";
+import { getHotelComparisonData } from "../../services/scans/hotel-comparison.js";
 
 const presetPeriodSchema = z.object({
   mode: z.literal("preset"),
@@ -71,6 +72,55 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
       data: { name: body.data.name, experienceLabel: body.data.name, experienceStatus: "TO_VERIFY", ownerId: user.id }
     });
     return reply.code(201).send(hotel);
+  });
+
+  // Phase I1 (retour réel 2026-09-18) — édition manuelle étoiles/chambres/
+  // emplacement (Paramètres > Hôtels). Priorité manuel > Expérience :
+  // renseigner un champ ici passe son flag `xManual` à true (plus jamais
+  // écrasé par "Tester la connexion") ; le revider (null) rend la main à
+  // Expérience au prochain test. Chaque champ est optionnel et traité
+  // indépendamment — modifier seulement les étoiles ne touche pas
+  // chambres/emplacement.
+  const updateHotelSchema = z.object({
+    stars: z.number().int().min(1, "Étoiles : 1 à 5.").max(5, "Étoiles : 1 à 5.").nullable().optional(),
+    roomCount: z.number().int().min(1, "Nombre de chambres invalide.").nullable().optional(),
+    location: z.string().trim().min(1, "Emplacement invalide.").nullable().optional()
+  });
+
+  app.patch("/api/hotels/:hotelId", async (request, reply) => {
+    const user = await requireUser(request, reply);
+    if (!user) return;
+
+    const { hotelId } = request.params as { hotelId: string };
+    const hotel = await prisma.hotel.findUnique({ where: { id: hotelId } });
+    if (!hotel) return reply.code(404).send({ error: "Hôtel introuvable." });
+
+    const body = updateHotelSchema.safeParse(request.body);
+    if (!body.success) return reply.code(400).send({ error: body.error.issues[0]?.message ?? "Requête invalide." });
+
+    const data: {
+      stars?: number | null;
+      starsManual?: boolean;
+      roomCount?: number | null;
+      roomCountManual?: boolean;
+      location?: string | null;
+      locationManual?: boolean;
+    } = {};
+
+    if (body.data.stars !== undefined) {
+      data.stars = body.data.stars;
+      data.starsManual = body.data.stars !== null;
+    }
+    if (body.data.roomCount !== undefined) {
+      data.roomCount = body.data.roomCount;
+      data.roomCountManual = body.data.roomCount !== null;
+    }
+    if (body.data.location !== undefined) {
+      data.location = body.data.location;
+      data.locationManual = body.data.location !== null;
+    }
+
+    return prisma.hotel.update({ where: { id: hotelId }, data });
   });
 
   // Suppression d'hôtel (Settings) — retours réels 2026-09-03 : doit
@@ -156,6 +206,9 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
         experienceStatus: hotel.experienceStatus,
         disabled: hotel.disabled,
         lastConnectionCheckAt: hotel.lastConnectionCheckAt,
+        stars: hotel.stars,
+        roomCount: hotel.roomCount,
+        location: hotel.location,
         portfolioNames: hotel.portfolios.map((p) => p.portfolio.name),
         lastScanAt: scan?.startedAt ?? null,
         healthScore: scan?.healthScore ?? null,
@@ -166,6 +219,18 @@ export async function hotelsRoutes(app: FastifyInstance, options: { env: Env }) 
         opportunities: scan ? scan.opportunities : null
       };
     });
+  });
+
+  // Phase I1 (retour réel 2026-09-18) — comparaison d'hôtels (bouton
+  // "Comparaison" sur la fiche CRM Health). `hotelIds` inclut l'hôtel
+  // courant : le frontend construit lui-même le panel complet à comparer.
+  app.get("/api/hotels/comparison", async (request, reply) => {
+    const user = await requireUser(request, reply);
+    if (!user) return;
+
+    const raw = (request.query as { hotelIds?: string }).hotelIds ?? "";
+    const hotelIds = [...new Set(raw.split(",").map((id) => id.trim()).filter(Boolean))];
+    return getHotelComparisonData(hotelIds, user);
   });
 
   app.get("/api/hotels/:hotelId", async (request, reply) => {

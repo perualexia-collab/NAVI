@@ -5,7 +5,7 @@ import { Modal } from "../components/ui/Modal.js";
 import { Icon } from "../components/ui/icons.js";
 import { api, ApiError } from "../lib/api.js";
 import { useAuth } from "../lib/auth-context.js";
-import type { RealUser, UserStatus } from "../lib/real-hotel-types.js";
+import type { RealHotel, RealUser, UserStatus } from "../lib/real-hotel-types.js";
 
 const EXPERIENCE_STATUS_LABEL = {
   ACTIVE: "Actif",
@@ -67,6 +67,17 @@ export function Settings() {
   );
 }
 
+// Phase I1 (retour réel 2026-09-18) — même ligne discrète que CRM Health
+// ("★★★★ · 42 chambres · Paris 6"), sans placeholder pour une info
+// inconnue. "—" seulement si les 3 sont inconnues (ligne vide sinon).
+function hotelInfoLabel(hotel: Pick<RealHotel, "stars" | "roomCount" | "location">): string {
+  const parts: string[] = [];
+  if (hotel.stars !== null) parts.push("★".repeat(hotel.stars));
+  if (hotel.roomCount !== null) parts.push(`${hotel.roomCount} chambres`);
+  if (hotel.location) parts.push(hotel.location);
+  return parts.length > 0 ? parts.join(" · ") : "—";
+}
+
 function HotelsAdmin() {
   const queryClient = useQueryClient();
   const hotelsQuery = useQuery({ queryKey: ["hotels"], queryFn: api.listRealHotels });
@@ -102,10 +113,43 @@ function HotelsAdmin() {
     }
   }
 
+  // Phase I1 — édition manuelle étoiles/chambres/emplacement. Un champ
+  // vidé (valeur vide dans le formulaire) est envoyé à `null` : ça rend la
+  // main à Expérience au prochain "Tester la connexion" (voir backend).
+  const [editingHotel, setEditingHotel] = useState<RealHotel | null>(null);
+  const [editStars, setEditStars] = useState("");
+  const [editRoomCount, setEditRoomCount] = useState("");
+  const [editLocation, setEditLocation] = useState("");
+  const [editError, setEditError] = useState<string | null>(null);
+
+  function openEditModal(hotel: RealHotel) {
+    setEditingHotel(hotel);
+    setEditStars(hotel.stars !== null ? String(hotel.stars) : "");
+    setEditRoomCount(hotel.roomCount !== null ? String(hotel.roomCount) : "");
+    setEditLocation(hotel.location ?? "");
+    setEditError(null);
+  }
+
+  const updateHotelMutation = useMutation({
+    mutationFn: (data: { stars: number | null; roomCount: number | null; location: string | null }) =>
+      api.updateHotel(editingHotel!.id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["hotels"] });
+      setEditingHotel(null);
+    },
+    onError: (err) => setEditError(err instanceof ApiError ? err.message : "Impossible d'enregistrer ces informations.")
+  });
+
   // "Tester la connexion" — vérifie que l'hôtel est bien retrouvable dans
   // Expérience sous son libellé (même primitive que le début d'un scan).
   const [testingHotelId, setTestingHotelId] = useState<string | null>(null);
-  const [testResult, setTestResult] = useState<{ hotelId: string; hotelName: string; status: "ACTIVE" | "NOT_FOUND" | "ERROR"; message: string } | null>(null);
+  const [testResult, setTestResult] = useState<{
+    hotelId: string;
+    hotelName: string;
+    status: "ACTIVE" | "NOT_FOUND" | "ERROR";
+    message: string;
+    hotelInfoIncomplete?: boolean;
+  } | null>(null);
   const testConnectionMutation = useMutation({
     mutationFn: (hotelId: string) => api.testHotelConnection(hotelId),
     onMutate: (hotelId: string) => {
@@ -115,7 +159,7 @@ function HotelsAdmin() {
     onSuccess: (result, hotelId) => {
       queryClient.invalidateQueries({ queryKey: ["hotels"] });
       const hotelName = hotelsQuery.data?.find((h) => h.id === hotelId)?.name ?? "";
-      setTestResult({ hotelId, hotelName, status: result.status, message: result.message });
+      setTestResult({ hotelId, hotelName, status: result.status, message: result.message, hotelInfoIncomplete: result.hotelInfoIncomplete });
     },
     onError: (err, hotelId) => {
       const hotelName = hotelsQuery.data?.find((h) => h.id === hotelId)?.name ?? "";
@@ -144,6 +188,9 @@ function HotelsAdmin() {
           }`}
         >
           {testResult.status === "ACTIVE" ? "✓" : "✕"} {testResult.hotelName} — {testResult.message}
+          {testResult.status === "ACTIVE" && testResult.hotelInfoIncomplete && (
+            <span className="ml-1 text-warn-ink">⚠ Étoiles/chambres/emplacement incomplets — à compléter manuellement si besoin.</span>
+          )}
         </p>
       )}
 
@@ -153,6 +200,7 @@ function HotelsAdmin() {
             <tr className="border-b border-graphite/10 text-left text-[11px] uppercase tracking-wide text-graphite-faint">
               <th className="pb-2 font-medium">Hôtel NAVI</th>
               <th className="pb-2 font-medium">Libellé Expérience</th>
+              <th className="pb-2 font-medium">Infos</th>
               <th className="pb-2 font-medium">Statut</th>
               <th className="pb-2 font-medium" />
             </tr>
@@ -162,10 +210,29 @@ function HotelsAdmin() {
               <tr key={hotel.id} className="border-b border-graphite/5 last:border-0">
                 <td className="py-2.5 font-medium">{hotel.name}</td>
                 <td className="text-graphite-soft">{hotel.experienceLabel}</td>
+                <td className="text-graphite-soft">
+                  <div className="flex items-center gap-1.5">
+                    <span>{hotelInfoLabel(hotel)}</span>
+                    <button
+                      onClick={() => openEditModal(hotel)}
+                      title="Modifier étoiles/chambres/emplacement"
+                      className="text-graphite-faint hover:text-terracotta"
+                    >
+                      <Icon.Edit width={13} height={13} />
+                    </button>
+                  </div>
+                </td>
                 <td>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${EXPERIENCE_STATUS_STYLE[hotel.experienceStatus]}`}>
-                    {EXPERIENCE_STATUS_LABEL[hotel.experienceStatus]}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${EXPERIENCE_STATUS_STYLE[hotel.experienceStatus]}`}>
+                      {EXPERIENCE_STATUS_LABEL[hotel.experienceStatus]}
+                    </span>
+                    {hotel.experienceStatus === "ACTIVE" && (hotel.stars === null || hotel.roomCount === null || !hotel.location) && (
+                      <span title="Étoiles/chambres/emplacement incomplets">
+                        <Icon.AlertTriangle width={13} height={13} className="text-warn" />
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="text-right">
                   <div className="flex justify-end gap-2">
@@ -239,6 +306,87 @@ function HotelsAdmin() {
                 className="rounded-lg bg-terracotta px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
               >
                 {createMutation.isPending ? "Ajout…" : "Ajouter l'hôtel"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {editingHotel && (
+        <Modal
+          title={`Modifier "${editingHotel.name}"`}
+          onClose={() => setEditingHotel(null)}
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              updateHotelMutation.mutate({
+                stars: editStars === "" ? null : Number(editStars),
+                roomCount: editRoomCount === "" ? null : Number(editRoomCount),
+                location: editLocation.trim() === "" ? null : editLocation.trim()
+              });
+            }}
+            className="flex flex-col gap-4"
+          >
+            <label className="flex flex-col gap-1 text-sm text-graphite">
+              Étoiles
+              <select
+                value={editStars}
+                onChange={(e) => setEditStars(e.target.value)}
+                className="rounded-lg border border-graphite/20 bg-parchment-soft px-3 py-2 text-sm outline-none focus:border-terracotta"
+              >
+                <option value="">— Inconnu —</option>
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1 text-sm text-graphite">
+              Nombre de chambres
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={editRoomCount}
+                onChange={(e) => setEditRoomCount(e.target.value)}
+                placeholder="Inconnu"
+                className="rounded-lg border border-graphite/20 bg-parchment-soft px-3 py-2 text-sm outline-none focus:border-terracotta"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1 text-sm text-graphite">
+              Emplacement
+              <input
+                value={editLocation}
+                onChange={(e) => setEditLocation(e.target.value)}
+                placeholder="Ex. Paris 6, Lyon…"
+                className="rounded-lg border border-graphite/20 bg-parchment-soft px-3 py-2 text-sm outline-none focus:border-terracotta"
+              />
+            </label>
+
+            <div className="flex items-start gap-2 rounded-lg bg-horizon-soft px-3 py-2 text-xs text-horizon-ink">
+              <Icon.Info width={14} height={14} className="mt-0.5 shrink-0" />
+              <span>
+                Un champ laissé vide sera à nouveau rempli automatiquement par Expérience au prochain "Tester la
+                connexion" — une valeur saisie ici ne sera en revanche plus jamais écrasée automatiquement.
+              </span>
+            </div>
+
+            {editError && <p className="text-sm text-alert">{editError}</p>}
+
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setEditingHotel(null)} className="rounded-lg px-4 py-2 text-sm text-graphite-soft hover:bg-linen-deep">
+                Annuler
+              </button>
+              <button
+                type="submit"
+                disabled={updateHotelMutation.isPending}
+                className="rounded-lg bg-terracotta px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+              >
+                {updateHotelMutation.isPending ? "Enregistrement…" : "Enregistrer"}
               </button>
             </div>
           </form>
