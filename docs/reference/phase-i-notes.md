@@ -75,12 +75,22 @@ de la ligne (pas de "—" isolé) ; la ligne entière n'apparaît pas si les
 Bouton "Comparaison" à côté de "Lancer un nouveau scan" (fiche hôtel).
 Une seule modale, deux étapes :
 
-1. **Filtres** — Établissement (multi-select, sélection directe possible),
-   Étoiles (seule valeur codée en dur, 1 à 5), Emplacement (valeurs
-   réellement présentes dans NAVI), Nombre de chambres (double champ
-   numérique "de/à", pas de tranches fixes — évite une liste interminable
-   si le parc a une grande amplitude de tailles). Tout en ET, pas de
-   OU/imbrication. "Réinitialiser les filtres".
+1. **Filtres** — révisé le même jour après premier test réel : liste de
+   lignes "étiquette → est → valeur" (Établissement/Étoiles/Nombre de
+   chambres/Emplacement, une ligne = un critère), reliées par un
+   sélecteur ET/OU entre chaque ligne, "+ Ajouter un filtre" pour en
+   ajouter, icône corbeille pour en retirer — inspiré de la capture de
+   référence fournie par l'utilisateur. Évaluation strictement
+   séquentielle gauche-à-droite (`rowMatches` pliée avec le connecteur
+   choisi à chaque étape) — pas de parenthésage ni de groupes imbriqués
+   (la demande portait sur l'apparence/logique étiquette→valeur + ET/OU
+   à plat, pas sur des filtres imbriqués comme "Ajouter un filtre
+   imbriqué" dans la référence). Étoiles = seule valeur codée en dur (1 à
+   5) ; Établissement/Emplacement alimentés par les hôtels réellement
+   enregistrés ; Nombre de chambres = double champ "de/à" (pas de
+   tranches fixes, évite une liste interminable si le parc a une grande
+   amplitude de tailles). "Réinitialiser les filtres" remet à une seule
+   ligne vide.
 2. **Résultats** — tableau comparatif, hôtel courant mis en évidence,
    ligne "Moyenne du panel" (calculée sur les autres hôtels, jamais
    l'hôtel courant lui-même).

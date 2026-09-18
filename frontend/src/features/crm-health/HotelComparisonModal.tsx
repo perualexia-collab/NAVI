@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Modal } from "../../components/ui/Modal.js";
 import { Icon } from "../../components/ui/icons.js";
@@ -7,6 +7,47 @@ import { periodLabel } from "../../components/ui/RealPeriodSelector.js";
 import type { RealHotel, RealHotelComparisonEntry, RealScanPeriod } from "../../lib/real-hotel-types.js";
 
 const STARS_OPTIONS = [1, 2, 3, 4, 5];
+
+type FilterField = "establishment" | "stars" | "roomCount" | "location";
+
+const FIELD_LABELS: Record<FilterField, string> = {
+  establishment: "Établissement",
+  stars: "Étoiles",
+  roomCount: "Nombre de chambres",
+  location: "Emplacement"
+};
+
+interface FilterRow {
+  id: number;
+  field: FilterField;
+  establishmentId: string;
+  stars: string;
+  roomMin: string;
+  roomMax: string;
+  location: string;
+}
+
+function createRow(id: number): FilterRow {
+  return { id, field: "establishment", establishmentId: "", stars: "", roomMin: "", roomMax: "", location: "" };
+}
+
+function rowMatches(hotel: RealHotel, row: FilterRow): boolean {
+  switch (row.field) {
+    case "establishment":
+      return row.establishmentId === "" || hotel.id === row.establishmentId;
+    case "stars":
+      return row.stars === "" || hotel.stars === Number(row.stars);
+    case "location":
+      return row.location === "" || hotel.location === row.location;
+    case "roomCount": {
+      if (row.roomMin === "" && row.roomMax === "") return true;
+      if (hotel.roomCount === null) return false;
+      if (row.roomMin && hotel.roomCount < Number(row.roomMin)) return false;
+      if (row.roomMax && hotel.roomCount > Number(row.roomMax)) return false;
+      return true;
+    }
+  }
+}
 
 function periodKey(period: RealScanPeriod): string {
   return period.mode === "preset" ? `preset:${period.value}` : `custom:${period.startDate}:${period.endDate}`;
@@ -22,14 +63,17 @@ function formatScoreCell(value: number | null): string {
 }
 
 /**
- * Phase I1 (retour réel 2026-09-18) — bouton "Comparaison" sur la fiche
- * CRM Health. Deux étapes dans la même modale : filtres → construction du
- * panel, puis tableau comparatif (jamais les deux en même temps).
+ * Phase I1 (retour réel 2026-09-18, révisé le même jour) — bouton
+ * "Comparaison" sur la fiche CRM Health. Deux étapes dans la même
+ * modale : filtres → construction du panel, puis tableau comparatif
+ * (jamais les deux en même temps).
  *
- * Filtres combinés en ET uniquement (pas de ET/OU imbriqué, volontaire —
- * demande explicite de rester simple pour cette première version) ;
- * "Établissement" permet de choisir directement des hôtels précis en plus
- * des autres critères.
+ * Filtres construits comme une liste de lignes "étiquette → est → valeur"
+ * reliées par ET/OU (inspiré de la capture de référence fournie), évalués
+ * de façon strictement séquentielle gauche-à-droite (pas de parenthésage
+ * ni de groupes imbriqués — volontairement simple, la demande ne portait
+ * que sur l'apparence/logique étiquette→valeur + ET/OU à plat, pas sur
+ * des groupes de filtres imbriqués).
  */
 export function HotelComparisonModal({ currentHotel, onClose }: { currentHotel: RealHotel; onClose: () => void }) {
   const hotelsQuery = useQuery({ queryKey: ["hotels"], queryFn: api.listRealHotels });
@@ -44,31 +88,41 @@ export function HotelComparisonModal({ currentHotel, onClose }: { currentHotel: 
   const roomCounts = allHotels.map((h) => h.roomCount).filter((v): v is number => v !== null);
   const roomCountRange = roomCounts.length > 0 ? { min: Math.min(...roomCounts), max: Math.max(...roomCounts) } : null;
 
-  const [selectedHotelIds, setSelectedHotelIds] = useState<string[]>([]);
-  const [starsFilter, setStarsFilter] = useState<number | null>(null);
-  const [roomMin, setRoomMin] = useState("");
-  const [roomMax, setRoomMax] = useState("");
-  const [locationFilter, setLocationFilter] = useState<string | null>(null);
+  const nextRowId = useRef(1);
+  const [rows, setRows] = useState<FilterRow[]>([createRow(0)]);
+  const [connectors, setConnectors] = useState<("ET" | "OU")[]>([]);
+
+  function updateRow(id: number, patch: Partial<FilterRow>) {
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  }
+
+  function addRow() {
+    setRows((prev) => [...prev, createRow(nextRowId.current++)]);
+    setConnectors((prev) => [...prev, "ET"]);
+  }
+
+  function removeRow(index: number) {
+    setRows((prev) => prev.filter((_, i) => i !== index));
+    setConnectors((prev) => prev.filter((_, i) => i !== Math.max(0, index - 1)));
+  }
 
   function resetFilters() {
-    setSelectedHotelIds([]);
-    setStarsFilter(null);
-    setRoomMin("");
-    setRoomMax("");
-    setLocationFilter(null);
+    setRows([createRow(nextRowId.current++)]);
+    setConnectors([]);
   }
 
   const matchingHotels = useMemo(
     () =>
       allHotels.filter((hotel) => {
-        if (selectedHotelIds.length > 0 && !selectedHotelIds.includes(hotel.id)) return false;
-        if (starsFilter !== null && hotel.stars !== starsFilter) return false;
-        if (roomMin && (hotel.roomCount === null || hotel.roomCount < Number(roomMin))) return false;
-        if (roomMax && (hotel.roomCount === null || hotel.roomCount > Number(roomMax))) return false;
-        if (locationFilter && hotel.location !== locationFilter) return false;
-        return true;
+        if (rows.length === 0) return true;
+        let result = rowMatches(hotel, rows[0]!);
+        for (let i = 1; i < rows.length; i++) {
+          const current = rowMatches(hotel, rows[i]!);
+          result = connectors[i - 1] === "OU" ? result || current : result && current;
+        }
+        return result;
       }),
-    [allHotels, selectedHotelIds, starsFilter, roomMin, roomMax, locationFilter]
+    [allHotels, rows, connectors]
   );
 
   const [results, setResults] = useState<RealHotelComparisonEntry[] | null>(null);
@@ -81,79 +135,123 @@ export function HotelComparisonModal({ currentHotel, onClose }: { currentHotel: 
     <Modal title={results ? `Comparaison — ${currentHotel.name}` : "Comparer avec d'autres hôtels"} onClose={onClose} wide>
       {!results ? (
         <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-3">
-            <label className="flex flex-col gap-1 text-sm text-graphite">
-              Établissement
-              <select
-                multiple
-                value={selectedHotelIds}
-                onChange={(e) => setSelectedHotelIds(Array.from(e.target.selectedOptions, (o) => o.value))}
-                className="h-24 rounded-lg border border-graphite/20 bg-parchment-soft px-2 py-1.5 text-sm outline-none focus:border-terracotta"
-              >
-                {allHotels.map((hotel) => (
-                  <option key={hotel.id} value={hotel.id}>
-                    {hotel.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+          <div className="flex flex-col gap-1">
+            {rows.map((row, index) => (
+              <div key={row.id}>
+                {index > 0 && (
+                  <div className="my-1.5">
+                    <select
+                      value={connectors[index - 1]}
+                      onChange={(e) =>
+                        setConnectors((prev) => prev.map((c, i) => (i === index - 1 ? (e.target.value as "ET" | "OU") : c)))
+                      }
+                      className="rounded-lg border border-graphite/20 bg-parchment-soft px-2 py-1 text-xs font-medium text-graphite-soft outline-none focus:border-terracotta"
+                    >
+                      <option value="ET">ET</option>
+                      <option value="OU">OU</option>
+                    </select>
+                  </div>
+                )}
 
-            <div className="flex flex-col gap-3">
-              <label className="flex flex-col gap-1 text-sm text-graphite">
-                Étoiles
-                <select
-                  value={starsFilter ?? ""}
-                  onChange={(e) => setStarsFilter(e.target.value === "" ? null : Number(e.target.value))}
-                  className="rounded-lg border border-graphite/20 bg-parchment-soft px-3 py-2 text-sm outline-none focus:border-terracotta"
-                >
-                  <option value="">Toutes</option>
-                  {STARS_OPTIONS.map((n) => (
-                    <option key={n} value={n}>
-                      {n} étoile{n > 1 ? "s" : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                <div className="flex flex-wrap items-center gap-2 rounded-lg bg-linen-deep/60 p-3">
+                  <select
+                    value={row.field}
+                    onChange={(e) => updateRow(row.id, { field: e.target.value as FilterField })}
+                    className="rounded-lg border border-graphite/20 bg-parchment-soft px-2 py-1.5 text-sm outline-none focus:border-terracotta"
+                  >
+                    {(Object.keys(FIELD_LABELS) as FilterField[]).map((field) => (
+                      <option key={field} value={field}>
+                        {FIELD_LABELS[field]}
+                      </option>
+                    ))}
+                  </select>
 
-              <label className="flex flex-col gap-1 text-sm text-graphite">
-                Emplacement
-                <select
-                  value={locationFilter ?? ""}
-                  onChange={(e) => setLocationFilter(e.target.value === "" ? null : e.target.value)}
-                  className="rounded-lg border border-graphite/20 bg-parchment-soft px-3 py-2 text-sm outline-none focus:border-terracotta"
-                >
-                  <option value="">Tous</option>
-                  {locations.map((loc) => (
-                    <option key={loc} value={loc}>
-                      {loc}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
+                  {row.field !== "roomCount" && <span className="text-xs text-graphite-faint">est</span>}
 
-            <div className="col-span-2 flex flex-col gap-1 text-sm text-graphite">
-              Nombre de chambres
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min={0}
-                  value={roomMin}
-                  onChange={(e) => setRoomMin(e.target.value)}
-                  placeholder={roomCountRange ? `De (min. ${roomCountRange.min})` : "De"}
-                  className="w-full rounded-lg border border-graphite/20 bg-parchment-soft px-3 py-2 text-sm outline-none focus:border-terracotta"
-                />
-                <span className="text-graphite-faint">à</span>
-                <input
-                  type="number"
-                  min={0}
-                  value={roomMax}
-                  onChange={(e) => setRoomMax(e.target.value)}
-                  placeholder={roomCountRange ? `À (max. ${roomCountRange.max})` : "À"}
-                  className="w-full rounded-lg border border-graphite/20 bg-parchment-soft px-3 py-2 text-sm outline-none focus:border-terracotta"
-                />
+                  {row.field === "establishment" && (
+                    <select
+                      value={row.establishmentId}
+                      onChange={(e) => updateRow(row.id, { establishmentId: e.target.value })}
+                      className="min-w-[10rem] rounded-lg border border-graphite/20 bg-parchment-soft px-2 py-1.5 text-sm outline-none focus:border-terracotta"
+                    >
+                      <option value="">— Choisir —</option>
+                      {allHotels.map((hotel) => (
+                        <option key={hotel.id} value={hotel.id}>
+                          {hotel.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
+                  {row.field === "stars" && (
+                    <select
+                      value={row.stars}
+                      onChange={(e) => updateRow(row.id, { stars: e.target.value })}
+                      className="rounded-lg border border-graphite/20 bg-parchment-soft px-2 py-1.5 text-sm outline-none focus:border-terracotta"
+                    >
+                      <option value="">— Choisir —</option>
+                      {STARS_OPTIONS.map((n) => (
+                        <option key={n} value={n}>
+                          {n} étoile{n > 1 ? "s" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
+                  {row.field === "location" && (
+                    <select
+                      value={row.location}
+                      onChange={(e) => updateRow(row.id, { location: e.target.value })}
+                      className="min-w-[8rem] rounded-lg border border-graphite/20 bg-parchment-soft px-2 py-1.5 text-sm outline-none focus:border-terracotta"
+                    >
+                      <option value="">— Choisir —</option>
+                      {locations.map((loc) => (
+                        <option key={loc} value={loc}>
+                          {loc}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
+                  {row.field === "roomCount" && (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        value={row.roomMin}
+                        onChange={(e) => updateRow(row.id, { roomMin: e.target.value })}
+                        placeholder={roomCountRange ? `De (min. ${roomCountRange.min})` : "De"}
+                        className="w-28 rounded-lg border border-graphite/20 bg-parchment-soft px-2 py-1.5 text-sm outline-none focus:border-terracotta"
+                      />
+                      <span className="text-graphite-faint">à</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={row.roomMax}
+                        onChange={(e) => updateRow(row.id, { roomMax: e.target.value })}
+                        placeholder={roomCountRange ? `À (max. ${roomCountRange.max})` : "À"}
+                        className="w-28 rounded-lg border border-graphite/20 bg-parchment-soft px-2 py-1.5 text-sm outline-none focus:border-terracotta"
+                      />
+                    </div>
+                  )}
+
+                  {rows.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeRow(index)}
+                      title="Retirer ce filtre"
+                      className="ml-auto text-graphite-faint hover:text-alert"
+                    >
+                      <Icon.Trash width={14} height={14} />
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
+            ))}
+
+            <button type="button" onClick={addRow} className="mt-1.5 flex w-fit items-center gap-1 text-xs font-medium text-terracotta hover:underline">
+              <Icon.Plus width={13} height={13} /> Ajouter un filtre
+            </button>
           </div>
 
           <div className="flex items-center justify-between text-sm">
