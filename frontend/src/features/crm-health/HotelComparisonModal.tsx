@@ -20,7 +20,8 @@ const FIELD_LABELS: Record<FilterField, string> = {
 interface FilterRow {
   id: number;
   field: FilterField;
-  establishmentId: string;
+  /** Plusieurs valeurs possibles — équivaut à un OU implicite entre les établissements choisis dans cette même ligne (demande explicite). */
+  establishmentIds: string[];
   stars: string;
   roomMin: string;
   roomMax: string;
@@ -28,13 +29,27 @@ interface FilterRow {
 }
 
 function createRow(id: number): FilterRow {
-  return { id, field: "establishment", establishmentId: "", stars: "", roomMin: "", roomMax: "", location: "" };
+  return { id, field: "establishment", establishmentIds: [], stars: "", roomMin: "", roomMax: "", location: "" };
+}
+
+/** Une ligne "vide" (aucune valeur choisie) ne compte pas comme un filtre actif — voir hasActiveFilter. */
+function rowHasValue(row: FilterRow): boolean {
+  switch (row.field) {
+    case "establishment":
+      return row.establishmentIds.length > 0;
+    case "stars":
+      return row.stars !== "";
+    case "location":
+      return row.location !== "";
+    case "roomCount":
+      return row.roomMin !== "" || row.roomMax !== "";
+  }
 }
 
 function rowMatches(hotel: RealHotel, row: FilterRow): boolean {
   switch (row.field) {
     case "establishment":
-      return row.establishmentId === "" || hotel.id === row.establishmentId;
+      return row.establishmentIds.length === 0 || row.establishmentIds.includes(hotel.id);
     case "stars":
       return row.stars === "" || hotel.stars === Number(row.stars);
     case "location":
@@ -111,19 +126,23 @@ export function HotelComparisonModal({ currentHotel, onClose }: { currentHotel: 
     setConnectors([]);
   }
 
-  const matchingHotels = useMemo(
-    () =>
-      allHotels.filter((hotel) => {
-        if (rows.length === 0) return true;
-        let result = rowMatches(hotel, rows[0]!);
-        for (let i = 1; i < rows.length; i++) {
-          const current = rowMatches(hotel, rows[i]!);
-          result = connectors[i - 1] === "OU" ? result || current : result && current;
-        }
-        return result;
-      }),
-    [allHotels, rows, connectors]
-  );
+  // Retour réel 2026-09-18 — tant qu'aucun critère n'a de valeur choisie,
+  // on ne considère pas qu'un filtre est "actif" : pas de liste affichée
+  // (voir plus bas), et matchingHotels reste vide plutôt que de lister
+  // silencieusement tout le catalogue.
+  const hasActiveFilter = rows.some(rowHasValue);
+
+  const matchingHotels = useMemo(() => {
+    if (!hasActiveFilter) return [];
+    return allHotels.filter((hotel) => {
+      let result = rowMatches(hotel, rows[0]!);
+      for (let i = 1; i < rows.length; i++) {
+        const current = rowMatches(hotel, rows[i]!);
+        result = connectors[i - 1] === "OU" ? result || current : result && current;
+      }
+      return result;
+    });
+  }, [allHotels, rows, connectors, hasActiveFilter]);
 
   const [results, setResults] = useState<RealHotelComparisonEntry[] | null>(null);
   const compareMutation = useMutation({
@@ -132,7 +151,7 @@ export function HotelComparisonModal({ currentHotel, onClose }: { currentHotel: 
   });
 
   return (
-    <Modal title={results ? `Comparaison — ${currentHotel.name}` : "Comparer avec d'autres hôtels"} onClose={onClose} wide>
+    <Modal title={results ? `Comparaison — ${currentHotel.name}` : "Comparer avec d'autres hôtels"} onClose={onClose} wide veryWide={Boolean(results)}>
       {!results ? (
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
@@ -170,11 +189,12 @@ export function HotelComparisonModal({ currentHotel, onClose }: { currentHotel: 
 
                   {row.field === "establishment" && (
                     <select
-                      value={row.establishmentId}
-                      onChange={(e) => updateRow(row.id, { establishmentId: e.target.value })}
-                      className="min-w-[10rem] rounded-lg border border-graphite/20 bg-parchment-soft px-2 py-1.5 text-sm outline-none focus:border-terracotta"
+                      multiple
+                      value={row.establishmentIds}
+                      onChange={(e) => updateRow(row.id, { establishmentIds: Array.from(e.target.selectedOptions, (o) => o.value) })}
+                      title="Ctrl/Cmd + clic pour en choisir plusieurs"
+                      className="h-24 min-w-[12rem] rounded-lg border border-graphite/20 bg-parchment-soft px-2 py-1.5 text-sm outline-none focus:border-terracotta"
                     >
-                      <option value="">— Choisir —</option>
                       {allHotels.map((hotel) => (
                         <option key={hotel.id} value={hotel.id}>
                           {hotel.name}
@@ -258,12 +278,14 @@ export function HotelComparisonModal({ currentHotel, onClose }: { currentHotel: 
             <button type="button" onClick={resetFilters} className="text-xs font-medium text-terracotta hover:underline">
               Réinitialiser les filtres
             </button>
-            <span className="text-graphite-faint">
-              {matchingHotels.length} hôtel{matchingHotels.length !== 1 ? "s" : ""} correspondant{matchingHotels.length !== 1 ? "s" : ""}
-            </span>
+            {hasActiveFilter && (
+              <span className="text-graphite-faint">
+                {matchingHotels.length} hôtel{matchingHotels.length !== 1 ? "s" : ""} correspondant{matchingHotels.length !== 1 ? "s" : ""}
+              </span>
+            )}
           </div>
 
-          {matchingHotels.length > 0 && (
+          {hasActiveFilter && matchingHotels.length > 0 && (
             <ul className="max-h-28 overflow-y-auto rounded-lg border border-graphite/10 p-2 text-sm text-graphite-soft">
               {matchingHotels.map((h) => (
                 <li key={h.id}>{h.name}</li>
@@ -284,7 +306,7 @@ export function HotelComparisonModal({ currentHotel, onClose }: { currentHotel: 
             <button
               type="button"
               onClick={() => compareMutation.mutate([currentHotel.id, ...matchingHotels.map((h) => h.id)])}
-              disabled={matchingHotels.length === 0 || compareMutation.isPending}
+              disabled={!hasActiveFilter || matchingHotels.length === 0 || compareMutation.isPending}
               className="rounded-lg bg-terracotta px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
               {compareMutation.isPending ? "Chargement…" : "Voir la comparaison"}

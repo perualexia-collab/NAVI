@@ -5,13 +5,16 @@ export function Modal({
   title,
   onClose,
   children,
-  wide
+  wide,
+  veryWide
 }: {
   title: string;
   onClose: () => void;
   children: React.ReactNode;
   /** Contenu plus dense (ex. détail d'un scan) — largeur et hauteur max augmentées, scroll interne. */
   wide?: boolean;
+  /** Encore plus large (ex. tableau comparatif à plusieurs colonnes) — implique wide, sans changer son comportement pour les autres modales. */
+  veryWide?: boolean;
 }) {
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -25,7 +28,7 @@ export function Modal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-graphite/40 px-4" onClick={onClose}>
       <div
         className={`flex w-full flex-col rounded-card border border-graphite/10 bg-linen p-5 shadow-lg ${
-          wide ? "max-h-[85vh] max-w-2xl" : "max-w-md"
+          veryWide ? "max-h-[85vh] max-w-5xl" : wide ? "max-h-[85vh] max-w-2xl" : "max-w-md"
         }`}
         onClick={(e) => e.stopPropagation()}
       >
@@ -35,7 +38,7 @@ export function Modal({
             <Icon.X width={18} height={18} />
           </button>
         </div>
-        <div className={wide ? "overflow-y-auto" : undefined}>{children}</div>
+        <div className={wide || veryWide ? "overflow-y-auto" : undefined}>{children}</div>
       </div>
     </div>
   );
