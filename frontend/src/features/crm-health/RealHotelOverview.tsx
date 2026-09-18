@@ -171,7 +171,7 @@ export function RealHotelOverview({ hotel }: { hotel: RealHotel }) {
           <button
             type="button"
             onClick={() => setComparisonOpen(true)}
-            className="flex items-center gap-1.5 rounded-lg border border-graphite/15 px-4 py-2 font-medium text-graphite-soft hover:border-terracotta hover:text-terracotta"
+            className="flex items-center gap-1.5 rounded-lg bg-terracotta px-4 py-2 font-medium text-white hover:opacity-90"
           >
             <Icon.Activity width={14} height={14} /> Comparaison
           </button>
