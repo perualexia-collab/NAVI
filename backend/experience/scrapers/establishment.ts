@@ -65,7 +65,11 @@ export function deriveLocation(city: string | null, postalCode: string | null): 
   if (!trimmedCity) return null;
 
   if (trimmedCity.toLowerCase() === "paris" && postalCode) {
-    const match = postalCode.trim().match(/^75(\d{2})$/);
+    // Retour réel 2026-09-18 : un code postal parisien fait 5 chiffres
+    // ("75015"), pas 4 — "75" + "0" + les 2 chiffres de l'arrondissement.
+    // Le motif précédent (4 chiffres) ne matchait donc jamais un vrai code
+    // postal, d'où un "Paris" sans arrondissement en pratique.
+    const match = postalCode.trim().match(/^750(\d{2})$/);
     const arrondissement = match ? Number.parseInt(match[1]!, 10) : null;
     if (arrondissement !== null && arrondissement >= 1 && arrondissement <= 20) {
       return `Paris ${arrondissement}`;

@@ -67,17 +67,6 @@ export function Settings() {
   );
 }
 
-// Phase I1 (retour réel 2026-09-18) — même ligne discrète que CRM Health
-// ("★★★★ · 42 chambres · Paris 6"), sans placeholder pour une info
-// inconnue. "—" seulement si les 3 sont inconnues (ligne vide sinon).
-function hotelInfoLabel(hotel: Pick<RealHotel, "stars" | "roomCount" | "location">): string {
-  const parts: string[] = [];
-  if (hotel.stars !== null) parts.push("★".repeat(hotel.stars));
-  if (hotel.roomCount !== null) parts.push(`${hotel.roomCount} chambres`);
-  if (hotel.location) parts.push(hotel.location);
-  return parts.length > 0 ? parts.join(" · ") : "—";
-}
-
 function HotelsAdmin() {
   const queryClient = useQueryClient();
   const hotelsQuery = useQuery({ queryKey: ["hotels"], queryFn: api.listRealHotels });
@@ -200,7 +189,6 @@ function HotelsAdmin() {
             <tr className="border-b border-graphite/10 text-left text-[11px] uppercase tracking-wide text-graphite-faint">
               <th className="pb-2 font-medium">Hôtel NAVI</th>
               <th className="pb-2 font-medium">Libellé Expérience</th>
-              <th className="pb-2 font-medium">Infos</th>
               <th className="pb-2 font-medium">Statut</th>
               <th className="pb-2 font-medium" />
             </tr>
@@ -208,11 +196,9 @@ function HotelsAdmin() {
           <tbody>
             {hotelsQuery.data.map((hotel) => (
               <tr key={hotel.id} className="border-b border-graphite/5 last:border-0">
-                <td className="py-2.5 font-medium">{hotel.name}</td>
-                <td className="text-graphite-soft">{hotel.experienceLabel}</td>
-                <td className="text-graphite-soft">
+                <td className="py-2.5 font-medium">
                   <div className="flex items-center gap-1.5">
-                    <span>{hotelInfoLabel(hotel)}</span>
+                    <span>{hotel.name}</span>
                     <button
                       onClick={() => openEditModal(hotel)}
                       title="Modifier étoiles/chambres/emplacement"
@@ -222,6 +208,7 @@ function HotelsAdmin() {
                     </button>
                   </div>
                 </td>
+                <td className="text-graphite-soft">{hotel.experienceLabel}</td>
                 <td>
                   <div className="flex items-center gap-1.5">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${EXPERIENCE_STATUS_STYLE[hotel.experienceStatus]}`}>
