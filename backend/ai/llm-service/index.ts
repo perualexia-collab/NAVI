@@ -22,7 +22,7 @@ export function createLlmService(env: LlmServiceEnv): LlmService {
   switch (env.LLM_PROVIDER) {
     case "http-openai-compatible": {
       if (!env.LLM_BASE_URL) throw new Error('LLM_BASE_URL manquant (ex: "https://api.groq.com/openai/v1").');
-      if (!env.LLM_MODEL) throw new Error('LLM_MODEL manquant (ex: "qwen/qwen3.6-27b").');
+      if (!env.LLM_MODEL) throw new Error('LLM_MODEL manquant (ex: "qwen/qwen3.8-27b").');
       if (!env.GROQ_API_KEY) throw new Error("GROQ_API_KEY manquant — renseigner dans backend/.env (jamais committé).");
       return new HttpOpenAiCompatibleProvider({
         baseUrl: env.LLM_BASE_URL,

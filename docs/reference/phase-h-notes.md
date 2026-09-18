@@ -710,4 +710,42 @@ portefeuille réellement nommé (Paris) plutôt que sur un hôtel au
 hasard — déjà une nette amélioration, mais pas la bonne réponse si
 l'intention était vraiment un portefeuille différent nommé "GHP".
 
+## H8 — Groq a retiré `qwen/qwen3.6-27b` sans prévenir (2026-09-18)
+
+Retour réel : Ask NAVI a cessé de répondre du jour au lendemain,
+`LLM Service (404)` en boucle :
+```
+The model `qwen/qwen3.6-27b` does not exist or you do not have access to it.
+```
+Confirmé par recherche web : Groq a retiré `qwen/qwen3.6-27b` de son
+catalogue en préview le 2026-09-18, **sans passer par sa page de
+dépréciation officielle** (contrairement à `qwen/qwen3-32b` en juin,
+qui avait été annoncé). Rien à voir avec du code NAVI — architecture
+provider-agnostic déjà en place (H1) : seul `LLM_MODEL` change.
+
+**Remplacement** : `qwen/qwen3.8-27b` — même famille, même tier preview
+gratuit. Limites Groq (différentes en forme, pas seulement en valeur) :
+**30 req/min, 8000 tokens/min COMBINÉS prompt+réponse** (pas un OTPM
+séparé comme sur `qwen3.6-27b` — voir H1/H4 plus haut), 1000 req/jour,
+200 000 tokens/jour.
+
+Mis à jour : `.env.example` (`LLM_MODEL`), README, message d'erreur
+`llm-service/index.ts`. **Pas mis à jour** : les réglages fins
+`maxTokens: 500` / `reasoningFormat: "hidden"` / `reasoningEffort:
+"none"` (H4/H5, voir plus haut) — ils avaient été calés empiriquement
+contre le comportement d'admission spécifique de `qwen3.6-27b` (seuil
+~1000 OTPM par requête isolée). Le nouveau modèle a un quota combiné
+différent (8000 TPM prompt+réponse plutôt qu'un OTPM dédié) : ces
+réglages devraient rester sans danger (ils réduisent la consommation,
+jamais l'inverse) mais n'ont pas été revalidés avec de vrais échanges
+contre `qwen3.8-27b` au moment de cette note — à surveiller sur les
+prochains vrais tests (empty answers, 429...) plutôt que supposer que
+tout se comporte identiquement.
+
+**Leçon retenue** : le modèle gratuit Groq peut disparaître sans préavis
+ni entrée dans la page de dépréciation — un simple changement de
+`LLM_MODEL` dans `.env`/`.env.example` suffit à corriger, aucune
+modification de code n'est jamais nécessaire pour ce genre d'incident
+grâce à l'architecture provider-agnostic (H1).
+
 Backend typecheck/build passent. Non re-testé.
